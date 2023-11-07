@@ -15,7 +15,7 @@ UratRouter* UratRouter::create(SERVICE* pService)
 
 mxs::RouterSession* UratRouter::newSession(MXS_SESSION* pSession, const mxs::Endpoints& endpoints)
 {
-    const auto& children = m_service->get_children();
+    const auto& children = m_service.get_children();
 
     if (std::find(children.begin(), children.end(), m_config.main) == children.end())
     {
@@ -42,11 +42,9 @@ json_t* UratRouter::diagnostics() const
     return nullptr;
 }
 
-const uint64_t caps = RCAP_TYPE_REQUEST_TRACKING | RCAP_TYPE_RUNTIME_CONFIG;
-
 uint64_t UratRouter::getCapabilities() const
 {
-    return caps;
+    return urat::CAPABILITIES;
 }
 
 bool UratRouter::post_configure()
@@ -54,46 +52,21 @@ bool UratRouter::post_configure()
     bool rval = false;
     std::lock_guard<mxb::shared_mutex> guard(m_rw_lock);
 
-    if (auto exporter = build_exporter(m_config))
+    if (auto sExporter = build_exporter(m_config))
     {
-        m_exporter = std::move(exporter);
+        m_sExporter = std::move(sExporter);
         rval = true;
     }
 
     return rval;
 }
 
-void UratRouter::ship(json_t* obj)
+void UratRouter::ship(json_t* pJson)
 {
     {
         std::shared_lock<mxb::shared_mutex> guard(m_rw_lock);
-        m_exporter->ship(obj);
+        m_sExporter->ship(pJson);
     }
 
-    json_decref(obj);
-}
-
-extern "C" MXS_MODULE* MXS_CREATE_MODULE()
-{
-    const char* desc = "Mirrors SQL statements to multiple targets";
-
-    static MXS_MODULE info =
-    {
-        mxs::MODULE_INFO_VERSION,
-        "urat",
-        mxs::ModuleType::ROUTER,
-        mxs::ModuleStatus::ALPHA,
-        MXS_ROUTER_VERSION,
-        desc,
-        "V1.0.0",
-        caps,
-        &mxs::RouterApi<UratRouter>::s_api,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        UratConfig::spec()
-    };
-
-    return &info;
+    json_decref(pJson);
 }

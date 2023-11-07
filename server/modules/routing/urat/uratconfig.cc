@@ -10,25 +10,25 @@
 namespace
 {
 
-namespace cfg = mxs::config;
+namespace config = maxscale::config;
 
-class UratSpec : public cfg::Specification
+class UratSpec : public config::Specification
 {
 public:
-    using cfg::Specification::Specification;
+    using config::Specification::Specification;
 
 protected:
     template<class Params>
     bool do_post_validate(Params& params) const;
 
-    bool post_validate(const cfg::Configuration* config,
+    bool post_validate(const config::Configuration* config,
                        const mxs::ConfigParameters& params,
                        const std::map<std::string, mxs::ConfigParameters>& nested_params) const override
     {
         return do_post_validate(params);
     }
 
-    bool post_validate(const cfg::Configuration* config,
+    bool post_validate(const config::Configuration* config,
                        json_t* json,
                        const std::map<std::string, json_t*>& nested_params) const override
     {
@@ -36,44 +36,44 @@ protected:
     }
 };
 
-UratSpec s_spec(MXB_MODULE_NAME, cfg::Specification::ROUTER);
+UratSpec s_spec(MXB_MODULE_NAME, config::Specification::ROUTER);
 
-cfg::ParamEnum<ExporterType> s_exporter(
+config::ParamEnum<ExporterType> s_exporter(
     &s_spec, "exporter", "Exporter to use",
     {
         {ExporterType::EXPORT_FILE, "file"},
         {ExporterType::EXPORT_KAFKA, "kafka"},
         {ExporterType::EXPORT_LOG, "log"}
-    }, cfg::Param::AT_RUNTIME);
+    }, config::Param::AT_RUNTIME);
 
-cfg::ParamTarget s_main(
+config::ParamTarget s_main(
     &s_spec, "main", "Server from which responses are returned",
-    cfg::Param::Kind::MANDATORY, cfg::Param::AT_RUNTIME);
+    config::Param::Kind::MANDATORY, config::Param::AT_RUNTIME);
 
-cfg::ParamString s_file(
-    &s_spec, "file", "File where data is exported", "", cfg::Param::AT_RUNTIME);
+config::ParamString s_file(
+    &s_spec, "file", "File where data is exported", "", config::Param::AT_RUNTIME);
 
-cfg::ParamString s_kafka_broker(
-    &s_spec, "kafka_broker", "Kafka broker to use", "", cfg::Param::AT_RUNTIME);
+config::ParamString s_kafka_broker(
+    &s_spec, "kafka_broker", "Kafka broker to use", "", config::Param::AT_RUNTIME);
 
-cfg::ParamString s_kafka_topic(
-    &s_spec, "kafka_topic", "Kafka topic where data is exported", "", cfg::Param::AT_RUNTIME);
+config::ParamString s_kafka_topic(
+    &s_spec, "kafka_topic", "Kafka topic where data is exported", "", config::Param::AT_RUNTIME);
 
-cfg::ParamEnum<ErrorAction> s_on_error(
+config::ParamEnum<ErrorAction> s_on_error(
     &s_spec, "on_error", "What to do when a non-main connection fails",
     {
         {ErrorAction::ERRACT_IGNORE, "ignore"},
         {ErrorAction::ERRACT_CLOSE, "close"},
     },
-    ErrorAction::ERRACT_IGNORE, cfg::Param::AT_RUNTIME);
+    ErrorAction::ERRACT_IGNORE, config::Param::AT_RUNTIME);
 
-cfg::ParamEnum<ReportAction> s_report(
+config::ParamEnum<ReportAction> s_report(
     &s_spec, "report", "When to generate the report for an SQL command",
     {
         {ReportAction::REPORT_ALWAYS, "always"},
         {ReportAction::REPORT_ON_CONFLICT, "on_conflict"},
     },
-    ReportAction::REPORT_ALWAYS, cfg::Param::AT_RUNTIME);
+    ReportAction::REPORT_ALWAYS, config::Param::AT_RUNTIME);
 
 template<class Params>
 bool UratSpec::do_post_validate(Params& params) const
@@ -108,16 +108,16 @@ bool UratSpec::do_post_validate(Params& params) const
 }
 
 // static
-mxs::config::Specification* UratConfig::spec()
+mxs::config::Specification* UratConfig::specification()
 {
     return &s_spec;
 }
 
-UratConfig::UratConfig(const char* name, UratRouter* instance)
-    : mxs::config::Configuration(name, &s_spec)
+UratConfig::UratConfig(const char* zName, UratRouter* pInstance)
+    : mxs::config::Configuration(zName, &s_spec)
     , on_error(this, &s_on_error)
     , report(this, &s_report)
-    , m_instance(instance)
+    , m_instance(*pInstance)
 {
     add_native(&UratConfig::exporter, &s_exporter);
     add_native(&UratConfig::main, &s_main);
@@ -128,5 +128,5 @@ UratConfig::UratConfig(const char* name, UratRouter* instance)
 
 bool UratConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)
 {
-    return m_instance->post_configure();
+    return m_instance.post_configure();
 }

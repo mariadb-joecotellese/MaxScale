@@ -10,14 +10,14 @@
 
 using namespace maxscale;
 
-UratSession::UratSession(MXS_SESSION* session, UratRouter* router, SUratBackends backends)
-    : RouterSession(session)
+UratSession::UratSession(MXS_SESSION* pSession, UratRouter* pRouter, SUratBackends backends)
+    : RouterSession(pSession)
     , m_backends(std::move(backends))
-    , m_router(router)
+    , m_router(*pRouter)
 {
     for (const auto& a : m_backends)
     {
-        if (a->target() == m_router->get_main())
+        if (a->target() == m_router.get_main())
         {
             m_main = a.get();
         }
@@ -163,7 +163,7 @@ bool UratSession::handleError(mxs::ErrorType type,
     backend->close();
 
     // We can continue as long as the main connection isn't dead
-    bool ok = m_router->config().on_error.get() == ErrorAction::ERRACT_IGNORE && backend != m_main;
+    bool ok = m_router.config().on_error.get() == ErrorAction::ERRACT_IGNORE && backend != m_main;
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
@@ -171,7 +171,7 @@ bool UratSession::should_report() const
 {
     bool rval = true;
 
-    if (m_router->config().report.get() == ReportAction::REPORT_ON_CONFLICT)
+    if (m_router.config().report.get() == ReportAction::REPORT_ON_CONFLICT)
     {
         rval = false;
         std::string checksum;
@@ -199,35 +199,35 @@ void UratSession::generate_report()
 {
     if (should_report())
     {
-        json_t* obj = json_object();
-        json_object_set_new(obj, "query", json_string(m_query.c_str()));
-        json_object_set_new(obj, "command", json_string(mariadb::cmd_to_string(m_command)));
-        json_object_set_new(obj, "session", json_integer(m_pSession->id()));
-        json_object_set_new(obj, "query_id", json_integer(++m_num_queries));
+        json_t* pJson = json_object();
+        json_object_set_new(pJson, "query", json_string(m_query.c_str()));
+        json_object_set_new(pJson, "command", json_string(mariadb::cmd_to_string(m_command)));
+        json_object_set_new(pJson, "session", json_integer(m_pSession->id()));
+        json_object_set_new(pJson, "query_id", json_integer(++m_num_queries));
 
-        json_t* arr = json_array();
+        json_t* pArr = json_array();
 
-        for (const auto& a : m_backends)
+        for (const auto& sBackend : m_backends)
         {
-            if (a->in_use())
+            if (sBackend->in_use())
             {
-                const char* type = a->reply().error() ?
-                    "error" : (a->reply().is_resultset() ? "resultset" : "ok");
+                const char* type = sBackend->reply().error() ?
+                    "error" : (sBackend->reply().is_resultset() ? "resultset" : "ok");
 
-                json_t* o = json_object();
-                json_object_set_new(o, "target", json_string(a->name()));
-                json_object_set_new(o, "checksum", json_string(a->checksum().hex().c_str()));
-                json_object_set_new(o, "rows", json_integer(a->reply().rows_read()));
-                json_object_set_new(o, "warnings", json_integer(a->reply().num_warnings()));
-                json_object_set_new(o, "duration", json_integer(a->duration()));
-                json_object_set_new(o, "type", json_string(type));
+                json_t* pO = json_object();
+                json_object_set_new(pO, "target", json_string(sBackend->name()));
+                json_object_set_new(pO, "checksum", json_string(sBackend->checksum().hex().c_str()));
+                json_object_set_new(pO, "rows", json_integer(sBackend->reply().rows_read()));
+                json_object_set_new(pO, "warnings", json_integer(sBackend->reply().num_warnings()));
+                json_object_set_new(pO, "duration", json_integer(sBackend->duration()));
+                json_object_set_new(pO, "type", json_string(type));
 
-                json_array_append_new(arr, o);
+                json_array_append_new(pArr, pO);
             }
         }
 
-        json_object_set_new(obj, "results", arr);
+        json_object_set_new(pJson, "results", pArr);
 
-        m_router->ship(obj);
+        m_router.ship(pJson);
     }
 }

@@ -8,20 +8,20 @@
 #include "uratdefs.hh"
 
 #include <maxbase/jansson.hh>
-#include <maxscale/ccdefs.hh>
 
 #include "uratconfig.hh"
 
-struct UratExporter
+class UratExporter
 {
+public:
     virtual ~UratExporter() = default;
 
     /**
      * Ship a JSON object outside of MaxScale
      *
-     * @param obj JSON object to ship
+     * @param pJson JSON object to ship
      */
-    virtual void ship(json_t* obj) = 0;
+    virtual void ship(json_t* pJson) = 0;
 };
 
 std::unique_ptr<UratExporter> build_exporter(const UratConfig& config);

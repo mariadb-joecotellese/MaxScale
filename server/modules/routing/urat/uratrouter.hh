@@ -57,12 +57,12 @@ public:
 private:
     UratRouter(SERVICE* pService)
         : m_config(pService->name(), this)
-        , m_service(pService)
+        , m_service(*pService)
     {
     }
 
     UratConfig                    m_config;
-    std::unique_ptr<UratExporter> m_exporter;
+    std::unique_ptr<UratExporter> m_sExporter;
     mxb::shared_mutex             m_rw_lock;
-    SERVICE*                      m_service;
+    SERVICE&                      m_service;
 };

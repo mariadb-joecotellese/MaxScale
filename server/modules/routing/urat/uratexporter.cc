@@ -17,9 +17,9 @@
 class LogExporter : public UratExporter
 {
 public:
-    void ship(json_t* obj) override final
+    void ship(json_t* pJson) override final
     {
-        MXB_INFO("%s", mxb::json_dump(obj, JSON_COMPACT).c_str());
+        MXB_INFO("%s", mxb::json_dump(pJson, JSON_COMPACT).c_str());
     }
 };
 
@@ -37,9 +37,9 @@ public:
         close(m_fd);
     }
 
-    void ship(json_t* obj) override final
+    void ship(json_t* pJson) override final
     {
-        auto str = mxb::json_dump(obj, JSON_COMPACT) + '\n';
+        auto str = mxb::json_dump(pJson, JSON_COMPACT) + '\n';
         write(m_fd, str.c_str(), str.length());
     }
 
@@ -51,31 +51,31 @@ private:
 class KafkaExporter : public UratExporter
 {
 public:
-    KafkaExporter(RdKafka::Producer* producer, const std::string& topic)
-        : m_producer(producer)
+    KafkaExporter(RdKafka::Producer* pProducer, const std::string& topic)
+        : m_sProducer(pProducer)
         , m_topic(topic)
     {
     }
 
     ~KafkaExporter()
     {
-        m_producer->flush(10000);
+        m_sProducer->flush(10000);
     }
 
-    void ship(json_t* obj) override final
+    void ship(json_t* pJson) override final
     {
-        char* json = json_dumps(obj, JSON_COMPACT);
+        char* json = json_dumps(pJson, JSON_COMPACT);
 
-        while (m_producer->produce(
+        while (m_sProducer->produce(
                    m_topic, RdKafka::Topic::PARTITION_UA, RdKafka::Producer::RK_MSG_FREE,
                    json, strlen(json), nullptr, 0, 0, nullptr) == RdKafka::ERR__QUEUE_FULL)
         {
-            m_producer->poll(1000);
+            m_sProducer->poll(1000);
         }
     }
 
 private:
-    std::unique_ptr<RdKafka::Producer> m_producer;
+    std::unique_ptr<RdKafka::Producer> m_sProducer;
     std::string                        m_topic;
 };
 
@@ -109,13 +109,13 @@ std::unique_ptr<UratExporter> build_exporter(const UratConfig& config)
     case ExporterType::EXPORT_KAFKA:
         {
             std::string err;
-            auto cnf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
+            auto* pCnf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
 
-            if (cnf->set("bootstrap.servers", config.kafka_broker, err) == RdKafka::Conf::ConfResult::CONF_OK)
+            if (pCnf->set("bootstrap.servers", config.kafka_broker, err) == RdKafka::Conf::ConfResult::CONF_OK)
             {
-                if (auto producer = RdKafka::Producer::create(cnf, err))
+                if (auto* pProducer = RdKafka::Producer::create(pCnf, err))
                 {
-                    rval.reset(new KafkaExporter(producer, config.kafka_topic));
+                    rval.reset(new KafkaExporter(pProducer, config.kafka_topic));
                 }
                 else
                 {
@@ -127,7 +127,7 @@ std::unique_ptr<UratExporter> build_exporter(const UratConfig& config)
                 MXB_ERROR("Failed to set Kafka parameter `bootstrap.servers`: %s", err.c_str());
             }
 
-            delete cnf;
+            delete pCnf;
         }
         break;
     }

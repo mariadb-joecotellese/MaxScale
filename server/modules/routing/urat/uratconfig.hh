@@ -31,9 +31,13 @@ enum ReportAction
 
 class UratRouter;
 
-struct UratConfig : public mxs::config::Configuration
+class UratConfig : public mxs::config::Configuration
 {
-    UratConfig(const char* name, UratRouter* instance);
+public:
+    UratConfig(const UratConfig&) = delete;
+    UratConfig& operator=(const UratConfig&) = delete;
+
+    UratConfig(const char* zName, UratRouter* pInstance);
 
     mxs::Target* main;
     ExporterType exporter;
@@ -44,11 +48,11 @@ struct UratConfig : public mxs::config::Configuration
     mxs::config::Enum<ErrorAction>  on_error;
     mxs::config::Enum<ReportAction> report;
 
-    static mxs::config::Specification* spec();
+    static mxs::config::Specification* specification();
 
 protected:
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;
 
 private:
-    UratRouter* m_instance;
+    UratRouter& m_instance;
 };

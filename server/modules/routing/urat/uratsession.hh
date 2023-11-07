@@ -22,7 +22,7 @@ public:
     UratSession(const UratSession&) = delete;
     UratSession& operator=(const UratSession&) = delete;
 
-    UratSession(MXS_SESSION* session, UratRouter* router, SUratBackends backends);
+    UratSession(MXS_SESSION* pSession, UratRouter* pRouter, SUratBackends backends);
 
     bool routeQuery(GWBUF&& packet) override;
 
@@ -35,7 +35,7 @@ private:
     SUratBackends     m_backends;
     UratBackend*      m_main = nullptr;
     int               m_responses = 0;
-    UratRouter*       m_router;
+    UratRouter&       m_router;
     std::deque<GWBUF> m_queue;
     std::string       m_query;
     uint8_t           m_command = 0;
