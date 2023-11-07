@@ -206,23 +206,28 @@ describe('ServiceDetail index', () => {
             expect(wrapper.vm.sessionsTableRows[0].memory).to.be.an('object')
         })
 
-        it(`Should pass necessary props to 'ROUTER DIAGNOSTICS' table`, async () => {
-            await wrapper.setData({
-                currentActiveTab: 1,
-            })
-            await wrapper.vm.$nextTick(() => {
-                const diagnosticsTable = wrapper.findComponent({
-                    ref: 'diagnostics-table',
-                })
-                expect(diagnosticsTable.exists()).to.be.true
-                const { title, tableData, isTree, expandAll } = diagnosticsTable.vm.$props
-                const { routerDiagnostics } = wrapper.vm
+        it(`Should pass necessary props value to 'STATISTICS' table`, async () => {
+            await wrapper.setData({ currentActiveTab: 1 })
+            const statsTable = wrapper.findComponent({ ref: 'stats-table' })
+            expect(statsTable.exists()).to.be.true
+            const { title, tableData } = statsTable.vm.$props
+            expect(title).to.be.equals('statistics')
+            expect(tableData).to.be.deep.equals(wrapper.vm.serviceStats)
+        })
 
-                expect(title).to.be.equals('Router Diagnostics')
-                expect(tableData).to.be.equals(routerDiagnostics)
-                expect(isTree).to.be.true
-                expect(expandAll).to.be.true
+        it(`Should pass necessary props to 'ROUTER DIAGNOSTICS' table`, async () => {
+            await wrapper.setData({ currentActiveTab: 1 })
+            const diagnosticsTable = wrapper.findComponent({
+                ref: 'diagnostics-table',
             })
+            expect(diagnosticsTable.exists()).to.be.true
+            const { title, tableData, isTree, expandAll } = diagnosticsTable.vm.$props
+            const { routerDiagnostics } = wrapper.vm
+
+            expect(title).to.be.equals('Router Diagnostics')
+            expect(tableData).to.be.equals(routerDiagnostics)
+            expect(isTree).to.be.true
+            expect(expandAll).to.be.true
         })
 
         it(`Should compute router diagnostics with accurate data format`, () => {
@@ -285,12 +290,12 @@ describe('ServiceDetail index', () => {
                     const {
                         relationshipType,
                         tableRows,
-                        getRelationshipData: getRelationshipDataProps,
+                        getRelationshipData,
                         addable,
                         removable,
                     } = relationshipTable.vm.$props
                     const {
-                        getRelationshipData,
+                        getResourceData,
                         $data: { filtersTableRows, listenersTableRows },
                     } = wrapper.vm
 
@@ -298,11 +303,11 @@ describe('ServiceDetail index', () => {
                     expect(relationshipType).to.be.equals(name)
 
                     if (name === 'listeners') {
-                        expect(getRelationshipDataProps).to.be.undefined
+                        expect(getRelationshipData).to.be.undefined
                         expect(addable).to.be.true
                         expect(removable).to.be.false
                     } else {
-                        expect(getRelationshipDataProps).to.be.equals(getRelationshipData)
+                        expect(getRelationshipData).to.eql(getResourceData)
                         expect(addable).to.be.true
                         expect(removable).to.be.true
                     }
@@ -391,7 +396,7 @@ describe('ServiceDetail index', () => {
                             ]
                     }
                     sinon
-                        .stub(wrapper.vm, 'getRelationshipData')
+                        .stub(wrapper.vm, 'getResourceData')
                         .returns(Promise.resolve(dummy_resource))
 
                     await wrapper.vm.processRelationshipTable(type)

@@ -93,6 +93,7 @@
 
 For more details, please refer to:
 
+* [MariaDB MaxScale 23.08.3 Release Notes](Release-Notes/MaxScale-23.08.3-Release-Notes.md)
 * [MariaDB MaxScale 23.08.2 Release Notes](Release-Notes/MaxScale-23.08.2-Release-Notes.md)
 * [MariaDB MaxScale 23.08.1 Release Notes](Release-Notes/MaxScale-23.08.1-Release-Notes.md)
 * [MariaDB MaxScale 23.08.0 Release Notes](Release-Notes/MaxScale-23.08.0-Release-Notes.md)
@@ -166,6 +167,7 @@ For more details, please refer to:
 
 For more details, please refer to:
 
+* [MariaDB MaxScale 23.02.6 Release Notes](Release-Notes/MaxScale-23.02.6-Release-Notes.md)
 * [MariaDB MaxScale 23.02.5 Release Notes](Release-Notes/MaxScale-23.02.5-Release-Notes.md)
 * [MariaDB MaxScale 23.02.4 Release Notes](Release-Notes/MaxScale-23.02.4-Release-Notes.md)
 * [MariaDB MaxScale 23.02.3 Release Notes](Release-Notes/MaxScale-23.02.3-Release-Notes.md)
@@ -205,6 +207,7 @@ For more details, please refer to:
 
 For more details, please refer to:
 
+* [MariaDB MaxScale 22.08.10 Release Notes](Release-Notes/MaxScale-22.08.10-Release-Notes.md)
 * [MariaDB MaxScale 22.08.9 Release Notes](Release-Notes/MaxScale-22.08.9-Release-Notes.md)
 * [MariaDB MaxScale 22.08.8 Release Notes](Release-Notes/MaxScale-22.08.8-Release-Notes.md)
 * [MariaDB MaxScale 22.08.7 Release Notes](Release-Notes/MaxScale-22.08.7-Release-Notes.md)
@@ -224,6 +227,7 @@ For more details, please refer to:
 
 For more details, please refer to:
 
+* [MariaDB MaxScale 6.4.12 Release Notes](Release-Notes/MaxScale-6.4.12-Release-Notes.md)
 * [MariaDB MaxScale 6.4.11 Release Notes](Release-Notes/MaxScale-6.4.11-Release-Notes.md)
 * [MariaDB MaxScale 6.4.10 Release Notes](Release-Notes/MaxScale-6.4.10-Release-Notes.md)
 * [MariaDB MaxScale 6.4.9 Release Notes](Release-Notes/MaxScale-6.4.9-Release-Notes.md)

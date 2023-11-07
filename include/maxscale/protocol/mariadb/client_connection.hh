@@ -196,6 +196,7 @@ private:
     void update_user_account_entry(mariadb::AuthenticationData& auth_data);
     void set_passthrough_account_entry(mariadb::AuthenticationData& auth_data);
     void assign_backend_authenticator(mariadb::AuthenticationData& auth_data);
+    void schedule_reverse_name_lookup();
 
     mariadb::AuthenticatorModule* find_auth_module(const std::string& plugin_name);
     const MariaDBUserCache*       user_account_cache();
@@ -260,7 +261,9 @@ private:
     enum class AuthState
     {
         FIND_ENTRY,         /**< Find user account entry */
+        FIND_ENTRY_RDNS,    /**< Waiting for rdns */
         TRY_AGAIN,          /**< Find user entry again with new data */
+        TRY_AGAIN_RDNS,     /**< Waiting for rdns after fetching user data */
         NO_PLUGIN,          /**< Requested plugin is not loaded */
         START_EXCHANGE,     /**< Begin authenticator module exchange */
         CONTINUE_EXCHANGE,  /**< Continue exchange */

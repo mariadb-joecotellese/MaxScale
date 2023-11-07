@@ -44,6 +44,7 @@
 #include <maxscale/routingworker.hh>
 #include <maxscale/session.hh>
 #include <maxscale/ssl.hh>
+#include <maxscale/threadpool.hh>
 #include <maxscale/version.hh>
 #include <maxsql/mariadb.hh>
 
@@ -707,6 +708,35 @@ MariaDBClientConnection::process_authentication(AuthType auth_type)
         *m_change_user.auth_data;
     const auto& user_entry_type = auth_data.user_entry.type;
 
+    auto bad_user_account = [this, &state_machine_continue, &user_entry_type]() {
+        // Something is wrong with the entry. Authentication will likely fail.
+        mxb_assert(user_entry_type != UserEntryType::NEED_NAMEINFO);
+        if (user_account_cache()->can_update_immediately())
+        {
+            // User data may be outdated, send update message through the service.
+            // The current session will stall until userdata has been updated.
+            m_session->service->request_user_account_update();
+            m_session->service->mark_for_wakeup(this);
+            m_auth_state = AuthState::TRY_AGAIN;
+            state_machine_continue = false;
+        }
+        else
+        {
+            MXB_WARNING(MariaDBUserManager::RECENTLY_UPDATED_FMT,
+                        m_session_data->user_and_host().c_str());
+            // If plugin exists, start exchange. Authentication will surely fail.
+            m_auth_state = (user_entry_type == UserEntryType::PLUGIN_IS_NOT_LOADED) ?
+                AuthState::NO_PLUGIN : AuthState::START_EXCHANGE;
+        }
+    };
+
+    auto data_during_rdns = [this]() {
+        MXB_ERROR("Client %s sent data when waiting for reverse name lookup. Closing session.",
+                  m_session_data->user_and_host().c_str());
+        send_misc_error("Unexpected client event");
+        m_auth_state = AuthState::FAIL;
+    };
+
     while (state_machine_continue)
     {
         switch (m_auth_state)
@@ -726,27 +756,35 @@ MariaDBClientConnection::process_authentication(AuthType auth_type)
                 {
                     m_auth_state = AuthState::START_EXCHANGE;
                 }
+                else if (user_entry_type == UserEntryType::NEED_NAMEINFO)
+                {
+                    schedule_reverse_name_lookup();
+                    m_auth_state = AuthState::FIND_ENTRY_RDNS;
+                    state_machine_continue = false;
+                }
                 else
                 {
-                    // Something is wrong with the entry. Authentication will likely fail.
-                    if (user_account_cache()->can_update_immediately())
-                    {
-                        // User data may be outdated, send update message through the service.
-                        // The current session will stall until userdata has been updated.
-                        m_session->service->request_user_account_update();
-                        m_session->service->mark_for_wakeup(this);
-                        m_auth_state = AuthState::TRY_AGAIN;
-                        state_machine_continue = false;
-                    }
-                    else
-                    {
-                        MXB_WARNING(MariaDBUserManager::RECENTLY_UPDATED_FMT,
-                                    m_session_data->user_and_host().c_str());
-                        // If plugin exists, start exchange. Authentication will surely fail.
-                        m_auth_state = (user_entry_type == UserEntryType::PLUGIN_IS_NOT_LOADED) ?
-                            AuthState::NO_PLUGIN : AuthState::START_EXCHANGE;
-                    }
+                    bad_user_account();
                 }
+            }
+            break;
+
+        case AuthState::FIND_ENTRY_RDNS:
+            if (m_session_data->host.has_value())
+            {
+                update_user_account_entry(auth_data);
+                if (user_entry_type == UserEntryType::USER_ACCOUNT_OK)
+                {
+                    m_auth_state = AuthState::START_EXCHANGE;
+                }
+                else
+                {
+                    bad_user_account();
+                }
+            }
+            else
+            {
+                data_during_rdns();
             }
             break;
 
@@ -766,9 +804,19 @@ MariaDBClientConnection::process_authentication(AuthType auth_type)
                     {
                         MXB_DEBUG("Found user account entry for %s after updating user account data.",
                                   m_session_data->user_and_host().c_str());
+                        m_auth_state = AuthState::START_EXCHANGE;
                     }
-                    m_auth_state = (user_entry_type == UserEntryType::PLUGIN_IS_NOT_LOADED) ?
-                        AuthState::NO_PLUGIN : AuthState::START_EXCHANGE;
+                    else if (user_entry_type == UserEntryType::NEED_NAMEINFO)
+                    {
+                        schedule_reverse_name_lookup();
+                        m_auth_state = AuthState::TRY_AGAIN_RDNS;
+                        state_machine_continue = false;
+                    }
+                    else
+                    {
+                        m_auth_state = (user_entry_type == UserEntryType::PLUGIN_IS_NOT_LOADED) ?
+                            AuthState::NO_PLUGIN : AuthState::START_EXCHANGE;
+                    }
                 }
                 else
                 {
@@ -781,6 +829,28 @@ MariaDBClientConnection::process_authentication(AuthType auth_type)
                     m_session->service->unmark_for_wakeup(this);
                     m_auth_state = AuthState::FAIL;
                 }
+            }
+            break;
+
+        case AuthState::TRY_AGAIN_RDNS:
+            if (m_session_data->host.has_value())
+            {
+                update_user_account_entry(auth_data);
+                if (user_entry_type == UserEntryType::USER_ACCOUNT_OK)
+                {
+                    MXB_DEBUG("Found user account entry for %s after updating user account data.",
+                              m_session_data->user_and_host().c_str());
+                    m_auth_state = AuthState::START_EXCHANGE;
+                }
+                else
+                {
+                    m_auth_state = (user_entry_type == UserEntryType::PLUGIN_IS_NOT_LOADED) ?
+                        AuthState::NO_PLUGIN : AuthState::START_EXCHANGE;
+                }
+            }
+            else
+            {
+                data_during_rdns();
             }
             break;
 
@@ -913,25 +983,29 @@ void MariaDBClientConnection::update_user_account_entry(mariadb::AuthenticationD
     auto* users = user_account_cache();
     auto search_res = users->find_user(auth_data.user, mses->remote, auth_data.default_db,
                                        mses->user_search_settings);
-    m_previous_userdb_version = users->version();   // Can use this to skip user entry check after update.
+    // NEED_NAMEINFO is a special case and skips other checks.
+    if (search_res.type != UserEntryType::NEED_NAMEINFO)
+    {
+        m_previous_userdb_version = users->version();   // Can use this to skip user entry check after update.
 
-    mariadb::AuthenticatorModule* selected_module = find_auth_module(search_res.entry.plugin);
-    if (selected_module)
-    {
-        // Correct plugin is loaded, generate session-specific data.
-        auth_data.client_auth_module = selected_module;
-        // If changing user, this overrides the old client authenticator. Not an issue, as the client auth
-        // is only used during authentication.
-        m_authenticator = selected_module->create_client_authenticator(*this);
-    }
-    else
-    {
-        // Authentication cannot continue in this case. Should be rare, though.
-        search_res.type = UserEntryType::PLUGIN_IS_NOT_LOADED;
-        MXB_INFO("User entry '%s'@'%s' uses unrecognized authenticator plugin '%s'. "
-                 "Cannot authenticate user.",
-                 search_res.entry.username.c_str(), search_res.entry.host_pattern.c_str(),
-                 search_res.entry.plugin.c_str());
+        mariadb::AuthenticatorModule* selected_module = find_auth_module(search_res.entry.plugin);
+        if (selected_module)
+        {
+            // Correct plugin is loaded, generate session-specific data.
+            auth_data.client_auth_module = selected_module;
+            // If changing user, this overrides the old client authenticator. Not an issue, as the client auth
+            // is only used during authentication.
+            m_authenticator = selected_module->create_client_authenticator(*this);
+        }
+        else
+        {
+            // Authentication cannot continue in this case. Should be rare, though.
+            search_res.type = UserEntryType::PLUGIN_IS_NOT_LOADED;
+            MXB_INFO("User entry '%s'@'%s' uses unrecognized authenticator plugin '%s'. "
+                     "Cannot authenticate user.",
+                     search_res.entry.username.c_str(), search_res.entry.host_pattern.c_str(),
+                     search_res.entry.plugin.c_str());
+        }
     }
     auth_data.user_entry = move(search_res);
 }
@@ -2233,7 +2307,8 @@ void MariaDBClientConnection::wakeup()
 bool MariaDBClientConnection::is_movable() const
 {
     mxb_assert(mxs::RoutingWorker::get_current() == m_dcb->polling_worker());
-    return m_auth_state != AuthState::TRY_AGAIN;
+    return m_auth_state != AuthState::TRY_AGAIN && m_auth_state != AuthState::FIND_ENTRY_RDNS
+           && m_auth_state != AuthState::TRY_AGAIN_RDNS;
 }
 
 bool MariaDBClientConnection::is_idle() const
@@ -3602,4 +3677,65 @@ void MariaDBClientConnection::deliver_backend_auth_result(GWBUF&& auth_reply)
     }
 
     m_dcb->trigger_read_event();
+}
+
+void MariaDBClientConnection::schedule_reverse_name_lookup()
+{
+    // Need hostname resolution. Run it in the common threadpool.
+    auto fetch_nameinfo = [ses_id = m_session->id(), orig_worker = m_session->worker(),
+                           user = m_session_data->auth_data->user, client_addr = m_dcb->ip()]() {
+        mxb::StopWatch timer;
+        auto [lu_success, lu_res] = mxb::reverse_name_lookup(&client_addr);
+        auto time_elapsed = timer.split();
+        bool too_long = time_elapsed > 1s;
+        if (too_long || !lu_success)
+        {
+            // Lookup failed and/or took a while. Log a warning.
+            string addr_str = mxb::ntop(&client_addr);
+            auto seconds = mxb::to_secs(time_elapsed);
+            const char can_be_prevented[] = "The resolution can be prevented either by removing text-form "
+                                            "hostname accounts (e.g. user@hostname.com) for that user or by "
+                                            "enabling 'skip_name_resolve' in MaxScale settings.";
+            if (lu_success)
+            {
+                MXB_WARNING("Reverse name lookup of address '%s' of incoming client '%s' succeeded but "
+                            "took %.1f seconds. %s",
+                            addr_str.c_str(), user.c_str(), seconds, can_be_prevented);
+            }
+            else if (too_long)
+            {
+                MXB_WARNING("Reverse name lookup of address '%s' of incoming client '%s' failed: %s The "
+                            "operation took %.1f seconds. %s",
+                            addr_str.c_str(), user.c_str(), lu_res.c_str(), seconds,
+                            can_be_prevented);
+            }
+            else
+            {
+                MXB_WARNING("Reverse name lookup of address '%s' of incoming client '%s' failed: %s",
+                            addr_str.c_str(), user.c_str(), lu_res.c_str());
+            }
+        }
+        else
+        {
+            MXB_INFO("Client '%s' address '%s' resolved to '%s'.",
+                     user.c_str(), mxb::ntop(&client_addr).c_str(), lu_res.c_str());
+        }
+
+        string resolved_host = lu_success ? std::move(lu_res) : "";
+        auto continue_auth = [ses_id, orig_worker, host = std::move(resolved_host)]() {
+            mxb_assert(mxs::RoutingWorker::get_current() == orig_worker);
+            // The session could have died while name resolution was running.
+            auto ses = orig_worker->session_registry().lookup(ses_id);
+            if (ses)
+            {
+                auto mariadb_ses = static_cast<MYSQL_session*>(ses->protocol_data());
+                mariadb_ses->host = host;
+                // Send fake read event to get the connection state machine running.
+                ses->client_dcb->trigger_read_event();
+            }
+        };
+        // Send the result to the original worker.
+        orig_worker->execute(continue_auth, mxs::RoutingWorker::EXECUTE_QUEUED);
+    };
+    mxs::thread_pool().execute(fetch_nameinfo, "rdns");
 }
