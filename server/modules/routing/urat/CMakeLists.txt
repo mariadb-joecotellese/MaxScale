@@ -1,6 +1,7 @@
 add_library(urat SHARED
   urat.cc
   uratbackend.cc
+  uratcommands.cc
   uratconfig.cc
   uratexporter.cc
   uratrouter.cc

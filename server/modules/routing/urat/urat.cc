@@ -5,10 +5,13 @@
  */
 
 #include "uratrouter.hh"
+#include "uratcommands.hh"
 
 
 extern "C" MXS_MODULE* MXS_CREATE_MODULE()
 {
+    urat_register_commands();
+
     const char* zDesc = "Upgrade Risk Assessment Tool";
 
     static MXS_MODULE info =
