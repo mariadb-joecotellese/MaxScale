@@ -21,11 +21,11 @@
         <template v-slot:append>
             <portal to="page-header--right">
                 <global-search class="d-inline-block" />
-                <create-resource
+                <create-mxs-obj
                     class="ml-4 d-inline-block"
                     :defRelationshipObj="{
                         id: $route.params.id,
-                        type: RELATIONSHIP_TYPES.FILTERS,
+                        type: MXS_OBJ_TYPES.FILTERS,
                     }"
                 />
             </portal>
@@ -73,7 +73,7 @@ export default {
         }
     },
     computed: {
-        ...mapState({ RELATIONSHIP_TYPES: state => state.app_config.RELATIONSHIP_TYPES }),
+        ...mapState({ MXS_OBJ_TYPES: state => state.app_config.MXS_OBJ_TYPES }),
     },
     methods: {
         ...mapActions('filter', ['destroyFilter']),

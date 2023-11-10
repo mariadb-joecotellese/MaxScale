@@ -52,12 +52,12 @@
             <portal to="page-header--right">
                 <slot name="refresh-rate" />
                 <global-search class="ml-4 d-inline-block" />
-                <create-resource
+                <create-mxs-obj
                     class="ml-4 d-inline-block"
-                    :defFormType="RESOURCE_FORM_TYPES.SERVER"
+                    :defFormType="MXS_OBJ_TYPES.SERVERS"
                     :defRelationshipObj="{
                         id: $route.params.id,
-                        type: RELATIONSHIP_TYPES.SERVICES,
+                        type: MXS_OBJ_TYPES.SERVICES,
                     }"
                 />
             </portal>
@@ -116,10 +116,7 @@ export default {
         }
     },
     computed: {
-        ...mapState({
-            RESOURCE_FORM_TYPES: state => state.app_config.RESOURCE_FORM_TYPES,
-            RELATIONSHIP_TYPES: state => state.app_config.RELATIONSHIP_TYPES,
-        }),
+        ...mapState({ MXS_OBJ_TYPES: state => state.app_config.MXS_OBJ_TYPES }),
         serviceState() {
             return this.currentService.attributes.state
         },

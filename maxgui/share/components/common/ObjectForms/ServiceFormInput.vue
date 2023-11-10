@@ -1,6 +1,6 @@
 <template>
     <div class="mb-2">
-        <module-parameters ref="moduleInputs" moduleName="router" :modules="resourceModules" />
+        <module-parameters ref="moduleInputs" moduleName="router" :modules="modules" />
         <mxs-collapse
             wrapperClass="mt-4"
             titleWrapperClass="mx-n9"
@@ -36,9 +36,8 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
-
-import ModuleParameters from './ModuleParameters'
-import ResourceRelationships from './ResourceRelationships'
+import ModuleParameters from '@share/components/common/ObjectForms/ModuleParameters'
+import ResourceRelationships from '@share/components/common/ObjectForms/ResourceRelationships'
 
 export default {
     name: 'service-form-input',
@@ -47,7 +46,7 @@ export default {
         ResourceRelationships,
     },
     props: {
-        resourceModules: { type: Array, required: true },
+        modules: { type: Array, required: true },
         allFilters: { type: Array, required: true },
         defaultItems: { type: [Array, Object], default: () => [] },
     },

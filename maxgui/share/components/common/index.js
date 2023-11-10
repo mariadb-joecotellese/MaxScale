@@ -11,7 +11,7 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
-import CreateResource from '@share/components/common/CreateResource'
+import CreateMxsObj from '@share/components/common/CreateMxsObj'
 import DataTable from '@share/components/common/DataTable'
 import DurationDropdown from '@share/components/common/DurationDropdown'
 import DetailsPage from '@share/components/common/DetailsPage'
@@ -25,6 +25,7 @@ import MxsLineChartStream from '@share/components/common/MxsCharts/MxsLineChartS
 import MxsDagGraph from '@share/components/common/MxsSvgGraphs/MxsDagGraph.vue'
 import MxsTreeGraph from '@share/components/common/MxsSvgGraphs/MxsTreeGraph.vue'
 import MxsTreeGraphNode from '@share/components/common/MxsSvgGraphs/MxsTreeGraphNode.vue'
+import ObjectForms from '@share/components/common/ObjectForms'
 import PageWrapper from '@share/components/common/PageWrapper'
 import Parameters from '@share/components/common/Parameters'
 import RepTooltip from '@share/components/common/RepTooltip'
@@ -39,7 +40,7 @@ import { workspaceComponents } from '@wsSrc/components/common'
 export default {
     ...shared,
     ...workspaceComponents,
-    'create-resource': CreateResource,
+    'create-mxs-obj': CreateMxsObj,
     'data-table': DataTable,
     'duration-dropdown': DurationDropdown,
     ...DetailsPage,
@@ -53,6 +54,7 @@ export default {
     'mxs-dag-graph': MxsDagGraph,
     'mxs-tree-graph': MxsTreeGraph,
     'mxs-tree-graph-node': MxsTreeGraphNode,
+    ...ObjectForms,
     'page-wrapper': PageWrapper,
     ...Parameters,
     'rep-tooltip': RepTooltip,

@@ -1,6 +1,6 @@
 <template>
     <mxs-collapse
-        wrapperClass="mt-4 d-inline-flex flex-column"
+        wrapperClass="d-flex flex-column"
         titleWrapperClass="mx-n9"
         :toggleOnClick="() => (showParameters = !showParameters)"
         :isContentVisible="showParameters"
@@ -27,7 +27,7 @@
             <template v-slot:value="{ data: { item } }">
                 <parameter-input-container
                     :item="item"
-                    :parentForm="parentForm"
+                    :validate="validate"
                     :usePortOrSocket="usePortOrSocket"
                     :changedParametersArr="changedParametersArr"
                     :portValue="portValue"
@@ -78,9 +78,9 @@ export default {
     mixins: [getParamInfo],
     props: {
         parameters: { type: Array, required: true },
-        // specical props to manipulate required or dependent input attribute
+        // special props to manipulate required or dependent input attribute
         usePortOrSocket: { type: Boolean, default: false }, // needed for server, listener
-        parentForm: { type: Object }, // needed for server, listener
+        validate: { type: Function, default: () => null }, // needed for server, listener
         isListener: { type: Boolean, default: false },
     },
     data: function() {

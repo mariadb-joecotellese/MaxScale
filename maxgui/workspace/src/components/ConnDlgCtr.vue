@@ -59,8 +59,8 @@
                     <v-col v-if="resourceType" cols="12" md="12" class="pa-1">
                         <label class="field__label mxs-color-helper text-small-text label-required">
                             {{
-                                $mxs_t('resourceLabelName', {
-                                    resourceName: $mxs_tc(resourceType, 1),
+                                $mxs_t('mxsObjLabelName', {
+                                    type: $mxs_tc(resourceType, 1),
                                 })
                             }}
                         </label>
@@ -129,11 +129,11 @@ export default {
                 timeout: 300,
             },
             isFormValid: false,
-            resourceTypes: ['listeners', 'servers', 'services'],
         }
     },
     computed: {
         ...mapState({
+            MXS_OBJ_TYPES: state => state.app_config.MXS_OBJ_TYPES,
             rc_target_names_map: state => state.queryConnsMem.rc_target_names_map,
             conn_err_state: state => state.queryConnsMem.conn_err_state,
             pre_select_conn_rsrc: state => state.queryConnsMem.pre_select_conn_rsrc,
@@ -152,6 +152,10 @@ export default {
         },
         hasSavingErr() {
             return this.conn_err_state
+        },
+        resourceTypes() {
+            const { LISTENERS, SERVERS, SERVICES } = this.MXS_OBJ_TYPES
+            return [LISTENERS, SERVERS, SERVICES]
         },
     },
     watch: {

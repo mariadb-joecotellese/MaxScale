@@ -1,6 +1,6 @@
 <template>
     <div class="mb-2">
-        <module-parameters ref="moduleInputs" moduleName="module" :modules="resourceModules" />
+        <module-parameters ref="moduleInputs" moduleName="module" :modules="modules" />
         <resource-relationships
             ref="serversRelationship"
             relationshipsType="servers"
@@ -24,8 +24,8 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
-import ModuleParameters from './ModuleParameters'
-import ResourceRelationships from './ResourceRelationships'
+import ModuleParameters from '@share/components/common/ObjectForms/ModuleParameters'
+import ResourceRelationships from '@share/components/common/ObjectForms/ResourceRelationships'
 
 export default {
     name: 'monitor-form-input',
@@ -34,7 +34,7 @@ export default {
         ResourceRelationships,
     },
     props: {
-        resourceModules: { type: Array, required: true },
+        modules: { type: Array, required: true },
         allServers: { type: Array, required: true },
         defaultItems: { type: [Array, Object], default: () => [] },
     },

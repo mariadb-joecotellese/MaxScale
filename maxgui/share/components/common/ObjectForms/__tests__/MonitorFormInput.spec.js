@@ -19,7 +19,7 @@ import {
     dummy_all_servers,
     getUnMonitoredServersStub,
 } from '@tests/unit/utils'
-import MonitorFormInput from '../MonitorFormInput'
+import MonitorFormInput from '@share/components/common/ObjectForms/MonitorFormInput'
 
 const dummyResourceModules = [
     {
@@ -54,7 +54,7 @@ describe('MonitorFormInput.vue', () => {
             shallow: false,
             component: MonitorFormInput,
             propsData: {
-                resourceModules: dummyResourceModules,
+                modules: dummyResourceModules,
                 allServers: dummy_all_servers,
             },
         })
@@ -67,7 +67,7 @@ describe('MonitorFormInput.vue', () => {
         const { moduleName, modules } = moduleParameters.vm.$props
         // props
         expect(moduleName).to.be.equals('module')
-        expect(modules).to.be.deep.equals(wrapper.vm.$props.resourceModules)
+        expect(modules).to.be.deep.equals(wrapper.vm.$props.modules)
         //ref
         expect(wrapper.vm.$refs.moduleInputs).to.be.not.null
     })

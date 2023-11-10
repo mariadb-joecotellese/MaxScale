@@ -24,8 +24,8 @@
             <template v-slot:body>
                 <v-select
                     id="resource-select"
-                    v-model="selectedForm"
-                    :items="Object.values(RESOURCE_FORM_TYPES)"
+                    v-model="selectedObjType"
+                    :items="Object.values(MXS_OBJ_TYPES)"
                     name="resourceName"
                     outlined
                     dense
@@ -42,14 +42,25 @@
                     ]"
                     required
                     @input="handleFormSelection"
-                />
+                >
+                    <template v-slot:item="{ item, on, attrs }">
+                        <v-list-item class="text-capitalize" v-bind="attrs" v-on="on">
+                            {{ $mxs_tc(item, 1) }}
+                        </v-list-item>
+                    </template>
+                    <template v-slot:selection="{ item }">
+                        <div class="text-capitalize v-select__selection v-select__selection--comma">
+                            {{ $mxs_tc(item, 1) }}
+                        </div>
+                    </template>
+                </v-select>
             </template>
-            <template v-if="selectedForm" v-slot:form-body>
+            <template v-if="selectedObjType" v-slot:form-body>
                 <!-- Use isDlgOpened as a key to force a rerender so that
                 default values can be "fresh" -->
                 <div :key="isDlgOpened">
                     <label class="field__label mxs-color-helper text-small-text d-block">
-                        {{ $mxs_t('resourceLabelName', { resourceName: selectedForm }) }}
+                        {{ $mxs_t('mxsObjLabelName', { type: $mxs_tc(selectedObjType, 1) }) }}
                     </label>
                     <v-text-field
                         id="id"
@@ -62,44 +73,45 @@
                         :height="36"
                         outlined
                         :placeholder="
-                            $mxs_t('nameYour', { resourceName: selectedForm.toLowerCase() })
+                            $mxs_t('nameYour', { type: $mxs_tc(selectedObjType, 1).toLowerCase() })
                         "
                     />
                     <service-form-input
-                        v-if="selectedForm === RESOURCE_FORM_TYPES.SERVICE"
-                        :ref="`form_${RESOURCE_FORM_TYPES.SERVICE}`"
-                        :resourceModules="resourceModules"
+                        v-if="selectedObjType === MXS_OBJ_TYPES.SERVICES"
+                        :ref="`form_${selectedObjType}`"
+                        :modules="modules"
                         :allFilters="all_filters"
                         :defaultItems="defaultRelationshipItems"
                     />
                     <monitor-form-input
-                        v-else-if="selectedForm === RESOURCE_FORM_TYPES.MONITOR"
-                        :ref="`form_${RESOURCE_FORM_TYPES.MONITOR}`"
-                        :resourceModules="resourceModules"
+                        v-else-if="selectedObjType === MXS_OBJ_TYPES.MONITORS"
+                        :ref="`form_${selectedObjType}`"
+                        :modules="modules"
                         :allServers="all_servers"
                         :defaultItems="defaultRelationshipItems"
                     />
                     <filter-form-input
-                        v-else-if="selectedForm === RESOURCE_FORM_TYPES.FILTER"
-                        :ref="`form_${RESOURCE_FORM_TYPES.FILTER}`"
-                        :resourceModules="resourceModules"
+                        v-else-if="selectedObjType === MXS_OBJ_TYPES.FILTERS"
+                        :ref="`form_${selectedObjType}`"
+                        :modules="modules"
                     />
                     <listener-form-input
-                        v-else-if="selectedForm === RESOURCE_FORM_TYPES.LISTENER"
-                        :ref="`form_${RESOURCE_FORM_TYPES.LISTENER}`"
-                        :parentForm="$typy($refs, 'baseDialog.$refs.form').safeObjectOrEmpty"
-                        :resourceModules="resourceModules"
+                        v-else-if="selectedObjType === MXS_OBJ_TYPES.LISTENERS"
+                        :ref="`form_${selectedObjType}`"
+                        :validate="$typy($refs, 'baseDialog.$refs.form.validate').safeFunction"
+                        :modules="modules"
                         :allServices="all_services"
                         :defaultItems="defaultRelationshipItems"
                     />
                     <server-form-input
-                        v-else-if="selectedForm === RESOURCE_FORM_TYPES.SERVER"
-                        :ref="`form_${RESOURCE_FORM_TYPES.SERVER}`"
+                        v-else-if="selectedObjType === MXS_OBJ_TYPES.SERVERS"
+                        :ref="`form_${selectedObjType}`"
                         :allServices="all_services"
                         :allMonitors="all_monitors"
-                        :resourceModules="resourceModules"
-                        :parentForm="$typy($refs, 'baseDialog.$refs.form').safeObjectOrEmpty"
+                        :modules="modules"
+                        :validate="$typy($refs, 'baseDialog.$refs.form.validate').safeFunction"
                         :defaultItems="defaultRelationshipItems"
+                        class="mt-4"
                     />
                 </div>
             </template>
@@ -122,21 +134,9 @@
  * Public License.
  */
 import { mapActions, mapGetters, mapState, mapMutations } from 'vuex'
-import ServiceFormInput from './ServiceFormInput'
-import MonitorFormInput from './MonitorFormInput'
-import FilterFormInput from './FilterFormInput'
-import ListenerFormInput from './ListenerFormInput'
-import ServerFormInput from './ServerFormInput'
 
 export default {
-    name: 'create-resource',
-    components: {
-        ServiceFormInput,
-        MonitorFormInput,
-        FilterFormInput,
-        ListenerFormInput,
-        ServerFormInput,
-    },
+    name: 'create-mxs-obj',
     props: {
         defFormType: { type: String, default: '' },
         defRelationshipObj: { type: Object, default: () => {} },
@@ -144,7 +144,7 @@ export default {
     data() {
         return {
             isDlgOpened: false,
-            selectedForm: '',
+            selectedObjType: '',
             //COMMON
             resourceId: '', // resourceId is the name of resource being created
             rules: {
@@ -156,8 +156,7 @@ export default {
     },
     computed: {
         ...mapState({
-            RESOURCE_FORM_TYPES: state => state.app_config.RESOURCE_FORM_TYPES,
-            RELATIONSHIP_TYPES: state => state.app_config.RELATIONSHIP_TYPES,
+            MXS_OBJ_TYPES: state => state.app_config.MXS_OBJ_TYPES,
             form_type: 'form_type',
             all_filters: state => state.filter.all_filters,
             all_modules_map: state => state.maxscale.all_modules_map,
@@ -167,7 +166,7 @@ export default {
         }),
         ...mapGetters({
             isAdmin: 'user/isAdmin',
-            getModulesByType: 'maxscale/getModulesByType',
+            getMxsObjModules: 'maxscale/getMxsObjModules',
 
             getAllServicesMap: 'service/getAllServicesMap',
             getAllServicesInfo: 'service/getAllServicesInfo',
@@ -184,42 +183,8 @@ export default {
 
             getAllListenersInfo: 'listener/getAllListenersInfo',
         }),
-        resourceModules() {
-            const { SERVICE, SERVER, MONITOR, LISTENER, FILTER } = this.RESOURCE_FORM_TYPES
-            switch (this.selectedForm) {
-                case SERVICE:
-                    return this.getModulesByType('Router')
-                case SERVER:
-                    return this.getModulesByType('servers')
-                case MONITOR:
-                    return this.getModulesByType('Monitor')
-                case FILTER:
-                    return this.getModulesByType('Filter')
-                case LISTENER: {
-                    let authenticators = this.getModulesByType('Authenticator').map(item => item.id)
-                    let protocols = this.getModulesByType('Protocol')
-                    if (protocols.length) {
-                        protocols.forEach(protocol => {
-                            protocol.attributes.parameters = protocol.attributes.parameters.filter(
-                                o => o.name !== 'protocol' && o.name !== 'service'
-                            )
-                            // Transform authenticator parameter from string type to enum type,
-                            let authenticatorParamObj = protocol.attributes.parameters.find(
-                                o => o.name === 'authenticator'
-                            )
-                            if (authenticatorParamObj) {
-                                authenticatorParamObj.type = 'enum'
-                                authenticatorParamObj.enum_values = authenticators
-                                // add default_value for authenticator
-                                authenticatorParamObj.default_value = ''
-                            }
-                        })
-                    }
-                    return protocols
-                }
-                default:
-                    return []
-            }
+        modules() {
+            return this.getMxsObjModules(this.selectedObjType)
         },
     },
     watch: {
@@ -231,7 +196,7 @@ export default {
             if (val) this.handleSetFormType()
             else if (this.form_type) this.SET_FORM_TYPE(null) // clear form_type
         },
-        async selectedForm(v) {
+        async selectedObjType(v) {
             await this.handleFormSelection(v)
         },
         resourceId(val) {
@@ -266,15 +231,14 @@ export default {
          *  clicking the button in this component
          */
         handleSetFormType() {
-            if (this.form_type) this.selectedForm = this.form_type
-            else if (this.defFormType) this.selectedForm = this.defFormType
-            else this.selectedForm = this.RESOURCE_FORM_TYPES.SERVICE
+            if (this.form_type) this.selectedObjType = this.form_type
+            else if (this.defFormType) this.selectedObjType = this.defFormType
+            else this.selectedObjType = this.MXS_OBJ_TYPES.SERVICES
         },
         async handleFormSelection(val) {
-            const { SERVICE, SERVER, MONITOR, LISTENER, FILTER } = this.RESOURCE_FORM_TYPES
-            const { SERVICES, SERVERS, MONITORS, FILTERS } = this.RELATIONSHIP_TYPES
+            const { SERVICES, SERVERS, MONITORS, LISTENERS, FILTERS } = this.MXS_OBJ_TYPES
             switch (val) {
-                case SERVICE:
+                case SERVICES:
                     {
                         await this.fetchAllServices()
                         this.validateInfo = this.getAllServicesInfo
@@ -291,7 +255,7 @@ export default {
                         })
                     }
                     break
-                case SERVER:
+                case SERVERS:
                     await this.fetchAllServers()
                     this.validateInfo = this.getAllServersInfo
                     await this.fetchAllServices()
@@ -307,7 +271,7 @@ export default {
                         isMultiple: false,
                     })
                     break
-                case MONITOR:
+                case MONITORS:
                     await this.fetchAllMonitors()
                     this.validateInfo = this.getAllMonitorsInfo
                     await this.fetchAllServers()
@@ -317,11 +281,11 @@ export default {
                         isMultiple: true,
                     })
                     break
-                case FILTER:
+                case FILTERS:
                     await this.fetchAllFilters()
                     this.validateInfo = this.getAllFiltersInfo
                     break
-                case LISTENER: {
+                case LISTENERS: {
                     await this.fetchAllListeners()
                     this.validateInfo = this.getAllListenersInfo
                     await this.fetchAllServices()
@@ -351,31 +315,39 @@ export default {
         },
 
         async onSave() {
-            const form = this.$refs[`form_${this.selectedForm}`]
+            const form = this.$refs[`form_${this.selectedObjType}`]
             const { moduleId, parameters, relationships } = form.getValues()
-            const { SERVICE, SERVER, MONITOR, LISTENER, FILTER } = this.RESOURCE_FORM_TYPES
+            const { SERVICES, SERVERS, MONITORS, LISTENERS, FILTERS } = this.MXS_OBJ_TYPES
             let payload = {
                 id: this.resourceId,
                 parameters,
-                callback: this[`fetchAll${this.selectedForm}s`],
+                callback: this[
+                    `fetchAll${this.$helpers.capitalizeFirstLetter(this.selectedObjType)}`
+                ],
             }
-            switch (this.selectedForm) {
-                case SERVICE:
-                case MONITOR:
+            let actionName = ''
+            switch (this.selectedObjType) {
+                case SERVICES:
+                case MONITORS:
                     {
                         payload.module = moduleId
                         payload.relationships = relationships
+                        actionName =
+                            this.selectedObjType === SERVICES ? 'createService' : 'createMonitor'
                     }
                     break
-                case LISTENER:
-                case SERVER:
+                case LISTENERS:
+                case SERVERS:
                     payload.relationships = relationships
+                    actionName =
+                        this.selectedObjType === LISTENERS ? 'createListener' : 'createServer'
                     break
-                case FILTER:
+                case FILTERS:
                     payload.module = moduleId
+                    actionName = 'createFilter'
                     break
             }
-            await this[`create${this.selectedForm}`](payload)
+            await this[actionName](payload)
             this.reloadHandler()
         },
 

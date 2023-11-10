@@ -2,10 +2,10 @@
     <div class="mb-2">
         <module-parameters
             ref="moduleInputs"
-            :parentForm="parentForm"
+            :validate="validate"
             :isListener="true"
             moduleName="protocol"
-            :modules="resourceModules"
+            :modules="modules"
             usePortOrSocket
         />
         <!-- A listener may be associated with a single service, so multiple select options is false-->
@@ -34,8 +34,8 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
-import ResourceRelationships from './ResourceRelationships'
-import ModuleParameters from './ModuleParameters'
+import ResourceRelationships from '@share/components/common/ObjectForms/ResourceRelationships'
+import ModuleParameters from '@share/components/common/ObjectForms/ModuleParameters'
 
 export default {
     name: 'listener-form-input',
@@ -44,9 +44,9 @@ export default {
         ResourceRelationships,
     },
     props: {
-        resourceModules: { type: Array, required: true },
+        modules: { type: Array, required: true },
         allServices: { type: Array, required: true },
-        parentForm: { type: Object, required: true },
+        validate: { type: Function, required: true },
         defaultItems: { type: [Array, Object], default: () => [] },
     },
 

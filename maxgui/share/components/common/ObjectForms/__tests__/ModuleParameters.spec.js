@@ -14,7 +14,7 @@
 
 import mount from '@tests/unit/setup'
 import { itemSelectMock, inputChangeMock } from '@tests/unit/utils'
-import ModuleParameters from '../ModuleParameters'
+import ModuleParameters from '@share/components/common/ObjectForms/ModuleParameters'
 
 const mockupModules = [
     {
@@ -100,11 +100,11 @@ describe('ModuleParameters.vue', () => {
         await itemSelectMock(wrapper, mockupModules[0])
 
         const parametersCollapse = wrapper.findComponent({ name: 'parameters-collapse' })
-        const { parameters, usePortOrSocket, parentForm, isListener } = parametersCollapse.vm.$props
+        const { parameters, usePortOrSocket, validate, isListener } = parametersCollapse.vm.$props
         // props
         expect(parameters).to.be.deep.equals(wrapper.vm.moduleParameters)
         expect(usePortOrSocket).to.be.deep.equals(wrapper.vm.$props.usePortOrSocket)
-        expect(parentForm).to.be.deep.equals(wrapper.vm.$props.parentForm)
+        expect(validate).to.be.deep.equals(wrapper.vm.$props.validate)
         expect(isListener).to.be.deep.equals(wrapper.vm.$props.isListener)
         //ref
         expect(wrapper.vm.$refs.parametersTable).to.be.not.null
