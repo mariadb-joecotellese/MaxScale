@@ -15,15 +15,6 @@
 using namespace mxq;
 using namespace std;
 
-#define URAT_ERROR_JSON(ppJson, format, ...) \
-    do { \
-        MXB_ERROR(format, ##__VA_ARGS__); \
-        if (ppJson) \
-        { \
-            *ppJson = mxs_json_error_append(*ppJson, format, ##__VA_ARGS__); \
-        } \
-    } while (false)
-
 namespace
 {
 
@@ -81,24 +72,23 @@ bool check_prepare_prerequisites(const SERVICE& service,
                 }
                 else
                 {
-                    URAT_ERROR_JSON(ppOutput, "Server %s replicates from %s:%d and not from %s (%s:%d).",
-                                    replica.name(),
-                                    master_host.c_str(), master_port,
-                                    primary.name(), primary.address(), primary.port());
+                    MXB_ERROR("Server %s replicates from %s:%d and not from %s (%s:%d).",
+                              replica.name(),
+                              master_host.c_str(), master_port,
+                              primary.name(), primary.address(), primary.port());
 
                 }
             }
             else
             {
-                URAT_ERROR_JSON(ppOutput, "Server %s does not replicate from any server.",
-                                replica.name());
+                MXB_ERROR("Server %s does not replicate from any server.", replica.name());
             }
         }
     }
     else
     {
-        URAT_ERROR_JSON(ppOutput, "Could not connect to server at %s:%d: %s",
-                        replica.address(), replica.port(), mdb.error());
+        MXB_ERROR("Could not connect to server at %s:%d: %s",
+                  replica.address(), replica.port(), mdb.error());
     }
 
     return rv;
@@ -130,20 +120,17 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
             }
             else
             {
-                URAT_ERROR_JSON(ppOutput, "The immediate target of the service %s is not a server.",
-                                pService->name());
+                MXB_ERROR("The immediate target of the service %s is not a server.", pService->name());
             }
         }
         else
         {
-            URAT_ERROR_JSON(ppOutput, "The service %s has more reachable servers than 1.",
-                            pService->name());
+            MXB_ERROR("The service %s has more reachable servers than 1.", pService->name());
         }
     }
     else
     {
-        URAT_ERROR_JSON(ppOutput, "The service %s has more targets than 1.",
-                        pService->name());
+        MXB_ERROR("The service %s has more targets than 1.", pService->name());
     }
 
     return rv;
