@@ -54,8 +54,8 @@ describe('MonitorFormInput.vue', () => {
             shallow: false,
             component: MonitorFormInput,
             propsData: {
-                modules: dummyResourceModules,
                 allServers: dummy_all_servers,
+                moduleParamsProps: { modules: dummyResourceModules },
             },
         })
     })
@@ -64,11 +64,10 @@ describe('MonitorFormInput.vue', () => {
         const moduleParameters = wrapper.findComponent({
             name: 'module-parameters',
         })
-        const { moduleName, modules } = moduleParameters.vm.$props
-        // props
+        const { moduleName, modules, defModuleId } = moduleParameters.vm.$props
         expect(moduleName).to.be.equals('module')
-        expect(modules).to.be.deep.equals(wrapper.vm.$props.modules)
-        //ref
+        expect(modules).to.be.eqls(wrapper.vm.$props.moduleParamsProps.modules)
+        expect(defModuleId).to.equals(wrapper.vm.MRDB_MON)
         expect(wrapper.vm.$refs.moduleInputs).to.be.not.null
     })
 
@@ -91,10 +90,6 @@ describe('MonitorFormInput.vue', () => {
 
     it(`Should return an object with parameters and relationships objects
       when getValues method get called`, async () => {
-        // mockup select a monitor module
-        const moduleParameters = wrapper.findComponent({ name: 'module-parameters' })
-        await itemSelectMock(moduleParameters, dummyResourceModules[0])
-
         // get a monitor parameter to mockup value changes
         const monitorParameter = dummyResourceModules[0].attributes.parameters[1]
         const parameterCell = wrapper.find(`.cell-${1}-${monitorParameter.name}`)

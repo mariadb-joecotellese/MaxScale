@@ -52,8 +52,9 @@ describe('ServiceFormInput.vue', () => {
             shallow: false,
             component: ServiceFormInput,
             propsData: {
-                modules: modulesMockData,
                 allFilters: dummy_all_filters,
+                defRoutingTargetItems: routingTargetItemsStub,
+                moduleParamsProps: { modules: modulesMockData },
             },
             data() {
                 return {
@@ -66,19 +67,16 @@ describe('ServiceFormInput.vue', () => {
     it(`Should pass the following props and have ref to module-parameters`, () => {
         const moduleParameters = wrapper.findComponent({ name: 'module-parameters' })
         const { moduleName, modules } = moduleParameters.vm.$props
-        // props
         expect(moduleName).to.be.equals('router')
-        expect(modules).to.be.deep.equals(wrapper.vm.$props.modules)
-        //ref
+        expect(modules).to.be.eqls(wrapper.vm.$props.moduleParamsProps.modules)
         expect(wrapper.vm.$refs.moduleInputs).to.be.not.null
     })
 
     it(`Should pass the following props to routing-target-select`, () => {
         const routingTargetSelect = wrapper.findComponent({ name: 'routing-target-select' })
-        const { value, routingTarget, defaultItems } = routingTargetSelect.vm.$props
+        const { value, defaultItems } = routingTargetSelect.vm.$props
         expect(value).to.be.deep.equals(wrapper.vm.$data.routingTargetItems)
-        expect(routingTarget).to.be.equals(wrapper.vm.$data.routingTarget)
-        expect(defaultItems).to.be.deep.equals(wrapper.vm.$data.defRoutingTargetItems)
+        expect(defaultItems).to.be.deep.equals(wrapper.vm.$props.defRoutingTargetItems)
     })
 
     it(`Should pass the following props and have ref to filter resource-relationships`, () => {
@@ -86,7 +84,7 @@ describe('ServiceFormInput.vue', () => {
         // props
         const { relationshipsType, items, defaultItems } = resourceRelationship.vm.$props
         expect(relationshipsType).to.be.equals('filters')
-        expect(defaultItems).to.be.deep.equals(wrapper.vm.$data.defaultFilterItems)
+        expect(defaultItems).to.be.deep.equals(wrapper.vm.$props.defFilterItem)
         expect(items).to.be.deep.equals(wrapper.vm.filtersList)
         //ref
         expect(wrapper.vm.$refs.filtersRelationship).to.be.not.null
@@ -117,10 +115,10 @@ describe('ServiceFormInput.vue', () => {
             moduleId: modulesMockData[0].id,
             parameters: { [serviceParameter.name]: newValue },
             relationships: {
-                servers: { data: routingTargetItemsStub },
                 filters: { data: [filtersList[0]] },
+                servers: { data: routingTargetItemsStub },
             },
         }
-        expect(wrapper.vm.getValues()).to.be.deep.equals(expectedValue)
+        expect(wrapper.vm.getValues()).to.be.eql(expectedValue)
     })
 })
