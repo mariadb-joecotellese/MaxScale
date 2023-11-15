@@ -5,12 +5,15 @@
  */
 
 #include "uratcommands.hh"
+#include <vector>
 #include <maxbase/string.hh>
 #include <maxsql/mariadb_connector.hh>
+#include <maxscale/config.hh>
 #include <maxscale/json_api.hh>
 #include <maxscale/modulecmd.hh>
 #include <maxscale/utils.hh>
 #include <maxscale/protocol/mariadb/maxscale.hh>
+#include "../../../core/internal/service.hh"
 
 using namespace mxq;
 using namespace std;
@@ -65,9 +68,7 @@ bool check_prepare_prerequisites(const SERVICE& service,
                 // TODO: One may be expressed using an IP and the other using a hostname.
                 if (master_host == primary.address() && master_port == primary.port())
                 {
-                    json_t* pOutput = json_object();
-                    json_object_set_new(pOutput, "status", json_string("Server replicates from master."));
-                    *ppOutput = pOutput;
+                    // The server to test replicates from the server used, so all things green.
                     rv = true;
                 }
                 else
@@ -94,6 +95,71 @@ bool check_prepare_prerequisites(const SERVICE& service,
     return rv;
 }
 
+bool prepare_service(const string& name,
+                     const SERVICE& service,
+                     const SERVER& primary,
+                     const SERVER& replica,
+                     json_t** ppOutput)
+{
+    bool rv = false;
+
+    mxs::ConfigParameters params;
+    mxs::ConfigParameters unknown;
+
+    auto& sValues = service.config();
+
+    vector<string> servers { primary.name(), replica.name() };
+
+    // TODO: 'exporter' and parameters dependent on its value, must be provided somehow.
+    params.set("user", sValues->user);
+    params.set("password", sValues->password);
+    params.set("router", "urat");
+    params.set("main", primary.name());
+    params.set("exporter", "file");
+    params.set("file", "urat.txt");
+    params.set("servers", mxb::join(servers, ","));
+
+    Service* pUrat_service = Service::create(name.c_str(), params);
+
+    if (pUrat_service)
+    {
+        json_t* pOutput = json_object();
+        json_object_set_new(pOutput, "status", json_string("Urat service created."));
+        *ppOutput = pOutput;
+
+        rv = true;
+    }
+    else
+    {
+        MXB_ERROR("Could not create Urat service, please check earlier errors.");
+    }
+
+    return rv;
+}
+
+bool prepare_service(const SERVICE& service,
+                     const SERVER& primary,
+                     const SERVER& replica,
+                     json_t** ppOutput)
+{
+    bool rv = false;
+
+    string name { "Urat" };
+    name += service.name();
+
+    if (const char* zType = mxs::Config::get_object_type(name))
+    {
+        MXB_ERROR("Cannot create Urat service for the service '%s', a %s "
+                  "with the name '%s' exists already.",
+                  service.name(), zType, name.c_str());
+    }
+    else
+    {
+        rv = prepare_service(name, service, primary, replica, ppOutput);
+    }
+
+    return rv;
+}
 
 bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
@@ -116,7 +182,10 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
             if (pPrimary == servers.front())
             {
-                rv = check_prepare_prerequisites(*pService, *pPrimary, *pReplica, ppOutput);
+                if (check_prepare_prerequisites(*pService, *pPrimary, *pReplica, ppOutput))
+                {
+                    rv = prepare_service(*pService, *pPrimary, *pReplica, ppOutput);
+                }
             }
             else
             {
