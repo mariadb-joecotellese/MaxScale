@@ -5,6 +5,7 @@
  */
 
 #include "uratcommands.hh"
+#include <set>
 #include <vector>
 #include <maxbase/string.hh>
 #include <maxsql/mariadb_connector.hh>
@@ -13,10 +14,13 @@
 #include <maxscale/modulecmd.hh>
 #include <maxscale/utils.hh>
 #include <maxscale/protocol/mariadb/maxscale.hh>
+#include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/service.hh"
 
 using namespace mxq;
 using namespace std;
+
+typedef std::set<std::string> StringSet;
 
 namespace
 {
@@ -30,6 +34,14 @@ inline void check_args(const MODULECMD_ARG* pArgs, modulecmd_arg_type_t argv[], 
         mxb_assert(pArgs->argv[i].type.type == argv[i].type);
     }
 }
+
+}
+
+/*
+ * call command prepare
+ */
+namespace
+{
 
 static modulecmd_arg_type_t command_prepare_argv[] =
 {
@@ -95,14 +107,12 @@ bool check_prepare_prerequisites(const SERVICE& service,
     return rv;
 }
 
-bool prepare_service(const string& name,
-                     const SERVICE& service,
-                     const SERVER& primary,
-                     const SERVER& replica,
-                     json_t** ppOutput)
+Service* create_urat_service(const string& name,
+                                 const SERVICE& service,
+                                 const SERVER& primary,
+                                 const SERVER& replica,
+                                 json_t** ppOutput)
 {
-    bool rv = false;
-
     mxs::ConfigParameters params;
     mxs::ConfigParameters unknown;
 
@@ -126,23 +136,21 @@ bool prepare_service(const string& name,
         json_t* pOutput = json_object();
         json_object_set_new(pOutput, "status", json_string("Urat service created."));
         *ppOutput = pOutput;
-
-        rv = true;
     }
     else
     {
         MXB_ERROR("Could not create Urat service, please check earlier errors.");
     }
 
-    return rv;
+    return pUrat_service;
 }
 
-bool prepare_service(const SERVICE& service,
-                     const SERVER& primary,
-                     const SERVER& replica,
-                     json_t** ppOutput)
+Service* create_urat_service(const SERVICE& service,
+                             const SERVER& primary,
+                             const SERVER& replica,
+                             json_t** ppOutput)
 {
-    bool rv = false;
+    Service* pUrat_service = nullptr;
 
     string name { "Urat" };
     name += service.name();
@@ -155,7 +163,25 @@ bool prepare_service(const SERVICE& service,
     }
     else
     {
-        rv = prepare_service(name, service, primary, replica, ppOutput);
+        pUrat_service = create_urat_service(name, service, primary, replica, ppOutput);
+    }
+
+    return pUrat_service;
+}
+
+bool rewire_service(Service& service, SERVER& server, const Service& urat_service)
+{
+    bool rv = false;
+
+    std::set<std::string> servers { server.name() };
+
+    rv = runtime_unlink_service(&service, servers);
+
+    if (rv)
+    {
+        std::set<std::string> targets { urat_service.name() };
+
+        rv = runtime_link_service(&service, targets);
     }
 
     return rv;
@@ -184,7 +210,12 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
             {
                 if (check_prepare_prerequisites(*pService, *pPrimary, *pReplica, ppOutput))
                 {
-                    rv = prepare_service(*pService, *pPrimary, *pReplica, ppOutput);
+                    Service* pUrat_service = create_urat_service(*pService, *pPrimary, *pReplica, ppOutput);
+
+                    if (pUrat_service)
+                    {
+                        rv = rewire_service(*static_cast<Service*>(pService), *pPrimary, *pUrat_service);
+                    }
                 }
             }
             else
@@ -209,11 +240,14 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
 void urat_register_commands()
 {
-    modulecmd_register_command(MXB_MODULE_NAME,
-                               "prepare",
-                               MODULECMD_TYPE_ACTIVE,
-                               command_prepare,
-                               MXS_ARRAY_NELEMS(command_prepare_argv),
-                               command_prepare_argv,
-                               "Prepare Urat for Service");
+    MXB_AT_DEBUG(bool rv);
+
+    MXB_AT_DEBUG(rv =) modulecmd_register_command(MXB_MODULE_NAME,
+                                                  "prepare",
+                                                  MODULECMD_TYPE_ACTIVE,
+                                                  command_prepare,
+                                                  MXS_ARRAY_NELEMS(command_prepare_argv),
+                                                  command_prepare_argv,
+                                                  "Prepare Urat for Service");
+    mxb_assert(rv);
 }
