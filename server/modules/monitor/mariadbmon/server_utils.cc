@@ -189,7 +189,7 @@ SlaveStatus::Settings::Settings(string name, EndPoint target, GtidMode gtid_mode
 }
 
 SlaveStatus::Settings::Settings(const std::string& name, const SERVER* target, GtidMode gtid_mode)
-    : Settings(name, EndPoint(target), gtid_mode, "")
+    : Settings(name, EndPoint::replication_endpoint(*target), gtid_mode, "")
 {
 }
 
@@ -467,9 +467,11 @@ EndPoint::EndPoint(const std::string& host, int port)
 {
 }
 
-EndPoint::EndPoint(const SERVER* server)
-    : EndPoint(server->address(), server->port())
+EndPoint EndPoint::replication_endpoint(const SERVER& server)
 {
+    const char* priv_addr = server.private_address();
+    const char* addr = *priv_addr ? priv_addr : server.address();
+    return EndPoint(addr, server.port());
 }
 
 EndPoint::EndPoint()
@@ -485,6 +487,13 @@ bool EndPoint::operator==(const EndPoint& rhs) const
 std::string EndPoint::to_string() const
 {
     return mxb::string_printf("[%s]:%d", m_host.address().c_str(), m_host.port());
+}
+
+bool EndPoint::points_to_server(const SERVER& srv) const
+{
+    // Ports must match, and the address must match either server normal or private address.
+    return (m_host.port() == srv.port())
+           && (m_host.address() == srv.address() || m_host.address() == srv.private_address());
 }
 
 void ServerLock::set_status(Status new_status, int64_t owner_id)

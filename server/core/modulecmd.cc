@@ -37,13 +37,7 @@ const char CN_ARG_MIN[] = "arg_min";
 const char CN_METHOD[] = "method";
 const char CN_MODULE_COMMAND[] = "module_command";
 
-/** Size of the error buffer */
-#define MODULECMD_ERRBUF_SIZE 512
-
 using maxscale::Monitor;
-
-/** Thread local error buffer */
-thread_local std::array<char, MODULECMD_ERRBUF_SIZE> errbuf;
 
 /** Parameter passed to functions that do not always expect arguments */
 static const MODULECMD_ARG MODULECMD_NO_ARGUMENTS = {0, NULL};
@@ -70,29 +64,18 @@ struct ThisUnit
 
 static ThisUnit this_unit;
 
-/**
- * @brief Reset error message
- *
- * This should be the first function called in every API function that can
- * generate errors.
- */
-static void reset_error()
-{
-    errbuf[0] = '\0';
-}
-
 static void report_argc_mismatch(const MODULECMD* cmd, int argc)
 {
     if (cmd->arg_count_min == cmd->arg_count_max)
     {
-        modulecmd_set_error("Expected %d arguments, got %d.", cmd->arg_count_min, argc);
+        MXB_ERROR("Expected %d arguments, got %d.", cmd->arg_count_min, argc);
     }
     else
     {
-        modulecmd_set_error("Expected between %d and %d arguments, got %d.",
-                            cmd->arg_count_min,
-                            cmd->arg_count_max,
-                            argc);
+        MXB_ERROR("Expected between %d and %d arguments, got %d.",
+                  cmd->arg_count_min,
+                  cmd->arg_count_max,
+                  argc);
     }
 }
 
@@ -382,7 +365,6 @@ bool modulecmd_register_command(const char* domain,
                                 const modulecmd_arg_type_t* argv,
                                 const char* description)
 {
-    reset_error();
     bool rval = false;
     std::lock_guard guard(this_unit.lock);
 
@@ -390,7 +372,6 @@ bool modulecmd_register_command(const char* domain,
 
     if (domain_has_command(dm, identifier))
     {
-        modulecmd_set_error("Command registered more than once: %s::%s", domain, identifier);
         MXB_ERROR("Command registered more than once: %s::%s", domain, identifier);
     }
     else
@@ -405,8 +386,6 @@ bool modulecmd_register_command(const char* domain,
 
 const MODULECMD* modulecmd_find_command(const char* domain, const char* identifier)
 {
-    reset_error();
-
     std::string effective_domain = module_get_effective_name(domain);
 
     const MODULECMD* rval = NULL;
@@ -430,7 +409,7 @@ const MODULECMD* modulecmd_find_command(const char* domain, const char* identifi
 
     if (rval == NULL)
     {
-        modulecmd_set_error("Command not found: %s::%s", domain, identifier);
+        MXB_ERROR("Command not found: %s::%s", domain, identifier);
     }
 
     return rval;
@@ -438,8 +417,6 @@ const MODULECMD* modulecmd_find_command(const char* domain, const char* identifi
 
 MODULECMD_ARG* modulecmd_arg_parse(const MODULECMD* cmd, int argc, const void** argv)
 {
-    reset_error();
-
     MODULECMD_ARG* arg = NULL;
 
     if (argc >= cmd->arg_count_min && argc <= cmd->arg_count_max)
@@ -456,10 +433,10 @@ MODULECMD_ARG* modulecmd_arg_parse(const MODULECMD* cmd, int argc, const void** 
                 if (!process_argument(cmd, &cmd->arg_types[i], argv[i], &arg->argv[i], &err))
                 {
                     error = true;
-                    modulecmd_set_error("Argument %d, %s: %s",
-                                        i + 1,
-                                        err,
-                                        argv[i] ? (char*)argv[i] : "No argument given");
+                    MXB_ERROR("Argument %d, %s: %s",
+                              i + 1,
+                              err,
+                              argv[i] ? (char*)argv[i] : "No argument given");
                     break;
                 }
             }
@@ -497,15 +474,9 @@ void modulecmd_arg_free(MODULECMD_ARG* arg)
     }
 }
 
-static void modulecmd_clear_error()
-{
-    errbuf[0] = '\0';
-}
-
 bool modulecmd_call_command(const MODULECMD* cmd, const MODULECMD_ARG* args, json_t** output)
 {
     bool rval = false;
-    reset_error();
 
     if (cmd->arg_count_min > 0 && args == NULL)
     {
@@ -518,48 +489,12 @@ bool modulecmd_call_command(const MODULECMD* cmd, const MODULECMD_ARG* args, jso
             args = &MODULECMD_NO_ARGUMENTS;
         }
 
-        modulecmd_clear_error();
-
         json_t* discard = NULL;
         rval = cmd->func(args, output ? output : &discard);
         json_decref(discard);
     }
 
     return rval;
-}
-
-void modulecmd_set_error(const char* format, ...)
-{
-    va_list list;
-    va_start(list, format);
-    vsnprintf(errbuf.data(), errbuf.size(), format, list);
-    va_end(list);
-}
-
-const char* modulecmd_get_error()
-{
-    return errbuf.data();
-}
-
-json_t* modulecmd_get_json_error()
-{
-    json_t* obj = NULL;
-    std::string errmsg = modulecmd_get_error();
-    modulecmd_clear_error();
-
-    if (errmsg.length())
-    {
-        json_t* err = json_object();
-        json_object_set_new(err, "detail", json_string(errmsg.c_str()));
-
-        json_t* arr = json_array();
-        json_array_append_new(arr, err);
-
-        obj = json_object();
-        json_object_set_new(obj, "errors", arr);
-    }
-
-    return obj;
 }
 
 #define format_type(a, b) (MODULECMD_ARG_IS_REQUIRED(a) ? b : "[" b "]")

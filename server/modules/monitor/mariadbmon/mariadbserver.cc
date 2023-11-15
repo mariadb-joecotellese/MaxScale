@@ -1242,10 +1242,9 @@ const SlaveStatus* MariaDBServer::slave_connection_status(const MariaDBServer* t
 
 const SlaveStatus* MariaDBServer::slave_connection_status_host_port(const MariaDBServer* target) const
 {
-    EndPoint target_endpoint(target->server);
     for (const SlaveStatus& ss : m_slave_status)
     {
-        if (ss.settings.master_endpoint == target_endpoint)
+        if (ss.settings.master_endpoint.points_to_server(*target->server))
         {
             return &ss;
         }
@@ -1976,7 +1975,6 @@ bool MariaDBServer::merge_slave_conns(GeneralOpData& op, const SlaveStatusArray&
     auto conn_can_be_merged = [this](const SlaveStatus& slave_conn, string* ignore_reason_out) -> bool {
         bool accepted = true;
         auto master_id = slave_conn.master_server_id;
-        EndPoint my_host_port(server);
         // The connection is only merged if it satisfies the copy-conditions. Merging has also
         // additional requirements.
         string ignore_reason;
@@ -1990,7 +1988,7 @@ bool MariaDBServer::merge_slave_conns(GeneralOpData& op, const SlaveStatusArray&
             accepted = false;
             ignore_reason = string_printf("it points to '%s' (according to server id:s).", name());
         }
-        else if (slave_conn.settings.master_endpoint == my_host_port)
+        else if (slave_conn.settings.master_endpoint.points_to_server(*server))
         {
             accepted = false;
             ignore_reason = string_printf("it points to '%s' (according to master host:port).", name());
@@ -2119,7 +2117,7 @@ bool MariaDBServer::copy_slave_conns(GeneralOpData& op, const SlaveStatusArray& 
             {
                 if (replacement)
                 {
-                    new_settings.master_endpoint = EndPoint(replacement->server);
+                    new_settings.master_endpoint = EndPoint::replication_endpoint(*replacement->server);
                 }
                 else
                 {
@@ -2264,7 +2262,7 @@ MariaDBServer::redirect_existing_slave_conn(GeneralOpData& op, const SlaveStatus
     if (stopped)
     {
         SlaveStatus::Settings modified_settings = conn_settings;
-        modified_settings.master_endpoint = EndPoint(new_master->server);
+        modified_settings.master_endpoint = EndPoint::replication_endpoint(*new_master->server);
         auto change_master = generate_change_master_cmd(modified_settings);
 
         string error_msg;
