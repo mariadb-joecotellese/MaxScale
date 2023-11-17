@@ -61,6 +61,19 @@ bool UratRouter::post_configure()
     return rval;
 }
 
+bool UratRouter::start(json_t** ppOutput)
+{
+    // TODO: Suspend all sessions (and asynchronously wait if necessary).
+    // TODO: Stop test-server from replicating from server being used.
+    // TODO: Restart all sessions.
+
+    json_t* pOutput = json_object();
+    json_object_set_new(pOutput, "status", json_string("starting"));
+    *ppOutput = pOutput;
+
+    return true;
+}
+
 void UratRouter::ship(json_t* pJson)
 {
     {

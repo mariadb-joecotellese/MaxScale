@@ -16,11 +16,24 @@
 #include <maxscale/protocol/mariadb/maxscale.hh>
 #include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/service.hh"
+#include "uratrouter.hh"
 
 using namespace mxq;
 using namespace std;
 
 typedef std::set<std::string> StringSet;
+
+namespace
+{
+void register_prepare_command();
+void register_start_command();
+}
+
+void urat_register_commands()
+{
+    register_prepare_command();
+    register_start_command();
+}
 
 namespace
 {
@@ -31,7 +44,7 @@ inline void check_args(const MODULECMD_ARG* pArgs, modulecmd_arg_type_t argv[], 
 
     for (int i = 0; i < argc; ++i)
     {
-        mxb_assert(pArgs->argv[i].type.type == argv[i].type);
+        mxb_assert(pArgs->argv[i].type.type == (argv[i].type & ~MODULECMD_ARG_NAME_MATCHES_DOMAIN));
     }
 }
 
@@ -236,9 +249,7 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     return rv;
 }
 
-}
-
-void urat_register_commands()
+void register_prepare_command()
 {
     MXB_AT_DEBUG(bool rv);
 
@@ -250,4 +261,46 @@ void urat_register_commands()
                                                   command_prepare_argv,
                                                   "Prepare Urat for Service");
     mxb_assert(rv);
+}
+
+}
+
+/**
+ * call command start
+ */
+namespace
+{
+
+static modulecmd_arg_type_t command_start_argv[] =
+{
+    {MODULECMD_ARG_SERVICE | MODULECMD_ARG_NAME_MATCHES_DOMAIN, "Service name"},
+};
+
+static int command_start_argc = MXS_ARRAY_NELEMS(command_start_argv);
+
+
+bool command_start(const MODULECMD_ARG* pArgs, json_t** ppOutput)
+{
+    check_args(pArgs, command_start_argv, command_start_argc);
+
+    auto* pService = pArgs->argv[0].value.service;
+    auto* pRouter = static_cast<UratRouter*>(pService->router());
+
+    return pRouter->start(ppOutput);
+};
+
+void register_start_command()
+{
+    MXB_AT_DEBUG(bool rv);
+
+    MXB_AT_DEBUG(rv =) modulecmd_register_command(MXB_MODULE_NAME,
+                                                  "start",
+                                                  MODULECMD_TYPE_ACTIVE,
+                                                  command_start,
+                                                  MXS_ARRAY_NELEMS(command_start_argv),
+                                                  command_start_argv,
+                                                  "Start Urat for Service");
+    mxb_assert(rv);
+}
+
 }

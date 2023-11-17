@@ -54,6 +54,8 @@ public:
 
     bool post_configure();
 
+    bool start(json_t** ppOutput);
+
 private:
     UratRouter(SERVICE* pService)
         : m_config(pService->name(), this)
