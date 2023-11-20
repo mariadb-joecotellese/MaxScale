@@ -20,7 +20,6 @@
 #include <mutex>
 #include <string>
 
-#include <maxbase/exception.hh>
 #include <maxscale/router.hh>
 #include <maxscale/protocol/mariadb/module_names.hh>
 
@@ -32,16 +31,6 @@
 
 namespace pinloki
 {
-DEFINE_EXCEPTION(BinlogReadError);
-DEFINE_EXCEPTION(GtidNotFoundError);
-
-static std::array<char, 4> PINLOKI_MAGIC = {char(0xfe), 0x62, 0x69, 0x6e};
-
-struct FileLocation
-{
-    std::string file_name;
-    long        loc;
-};
 
 class PinlokiSession;
 
@@ -127,14 +116,4 @@ private:
 };
 
 std::pair<std::string, std::string> get_file_name_and_size(const std::string& filepath);
-
-/**
- * @brief PurgeResult enum
- *        Ok               - Files deleted
- *        UpToFileNotFound - The file "up_to" was not found
- *        PartialPurge     - File purge stopped because a file to be purged was in use
- */
-enum class PurgeResult {Ok, UpToFileNotFound, PartialPurge};
-
-PurgeResult purge_binlogs(InventoryWriter* pInventory, const std::string& up_to);
 }

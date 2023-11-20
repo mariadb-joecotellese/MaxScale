@@ -13,17 +13,17 @@
  */
 
 #include "config.hh"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include "file_transformer.hh"
+
 #include <maxbase/log.hh>
+#include <maxscale/utils.hh>
+
 #include <sstream>
 #include <fstream>
+#include <filesystem>
 #include <uuid/uuid.h>
-#include <maxscale/utils.hh>
-#include <dirent.h>
-#include <sys/inotify.h>
-#include "pinloki.hh"
+#include <sys/stat.h>
+#include <unistd.h>
 
 namespace
 {
@@ -61,12 +61,36 @@ cfg::ParamEnum<mxb::Cipher::AesMode> s_encryption_cipher(
     },
     mxb::Cipher::AES_GCM);
 
+cfg::ParamEnum<pinloki::ExpirationMode> s_expiration_mode(
+    &s_spec, "expiration_mode", "Expiration mode, purge or archive",
+    {
+        {pinloki::ExpirationMode::PURGE, "purge"},
+        {pinloki::ExpirationMode::ARCHIVE, "archive"},
+    },
+    pinloki::ExpirationMode::PURGE);
+
+cfg::ParamPath s_archivedir(
+    &s_spec, "archivedir", "Directory to where binlog files are archived",
+    cfg::ParamPath::W | cfg::ParamPath::R | cfg::ParamPath::F,
+    "");
+
 cfg::ParamCount s_expire_log_minimum_files(
     &s_spec, "expire_log_minimum_files", "Minimum number of files the automatic log purge keeps", 2);
 
 cfg::ParamDuration<wall_time::Duration> s_expire_log_duration(
     &s_spec, "expire_log_duration", "Duration after which unmodified log files are purged",
     0s);
+
+cfg::ParamEnum<mxb::CompressionAlgorithm> s_compression_algorithm(
+    &s_spec, "compression_algorithm", "Binlog compression algorithm",
+    {
+        {mxb::CompressionAlgorithm::NONE, "none"},
+        {mxb::CompressionAlgorithm::ZSTANDARD, "zstandard"},
+    },
+    mxb::CompressionAlgorithm::NONE);
+
+cfg::ParamCount s_noncompressed_number_of_files (
+    &s_spec, "noncompressed_number_of_files", "Number of files to keep uncompressed", 2);
 
 /* Undocumented config items (for test purposes) */
 cfg::ParamDuration<wall_time::Duration> s_purge_startup_delay(
@@ -83,91 +107,27 @@ cfg::ParamBool s_rpl_semi_sync_slave_enabled(
 
 namespace pinloki
 {
-namespace
+
+bool has_extension(const std::string& file_name, const std::string& ext)
 {
-template<typename T>
-class CallAtScopeEnd
-{
-public:
-    CallAtScopeEnd(T at_destruct)
-        : at_destruct(at_destruct)
+    if (auto pos = file_name.find_last_of(".");
+        pos != std::string::npos
+        && file_name.substr(pos + 1, std::string::npos) == ext)
     {
-    }
-    ~CallAtScopeEnd()
-    {
-        at_destruct();
-    }
-private:
-    T at_destruct;
-};
-
-// Can't rely on stat() to sort files. The files can have the
-// same creation/mod time
-long get_file_sequence_number(const std::string& file_name)
-{
-    try
-    {
-        auto num_str = file_name.substr(file_name.find_last_of(".") + 1);
-        long seq_no = 1 + std::stoi(num_str.c_str());
-        return seq_no;
-    }
-    catch (std::exception& ex)
-    {
-        MXB_THROW(BinlogReadError, "Unexpected binlog file name '"
-                  << file_name << "' error " << ex.what());
-    }
-}
-
-std::vector<std::string> read_binlog_file_names(const std::string& binlog_dir)
-{
-    std::map<long, std::string> binlogs;
-
-    DIR* pdir;
-    struct dirent* pentry;
-
-    if ((pdir = opendir(binlog_dir.c_str())) != nullptr)
-    {
-        CallAtScopeEnd close_dir{[pdir]{
-                closedir(pdir);
-            }};
-
-        while ((pentry = readdir(pdir)) != nullptr)
-        {
-            if (pentry->d_type != DT_REG)
-            {
-                continue;
-            }
-
-            auto file_path = MAKE_STR(binlog_dir.c_str() << '/' << pentry->d_name);
-
-            decltype(PINLOKI_MAGIC) magic;
-            std::ifstream is{file_path.c_str(), std::ios::binary};
-            if (is)
-            {
-                is.read(magic.data(), PINLOKI_MAGIC.size());
-                if (is && magic == PINLOKI_MAGIC)
-                {
-                    auto seq_no = get_file_sequence_number(file_path);
-                    binlogs.insert({seq_no, file_path});
-                }
-            }
-        }
+        return true;
     }
     else
     {
-        // This is expected if the binlog directory does not yet exist.
-        MXB_SINFO("Could not open directory " << binlog_dir);
+        return false;
     }
-
-    std::vector<std::string> file_names;
-    file_names.reserve(binlogs.size());
-    for (const auto& e : binlogs)
-    {
-        file_names.push_back(e.second);
-    }
-
-    return file_names;
 }
+
+void strip_extension(std::string& file_name, const std::string& ext)
+{
+    if (has_extension(file_name, ext))
+    {
+        file_name.resize(file_name.size() - ext.size() - 1);
+    }
 }
 
 // static
@@ -252,9 +212,27 @@ wall_time::Duration Config::purge_poll_timeout() const
     return m_purge_poll_timeout;
 }
 
+maxbase::CompressionAlgorithm Config::compression_algorithm() const
+{
+    return m_compression_algorithm;
+}
+
+int32_t Config::noncompressed_number_of_files() const
+{
+    return m_noncompressed_number_of_files;
+}
+
 const std::string& Config::key_id() const
 {
     return m_encryption_key_id;
+}
+
+// static
+const maxbase::TempDirectory& Config::pinloki_temp_dir()
+{
+    static maxbase::TempDirectory pinloki_temp_dir("/tmp/pinloki_tmp");
+
+    return pinloki_temp_dir;
 }
 
 mxb::Cipher::AesMode Config::encryption_cipher() const
@@ -265,6 +243,16 @@ mxb::Cipher::AesMode Config::encryption_cipher() const
 bool Config::semi_sync() const
 {
     return m_semi_sync;
+}
+
+ExpirationMode Config::expiration_mode() const
+{
+    return m_expiration_mode;
+}
+
+std::string Config::archivedir() const
+{
+    return m_archivedir;
 }
 
 std::string gen_uuid()
@@ -282,11 +270,44 @@ bool Config::post_configure(const std::map<std::string, mxs::ConfigParameters>& 
 {
     bool ok = false;
 
-    // This is a workaround to the fact that the datadir is not created if the default value is used.
-    if (mxs_mkdir_all(m_binlog_dir.c_str(), S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP | S_IXUSR | S_IXGRP))
+    try
     {
-        m_binlog_files.reset(new BinlogIndexUpdater(m_binlog_dir, inventory_file_path()));
-        ok = m_cb();
+        // The m_binlog_dir should not end with a slash, to avoid paths
+        // with double slashes. This ensures files read from the file
+        // system can be directly compared.
+        while (!m_binlog_dir.empty() && m_binlog_dir.back() == '/')
+        {
+            m_binlog_dir.pop_back();
+        }
+
+        // Further, make sure only single slashes are in the path
+        while (mxb::replace(&m_binlog_dir, "//", "/"))
+        {
+        }
+
+        // This is a workaround to the fact that the datadir is not created if the default value is used.
+        mode_t mask = S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP | S_IXUSR | S_IXGRP;
+        if (mxs_mkdir_all(m_binlog_dir.c_str(), mask))
+        {
+            ok = true;
+            if (m_compression_algorithm != mxb::CompressionAlgorithm::NONE)
+            {
+                m_compression_dir = m_binlog_dir + '/' + COMPRESSION_DIR;
+                std::filesystem::remove_all(m_compression_dir);
+                ok = mxs_mkdir_all(m_compression_dir.c_str(), mask);
+            }
+
+            if (ok)
+            {
+                m_sFile_transformer.reset(new FileTransformer(*this));
+                ok = m_cb();
+            }
+        }
+    }
+    catch (std::exception& ex)
+    {
+        MXB_SERROR("Binlogrouter configuration failed: " << ex.what());
+        ok = false;
     }
 
     return ok;
@@ -303,133 +324,29 @@ Config::Config(const std::string& name, std::function<bool()> callback)
     add_native(&Config::m_ddl_only, &s_ddl_only);
     add_native(&Config::m_encryption_key_id, &s_encryption_key_id);
     add_native(&Config::m_encryption_cipher, &s_encryption_cipher);
+    add_native(&Config::m_expiration_mode, &s_expiration_mode);
+    add_native(&Config::m_archivedir, &s_archivedir);
     add_native(&Config::m_expire_log_duration, &s_expire_log_duration);
     add_native(&Config::m_expire_log_minimum_files, &s_expire_log_minimum_files);
     add_native(&Config::m_purge_startup_delay, &s_purge_startup_delay);
     add_native(&Config::m_purge_poll_timeout, &s_purge_poll_timeout);
+    add_native(&Config::m_compression_algorithm, &s_compression_algorithm);
+    add_native(&Config::m_noncompressed_number_of_files, &s_noncompressed_number_of_files);
     add_native(&Config::m_semi_sync, &s_rpl_semi_sync_slave_enabled);
 }
 
 std::vector<std::string> Config::binlog_file_names() const
 {
-    return m_binlog_files->binlog_file_names();
-}
-
-void Config::set_binlogs_dirty() const
-{
-    m_binlog_files->set_is_dirty();
+    return m_sFile_transformer->binlog_file_names();
 }
 
 void Config::save_rpl_state(const maxsql::GtidList& gtids) const
 {
-    m_binlog_files->set_rpl_state(gtids);
+    m_sFile_transformer->set_rpl_state(gtids);
 }
 
 maxsql::GtidList Config::rpl_state() const
 {
-    return m_binlog_files->rpl_state();
-}
-
-BinlogIndexUpdater::BinlogIndexUpdater(const std::string& binlog_dir,
-                                         const std::string& inventory_file_path)
-    : m_inotify_fd(inotify_init1(0))
-    , m_binlog_dir(binlog_dir)
-    , m_inventory_file_path(inventory_file_path)
-    , m_file_names(read_binlog_file_names(m_binlog_dir))
-{
-    if (m_inotify_fd == -1)
-    {
-        MXB_SERROR("inotify_init failed: " << errno << ", " << mxb_strerror(errno));
-    }
-    else
-    {
-        m_watch = inotify_add_watch(m_inotify_fd, m_binlog_dir.c_str(), IN_CREATE | IN_DELETE);
-
-        if (m_watch == -1)
-        {
-            MXB_SERROR("inotify_add_watch for directory " <<
-                       m_binlog_dir.c_str() << "failed: " << errno << ", " << mxb_strerror(errno));
-        }
-        else
-        {
-            m_update_thread = std::thread(&BinlogIndexUpdater::update, this);
-        }
-    }
-}
-
-void BinlogIndexUpdater::set_is_dirty()
-{
-    m_is_dirty.store(true, std::memory_order_relaxed);
-}
-
-std::vector<std::string> BinlogIndexUpdater::binlog_file_names()
-{
-    std::unique_lock<std::mutex> lock(m_file_names_mutex);
-    if (m_is_dirty)
-    {
-        m_file_names = read_binlog_file_names(m_binlog_dir);
-        m_is_dirty.store(false, std::memory_order_relaxed);
-    }
-    return m_file_names;
-}
-
-BinlogIndexUpdater::~BinlogIndexUpdater()
-{
-    m_running.store(false, std::memory_order_relaxed);
-    if (m_watch != -1)
-    {
-        inotify_rm_watch(m_inotify_fd, m_watch);
-        m_update_thread.join();
-    }
-}
-
-void BinlogIndexUpdater::set_rpl_state(const maxsql::GtidList& gtids)
-{
-    // Using the same mutex for rpl state as for file names. There
-    // is very little action hitting this mutex.
-    std::unique_lock<std::mutex> lock(m_file_names_mutex);
-    m_rpl_state = gtids;
-}
-
-maxsql::GtidList BinlogIndexUpdater::rpl_state()
-{
-    std::unique_lock<std::mutex> lock(m_file_names_mutex);
-    return m_rpl_state;
-}
-
-void BinlogIndexUpdater::update()
-{
-    const size_t SZ = 1024;
-    char buffer[SZ];
-
-    std::unique_lock<std::mutex> lock(m_file_names_mutex);
-    m_file_names = read_binlog_file_names(m_binlog_dir);
-    lock.unlock();
-
-    while (m_running.load(std::memory_order_relaxed))
-    {
-        auto n = ::read(m_inotify_fd, buffer, SZ);
-        if (n <= 0)
-        {
-            continue;
-        }
-
-        lock.lock();
-        auto new_names = read_binlog_file_names(m_binlog_dir);
-        if (new_names != m_file_names)
-        {
-            m_file_names = std::move(new_names);
-            std::string tmp = m_inventory_file_path + ".tmp";
-            std::ofstream ofs(tmp, std::ios_base::trunc);
-
-            for (const auto& file : m_file_names)
-            {
-                ofs << file << '\n';
-            }
-
-            rename(tmp.c_str(), m_inventory_file_path.c_str());
-        }
-        lock.unlock();
-    }
+    return m_sFile_transformer->rpl_state();
 }
 }

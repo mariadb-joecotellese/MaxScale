@@ -1,6 +1,10 @@
 include(${CMAKE_SOURCE_DIR}/cmake/BuildBoost.cmake)
 
 add_library(pinloki-core
+  file_transformer.cc
+  binlog_file.cc
+  shared_binlogs.cc
+  ifstream_reader.cc
   config.cc
   dbconnection.cc
   file_reader.cc
@@ -21,7 +25,7 @@ target_link_libraries(pinloki-core maxscale-common uuid)
 target_compile_options(pinloki-core PRIVATE "-Wno-deprecated-builtins")
 
 add_library(binlogrouter SHARED pinloki.cc pinlokisession.cc)
-target_link_libraries(binlogrouter pinloki-core maxscale-common)
+target_link_libraries(binlogrouter pinloki-core maxscale-common zstd)
 set_target_properties(binlogrouter PROPERTIES VERSION "1.0.0"  LINK_FLAGS -Wl,-z,defs)
 install_module(binlogrouter core)
 

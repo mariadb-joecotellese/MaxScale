@@ -15,13 +15,18 @@
 #pragma once
 
 #include "gtid.hh"
+#include "shared_binlogs.hh"
+#include "file_transformer.hh"
 
 #include <maxscale/ccdefs.hh>
 
 #include <maxbase/stopwatch.hh>
+#include <maxbase/temp_file.hh>
+#include <maxbase/exception.hh>
 #include <maxscale/paths.hh>
 #include <maxscale/config2.hh>
 #include <maxscale/key_manager.hh>
+#include <maxbase/compress.hh>
 
 #include <string>
 #include <thread>
@@ -29,43 +34,50 @@
 namespace pinloki
 {
 
+bool has_extension(const std::string& file_name, const std::string& ext);
+void strip_extension(std::string& file_name, const std::string& ext);
+
 std::string gen_uuid();
 
-class BinlogIndexUpdater final
+/* File magic numbers. Well known, or registered (zstd) first 4 bytes of a file. */
+constexpr size_t MAGIC_SIZE = 4;
+static const std::array<char, MAGIC_SIZE> PINLOKI_MAGIC = {char(0xfe), char(0x62), char(0x69), char(0x6e)};
+static const std::array<char, MAGIC_SIZE> ZSTD_MAGIC = {char(0x28), char(0xb5), char(0x2f), char(0xfd)};
+
+// zstd a.k.a. Zstandard compression
+static const std::string COMPRESSION_EXTENSION{"zst"};
+// A file that is being compressed into
+static const std::string COMPRESSION_ONGOING_EXTENSION{"compressing"};
+// Subdirectory to binlogdir used during compression
+static const std::string COMPRESSION_DIR = "compression";
+
+DEFINE_EXCEPTION(BinlogReadError);
+DEFINE_EXCEPTION(GtidNotFoundError);
+
+enum class ExpirationMode
 {
-public:
-    BinlogIndexUpdater(const std::string& binlog_dir,
-                        const std::string& inventory_file_path);
-    ~BinlogIndexUpdater();
-    void                     set_is_dirty();
-    std::vector<std::string> binlog_file_names();
+    PURGE,
+    ARCHIVE
+};
 
-    /** The replication state */
-    void             set_rpl_state(const maxsql::GtidList& gtids);
-    maxsql::GtidList rpl_state();
-
-private:
-    int                      m_inotify_fd;
-    int                      m_watch;
-    std::atomic<bool>        m_is_dirty{true};
-    maxsql::GtidList         m_rpl_state;
-    std::string              m_binlog_dir;
-    std::string              m_inventory_file_path;
-    std::vector<std::string> m_file_names;
-    std::mutex               m_file_names_mutex;
-    std::thread              m_update_thread;
-    std::atomic<bool>        m_running{true};
-
-    void update();
+struct FileLocation
+{
+    std::string file_name;
+    long        loc;
 };
 
 class Config : public mxs::config::Configuration
 {
 public:
     Config(const std::string& name, std::function<bool()> callback);
-    Config(Config&&) = default;
+    Config(Config&&) = delete;
 
     static const mxs::config::Specification* spec();
+
+    std::string binlog_dir() const;
+
+    // Full path to the compression dir
+    std::string compression_dir() const;
 
     /** Make a full path. This prefixes "name" with m_binlog_dir/,
      *  unless the first character is a forward slash.
@@ -78,7 +90,6 @@ public:
     std::string              master_info_file() const;
     uint32_t                 server_id() const;
     std::vector<std::string> binlog_file_names() const;
-    void                     set_binlogs_dirty() const;
 
     /** The replication state */
     void             save_rpl_state(const maxsql::GtidList& gtids) const;
@@ -98,16 +109,28 @@ public:
     bool semi_sync() const;
 
     // File purging
+    ExpirationMode      expiration_mode() const;
+    std::string         archivedir() const;
     int32_t             expire_log_minimum_files() const;
     wall_time::Duration expire_log_duration() const;
     wall_time::Duration purge_startup_delay() const;
     wall_time::Duration purge_poll_timeout() const;
+
+    // Compression
+    mxb::CompressionAlgorithm compression_algorithm() const;
+    int32_t noncompressed_number_of_files() const;
+
+    static const maxbase::TempDirectory& pinloki_temp_dir();
+
+    const SharedBinlogFile& shared_binlog_file() const;
 
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;
 
 private:
     /** Where the binlog files are stored */
     std::string m_binlog_dir;
+    /** Where the binlogs are compressed, as in being compressed. */
+    std::string m_compression_dir;
     /** Name of gtid file */
     std::string m_gtid_file = "rpl_state";
     /** Master configuration file name */
@@ -149,14 +172,35 @@ private:
     std::string          m_encryption_key_id;
     mxb::Cipher::AesMode m_encryption_cipher;
 
-    int64_t             m_expire_log_minimum_files;
-    wall_time::Duration m_expire_log_duration;
-    wall_time::Duration m_purge_startup_delay;
-    wall_time::Duration m_purge_poll_timeout;
+    ExpirationMode            m_expiration_mode;
+    std::string               m_archivedir;
+    int64_t                   m_expire_log_minimum_files;
+    wall_time::Duration       m_expire_log_duration;
+    wall_time::Duration       m_purge_startup_delay;
+    wall_time::Duration       m_purge_poll_timeout;
+    mxb::CompressionAlgorithm m_compression_algorithm;
+    int64_t                   m_noncompressed_number_of_files;
+
     bool                m_semi_sync;
 
     std::function<bool()> m_cb;
 
-    std::unique_ptr<BinlogIndexUpdater> m_binlog_files;
+    std::unique_ptr<FileTransformer> m_sFile_transformer;
+    SharedBinlogFile m_shared_binlog_file;
 };
+
+inline std::string Config::binlog_dir() const
+{
+    return m_binlog_dir;
+}
+
+inline std::string Config::compression_dir() const
+{
+    return m_compression_dir;
+}
+
+inline const SharedBinlogFile &Config::shared_binlog_file() const
+{
+    return m_shared_binlog_file;
+}
 }
