@@ -7,6 +7,7 @@
 #include "uratcommands.hh"
 #include <set>
 #include <vector>
+#include <maxbase/format.hh>
 #include <maxbase/string.hh>
 #include <maxsql/mariadb_connector.hh>
 #include <maxscale/config.hh>
@@ -15,6 +16,7 @@
 #include <maxscale/utils.hh>
 #include <maxscale/protocol/mariadb/maxscale.hh>
 #include "../../../core/internal/config_runtime.hh"
+#include "../../../core/internal/monitormanager.hh"
 #include "../../../core/internal/service.hh"
 #include "uratrouter.hh"
 
@@ -66,8 +68,7 @@ static int command_prepare_argc = MXS_ARRAY_NELEMS(command_prepare_argv);
 
 bool check_prepare_prerequisites(const SERVICE& service,
                                  const SERVER& primary,
-                                 const SERVER& replica,
-                                 json_t** ppOutput)
+                                 const SERVER& replica)
 {
     bool rv = false;
 
@@ -120,11 +121,69 @@ bool check_prepare_prerequisites(const SERVICE& service,
     return rv;
 }
 
+mxs::Monitor* create_urat_monitor(const string& name,
+                                  const SERVER& primary,
+                                  const SERVER& replica)
+{
+    mxs::Monitor* pUrat_monitor = nullptr;
+    mxs::Monitor* pPrimary_monitor = MonitorManager::server_is_monitored(&primary);
+
+    if (!pPrimary_monitor)
+    {
+        MXB_ERROR("Cannot create Urat monitor '%s', the primary server '%s' is not "
+                  "monitored and thus there is no monitor to copy settings from.",
+                  name.c_str(), primary.name());
+    }
+    else
+    {
+        string module = "mariadbmon";
+        mxs::ConfigParameters params;
+
+        const auto& settings = pPrimary_monitor->conn_settings();
+
+        params.set("module", module);
+        params.set("user", settings.username);
+        params.set("password", settings.password);
+        params.set("servers", replica.name());
+
+        pUrat_monitor = MonitorManager::create_monitor(name, module, &params);
+
+        if (!pUrat_monitor)
+        {
+            MXB_ERROR("Could not create Urat monitor '%s', please check earlier errors.", name.c_str());
+        }
+    }
+
+    return pUrat_monitor;
+}
+
+mxs::Monitor* create_urat_monitor(const SERVICE& service,
+                                  const SERVER& primary,
+                                  const SERVER& replica)
+{
+    mxs::Monitor* pUrat_monitor = nullptr;
+
+    string name { "Urat" };
+    name += service.name();
+    name += "Monitor";
+
+    if (const char* zType = mxs::Config::get_object_type(name))
+    {
+        MXB_ERROR("Cannot create Urat monitor '%s', a %s with that name already exists.",
+                  name.c_str(), zType);
+    }
+    else
+    {
+        pUrat_monitor = create_urat_monitor(name, primary, replica);
+    }
+
+    return pUrat_monitor;
+}
+
 Service* create_urat_service(const string& name,
-                                 const SERVICE& service,
-                                 const SERVER& primary,
-                                 const SERVER& replica,
-                                 json_t** ppOutput)
+                             const SERVICE& service,
+                             const SERVER& primary,
+                             const SERVER& replica)
 {
     mxs::ConfigParameters params;
     mxs::ConfigParameters unknown;
@@ -144,15 +203,9 @@ Service* create_urat_service(const string& name,
 
     Service* pUrat_service = Service::create(name.c_str(), params);
 
-    if (pUrat_service)
+    if (!pUrat_service)
     {
-        json_t* pOutput = json_object();
-        json_object_set_new(pOutput, "status", json_string("Urat service created."));
-        *ppOutput = pOutput;
-    }
-    else
-    {
-        MXB_ERROR("Could not create Urat service, please check earlier errors.");
+        MXB_ERROR("Could not create Urat service '%s', please check earlier errors.", name.c_str());
     }
 
     return pUrat_service;
@@ -160,8 +213,7 @@ Service* create_urat_service(const string& name,
 
 Service* create_urat_service(const SERVICE& service,
                              const SERVER& primary,
-                             const SERVER& replica,
-                             json_t** ppOutput)
+                             const SERVER& replica)
 {
     Service* pUrat_service = nullptr;
 
@@ -176,7 +228,7 @@ Service* create_urat_service(const SERVICE& service,
     }
     else
     {
-        pUrat_service = create_urat_service(name, service, primary, replica, ppOutput);
+        pUrat_service = create_urat_service(name, service, primary, replica);
     }
 
     return pUrat_service;
@@ -206,7 +258,7 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
     bool rv = false;
 
-    SERVICE* pService = pArgs->argv[0].value.service;
+    Service* pService = static_cast<Service*>(pArgs->argv[0].value.service);
     SERVER* pReplica = pArgs->argv[1].value.server;
 
     vector<mxs::Target*> targets = pService->get_children();
@@ -221,13 +273,33 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
             if (pPrimary == servers.front())
             {
-                if (check_prepare_prerequisites(*pService, *pPrimary, *pReplica, ppOutput))
+                if (check_prepare_prerequisites(*pService, *pPrimary, *pReplica))
                 {
-                    Service* pUrat_service = create_urat_service(*pService, *pPrimary, *pReplica, ppOutput);
+                    mxs::Monitor* pUrat_monitor = create_urat_monitor(*pService, *pPrimary, *pReplica);
 
-                    if (pUrat_service)
+                    if (pUrat_monitor)
                     {
-                        rv = rewire_service(*static_cast<Service*>(pService), *pPrimary, *pUrat_service);
+                        MonitorManager::start_monitor(pUrat_monitor);
+
+                        Service* pUrat_service = create_urat_service(*pService, *pPrimary, *pReplica);
+
+                        if (pUrat_service)
+                        {
+                            rv = rewire_service(*pService, *pPrimary, *pUrat_service);
+
+                            if (rv)
+                            {
+                                json_t* pOutput = json_object();
+                                auto s = mxb::string_printf("Monitor '%s' and service '%s' created. Service "
+                                                            "'%s' rewired for the evaluation of '%s'.",
+                                                            pUrat_monitor->name(),
+                                                            pUrat_service->name(),
+                                                            pService->name(),
+                                                            pReplica->name());
+                                json_object_set_new(pOutput, "status", json_string(s.c_str()));
+                                *ppOutput = pOutput;
+                            }
+                        }
                     }
                 }
             }
