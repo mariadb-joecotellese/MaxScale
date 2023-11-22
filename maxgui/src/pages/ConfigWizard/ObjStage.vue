@@ -1,8 +1,13 @@
 <template>
-    <v-form ref="formCtr" v-model="isFormValid" lazy-validation class="d-flex fill-height relative">
-        <mxs-stage-ctr className="pa-0">
+    <v-form ref="formCtr" v-model="isFormValid" lazy-validation class="fill-height">
+        <mxs-stage-ctr
+            className="pa-0"
+            headerClassName="pl-9 pt-1"
+            bodyClassName="pl-9 fill-height"
+            footerClassName="pl-9 pt-4"
+        >
             <template v-slot:header>
-                <div class="form--header pl-6 d-flex flex-column flex-grow-1">
+                <div class="form--header d-flex flex-column flex-grow-1">
                     <label
                         class="d-block field__label mxs-color-helper text-small-text label-required"
                     >
@@ -25,97 +30,94 @@
                             })
                         "
                     />
-                    <v-divider class="mt-3" />
+                    <v-divider class="my-3" />
                 </div>
             </template>
             <template v-slot:body>
-                <v-row class="fill-height">
-                    <v-col cols="12" class="py-0">
-                        <div class="form--body fill-height pl-6">
-                            <server-form-input
-                                v-if="objType === MXS_OBJ_TYPES.SERVERS"
-                                ref="form"
-                                :modules="modules"
-                                :validate="validateForm"
-                                :withRelationship="false"
-                            />
-                            <monitor-form-input
-                                v-else-if="objType === MXS_OBJ_TYPES.MONITORS"
-                                ref="form"
-                                :modules="modules"
-                                :allServers="allServers"
-                                :defaultItems="getNewObjs(MXS_OBJ_TYPES.SERVERS)"
-                            />
-                            <filter-form-input
-                                v-else-if="objType === MXS_OBJ_TYPES.FILTERS"
-                                ref="form"
-                                :modules="modules"
-                            />
-                            <service-form-input
-                                v-else-if="objType === MXS_OBJ_TYPES.SERVICES"
-                                ref="form"
-                                :modules="modules"
-                                :allFilters="allFilters"
-                                :defRoutingTargetItems="getNewObjs(MXS_OBJ_TYPES.SERVERS)"
-                                :defFilterItem="getNewObjs(MXS_OBJ_TYPES.FILTERS)"
-                            />
-                            <listener-form-input
-                                v-else-if="objType === MXS_OBJ_TYPES.LISTENERS"
-                                ref="form"
-                                :validate="validateForm"
-                                :modules="modules"
-                                :allServices="allServices"
-                                :defaultItems="
-                                    $typy(getNewObjs(MXS_OBJ_TYPES.SERVICES), '[0]')
-                                        .safeObjectOrEmpty
-                                "
-                            />
-                        </div>
-                    </v-col>
-                </v-row>
+                <server-form-input
+                    v-if="objType === MXS_OBJ_TYPES.SERVERS"
+                    ref="form"
+                    :withRelationship="false"
+                    :moduleParamsProps="{
+                        showAdvanceToggle: true,
+                        modules,
+                        validate: validateForm,
+                    }"
+                />
+                <monitor-form-input
+                    v-else-if="objType === MXS_OBJ_TYPES.MONITORS"
+                    ref="form"
+                    :allServers="allServers"
+                    :defaultItems="getNewObjsByType(MXS_OBJ_TYPES.SERVERS)"
+                    :moduleParamsProps="{ showAdvanceToggle: true, modules }"
+                />
+                <filter-form-input
+                    v-else-if="objType === MXS_OBJ_TYPES.FILTERS"
+                    ref="form"
+                    :moduleParamsProps="{ showAdvanceToggle: true, modules }"
+                />
+                <service-form-input
+                    v-else-if="objType === MXS_OBJ_TYPES.SERVICES"
+                    ref="form"
+                    :allFilters="allFilters"
+                    :defRoutingTargetItems="getNewObjsByType(MXS_OBJ_TYPES.SERVERS)"
+                    :defFilterItem="getNewObjsByType(MXS_OBJ_TYPES.FILTERS)"
+                    :moduleParamsProps="{ showAdvanceToggle: true, modules }"
+                />
+                <listener-form-input
+                    v-else-if="objType === MXS_OBJ_TYPES.LISTENERS"
+                    ref="form"
+                    :allServices="allServices"
+                    :defaultItems="
+                        $typy(getNewObjsByType(MXS_OBJ_TYPES.SERVICES), '[0]').safeObjectOrEmpty
+                    "
+                    :moduleParamsProps="{
+                        showAdvanceToggle: true,
+                        modules,
+                        validate: validateForm,
+                    }"
+                />
             </template>
             <template v-slot:footer>
-                <div class="pl-6 pt-4">
-                    <v-btn
-                        small
-                        height="36"
-                        color="primary"
-                        class="mt-auto mr-2 font-weight-medium px-7 text-capitalize"
-                        rounded
-                        depressed
-                        :outlined="!isNextDisabled"
-                        :disabled="!isFormValid"
-                        @click="handleCreate"
-                    >
-                        {{ $mxs_t('createObj') }}
-                    </v-btn>
-                    <v-btn
-                        v-if="objType !== MXS_OBJ_TYPES.LISTENERS"
-                        small
-                        height="36"
-                        color="primary"
-                        class="mt-auto font-weight-medium px-7 text-capitalize"
-                        rounded
-                        depressed
-                        :outlined="isNextDisabled"
-                        :disabled="isNextDisabled"
-                        @click="$emit('next')"
-                    >
-                        {{ $mxs_t('next') }}
-                    </v-btn>
-                    <v-btn
-                        v-else-if="!isNextDisabled"
-                        small
-                        height="36"
-                        color="primary"
-                        class="mt-auto font-weight-medium px-7 text-capitalize"
-                        rounded
-                        depressed
-                        to="/visualization/configuration"
-                    >
-                        {{ $mxs_t('visualizeConfig') }}
-                    </v-btn>
-                </div>
+                <v-btn
+                    small
+                    height="36"
+                    color="primary"
+                    class="mt-auto mr-2 font-weight-medium px-7 text-capitalize"
+                    rounded
+                    depressed
+                    :outlined="!isNextDisabled"
+                    :disabled="!isFormValid"
+                    @click="handleCreate"
+                >
+                    {{ $mxs_t('createObj') }}
+                </v-btn>
+                <v-btn
+                    v-if="objType !== MXS_OBJ_TYPES.LISTENERS"
+                    small
+                    height="36"
+                    color="primary"
+                    class="mt-auto font-weight-medium px-7 text-capitalize"
+                    rounded
+                    depressed
+                    :outlined="isNextDisabled"
+                    :disabled="isNextDisabled"
+                    @click="$emit('next')"
+                >
+                    {{ $mxs_t('next') }}
+                </v-btn>
+                <v-btn
+                    v-else-if="!isNextDisabled"
+                    small
+                    height="36"
+                    color="primary"
+                    class="mt-auto font-weight-medium px-7 text-capitalize"
+                    rounded
+                    depressed
+                    to="/visualization/configuration"
+                >
+                    {{ $mxs_t('visualizeConfig') }}
+                </v-btn>
             </template>
         </mxs-stage-ctr>
     </v-form>
@@ -140,7 +142,7 @@ export default {
     name: 'obj-stage',
     props: {
         objType: { type: String, required: true },
-        stageDataMap: { type: Object, required: true }, // sync
+        stageDataMap: { type: Object, required: true },
     },
     data() {
         return {
@@ -154,36 +156,22 @@ export default {
         modules() {
             return this.getMxsObjModules(this.objType)
         },
-        dataMap: {
-            get() {
-                return this.stageDataMap
-            },
-            set(v) {
-                this.$emit('stageDataMap:update', v)
-            },
-        },
-        stageData: {
-            get() {
-                return this.dataMap[this.objType]
-            },
-            set(v) {
-                this.dataMap[this.objType] = v
-            },
-        },
         existingIds() {
-            return this.$typy(this.stageData, 'existingObjs').safeArray.map(obj => obj.id)
+            return Object.keys(this.stageDataMap).flatMap(type =>
+                this.getAllObjsByType(type).map(obj => obj.id)
+            )
         },
         allServers() {
-            return this.combineObjs(this.MXS_OBJ_TYPES.SERVERS)
+            return this.getAllObjsByType(this.MXS_OBJ_TYPES.SERVERS)
         },
         allFilters() {
-            return this.combineObjs(this.MXS_OBJ_TYPES.FILTERS)
+            return this.getAllObjsByType(this.MXS_OBJ_TYPES.FILTERS)
         },
         allServices() {
-            return this.combineObjs(this.MXS_OBJ_TYPES.SERVICES)
+            return this.getAllObjsByType(this.MXS_OBJ_TYPES.SERVICES)
         },
         newObjs() {
-            return this.getNewObjs(this.objType)
+            return this.getNewObjsByType(this.objType)
         },
         isNextDisabled() {
             return Boolean(!this.newObjs.length)
@@ -194,12 +182,8 @@ export default {
             this.objId = v ? v.split(' ').join('-') : v
         },
     },
-    async created() {
-        await this.fetchExistingObjData(this.objType)
-    },
     methods: {
         ...mapActions({
-            getResourceData: 'getResourceData',
             createService: 'service/createService',
             createMonitor: 'monitor/createMonitor',
             createFilter: 'filter/createFilter',
@@ -207,26 +191,32 @@ export default {
             createServer: 'server/createServer',
         }),
         /**
+         * @param {string} param.type - stage type
+         * @param {string} param.field - field name. i.e. newObjMap or existingObjMap
+         * @returns {object} either newObjMap or existingObjMap
+         */
+        getObjMap({ type, field }) {
+            return this.$typy(this.stageDataMap[type], field).safeObjectOrEmpty
+        },
+        /**
          * @param {string} type object type
          * @returns {array} existing objects and recently added objects
          */
-        combineObjs(type) {
-            return [
-                ...this.$typy(this.dataMap[type], 'existingObjs').safeArray,
-                ...this.getNewObjs(type),
-            ]
+        getAllObjsByType(type) {
+            const objMap = this.$helpers.lodash.merge(
+                this.getObjMap({ type, field: 'existingObjMap' }),
+                this.getObjMap({ type, field: 'newObjMap' })
+            )
+            return Object.values(objMap)
         },
-        getNewObjs(type) {
-            return this.$typy(this.dataMap[type], 'newObjs').safeArray
-        },
-        async fetchExistingObjData(type) {
-            const { SERVERS, MONITORS } = this.MXS_OBJ_TYPES
-            const relationshipFields = type === SERVERS ? [MONITORS] : []
-            const res = await this.getResourceData({
-                type,
-                fields: ['id', ...relationshipFields],
-            })
-            this.$set(this.stageData, 'existingObjs', res)
+        /**
+         * @param {string} type object type
+         * @returns {array} recently added objects
+         */
+        getNewObjsByType(type) {
+            return Object.values(
+                this.getObjMap({ type, field: 'newObjMap' })
+            ).map(({ id, type }) => ({ id, type }))
         },
         validateObjId(v) {
             if (!v) return this.$mxs_t('errors.requiredInput', { inputName: 'id' })
@@ -236,8 +226,9 @@ export default {
         async validateForm() {
             await this.$typy(this.$refs, `formCtr.validate`).safeFunction()
         },
-        resetForm() {
-            this.$typy(this.$refs, `formCtr.reset`).safeFunction()
+        emptyObjId() {
+            this.objId = ''
+            this.$typy(this.$refs, `formCtr.resetValidation`).safeFunction()
         },
         async createObj() {
             const form = this.$refs.form
@@ -268,8 +259,8 @@ export default {
                     break
             }
             payload.callback = () => {
-                this.stageData.newObjs.push({ id: payload.id, type: this.objType })
-                this.resetForm()
+                this.emptyObjId()
+                this.$emit('on-obj-created', { id: payload.id, type: this.objType })
             }
             await this[actionName](payload)
         },
