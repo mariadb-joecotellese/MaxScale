@@ -30,6 +30,7 @@ namespace
 void register_prepare_command();
 void register_start_command();
 void register_status_command();
+void register_stop_command();
 }
 
 void urat_register_commands()
@@ -37,6 +38,7 @@ void urat_register_commands()
     register_prepare_command();
     register_start_command();
     register_status_command();
+    register_stop_command();
 }
 
 namespace
@@ -414,6 +416,46 @@ void register_status_command()
                                                   MXS_ARRAY_NELEMS(command_status_argv),
                                                   command_status_argv,
                                                   "Urat service status");
+    mxb_assert(rv);
+}
+
+}
+
+/**
+ * call command stop
+ */
+namespace
+{
+
+static modulecmd_arg_type_t command_stop_argv[] =
+{
+    {MODULECMD_ARG_SERVICE | MODULECMD_ARG_NAME_MATCHES_DOMAIN, "Service name"},
+};
+
+static int command_stop_argc = MXS_ARRAY_NELEMS(command_stop_argv);
+
+
+bool command_stop(const MODULECMD_ARG* pArgs, json_t** ppOutput)
+{
+    check_args(pArgs, command_stop_argv, command_stop_argc);
+
+    auto* pService = pArgs->argv[0].value.service;
+    auto* pRouter = static_cast<UratRouter*>(pService->router());
+
+    return pRouter->stop(ppOutput);
+};
+
+void register_stop_command()
+{
+    MXB_AT_DEBUG(bool rv);
+
+    MXB_AT_DEBUG(rv =) modulecmd_register_command(MXB_MODULE_NAME,
+                                                  "stop",
+                                                  MODULECMD_TYPE_ACTIVE,
+                                                  command_stop,
+                                                  MXS_ARRAY_NELEMS(command_stop_argv),
+                                                  command_stop_argv,
+                                                  "Urat service stop");
     mxb_assert(rv);
 }
 

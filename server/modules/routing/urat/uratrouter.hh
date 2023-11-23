@@ -56,6 +56,7 @@ public:
 
     bool start(json_t** ppOutput);
     bool status(json_t** ppOutput);
+    bool stop(json_t** ppOutput);
 
 private:
     UratRouter(SERVICE* pService)

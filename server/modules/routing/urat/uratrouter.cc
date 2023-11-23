@@ -90,6 +90,37 @@ bool UratRouter::status(json_t** ppOutput)
     return true;
 }
 
+bool UratRouter::stop(json_t** ppOutput)
+{
+    bool rv = false;
+
+    json_t* pOutput = nullptr;
+
+    switch (m_urat_state)
+    {
+    case urat::State::PREPARED:
+        MXB_ERROR("The state of '%s' is '%s' and hence it cannot be stopped.",
+                  m_service.name(), urat::to_string(m_urat_state));
+        break;
+
+    case urat::State::SYNCHRONIZING:
+        mxb_assert(false);
+        // TODO: Handle stop when synchronizing.
+        MXB_ERROR("Not implemented yet.");
+        break;
+
+    case urat::State::CAPTURING:
+        mxb_assert(false);
+        // TODO: Handle stop when capturing.
+        MXB_ERROR("Not implemented yet.");
+        break;
+    }
+
+    *ppOutput = pOutput;
+
+    return rv;
+}
+
 void UratRouter::ship(json_t* pJson)
 {
     {
