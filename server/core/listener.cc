@@ -1146,9 +1146,10 @@ ClientDCB* Listener::accept_one_dcb(int fd, const sockaddr_storage* addr, const 
     }
     else
     {
-        session->set_client_dcb(client_dcb);
-        session->set_client_connection(pProtocol);
+        // Order is significant, since the session will extract the
+        // client dcb from the client connection.
         pProtocol->set_dcb(client_dcb);
+        session->set_client_connection(pProtocol);
 
         if (service()->has_too_many_connections())
         {
@@ -1162,11 +1163,16 @@ ClientDCB* Listener::accept_one_dcb(int fd, const sockaddr_storage* addr, const 
             ClientDCB::close(client_dcb);
             client_dcb = NULL;
         }
-        else if (!client_dcb->enable_events())
+        else if (session->is_enabled())
         {
-            MXB_ERROR("Failed to add dcb %p for fd %d to epoll set.", client_dcb, fd);
-            ClientDCB::close(client_dcb);
-            client_dcb = NULL;
+            // TODO: Not quite alright that the listener enables the events
+            // TODO: behind the session's back.
+            if (!client_dcb->enable_events())
+            {
+                MXB_ERROR("Failed to add dcb %p for fd %d to epoll set.", client_dcb, fd);
+                ClientDCB::close(client_dcb);
+                client_dcb = NULL;
+            }
         }
     }
 

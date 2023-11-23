@@ -10,9 +10,10 @@
         <data-table
             :headers="variableValueTableHeaders"
             :data="parametersTableRow"
-            :showAll="showAll"
-            :editableCell="editableCell"
-            :keepPrimitiveValue="keepPrimitiveValue"
+            showAll
+            editableCell
+            keepPrimitiveValue
+            :search="search"
             @cell-hover="onCellHover"
         >
             <template v-slot:header-append-id>
@@ -22,20 +23,23 @@
             </template>
 
             <template v-slot:id="{ data: { item } }">
-                <parameter-tooltip-activator :item="item" :componentId="componentId" />
+                <parameter-tooltip-activator
+                    v-mxs-highlighter="{ keyword: search, txt: item.id }"
+                    :item="item"
+                    :componentId="componentId"
+                />
             </template>
 
             <template v-slot:value="{ data: { item } }">
                 <parameter-input-container
                     :item="item"
                     :validate="validate"
-                    :usePortOrSocket="usePortOrSocket"
                     :changedParametersArr="changedParametersArr"
                     :portValue="portValue"
                     :socketValue="socketValue"
-                    :isListener="isListener"
+                    :objType="objType"
                     @get-changed-params="changedParametersArr = $event"
-                    @handle-change="assignPortSocketDependencyValues"
+                    @handle-change="setPortAndSocketValues"
                 />
             </template>
         </data-table>
@@ -66,11 +70,6 @@
 This component allows to edit parameters taken from parameters array that must have similar format to
 module parameters. All default_values will be returned as string regardless of type
 The component is meant to be used for creating resource
-
-PROPS:
-- usePortOrSocket: accepts boolean , if true, get portValue, and socketValue,
-  passing them to parameter-input for handling special input field when editting server or listener.
-- isListener: accepts boolean , if true, address parameter will not be required
 */
 import getParamInfo from '@share/mixins/getParamInfo'
 
@@ -79,19 +78,12 @@ export default {
     mixins: [getParamInfo],
     props: {
         parameters: { type: Array, required: true },
-        // special props to manipulate required or dependent input attribute
-        usePortOrSocket: { type: Boolean, default: false }, // needed for server, listener
         validate: { type: Function, default: () => null }, // needed for server, listener
-        isListener: { type: Boolean, default: false },
+        search: { type: String, required: true },
+        objType: { type: String, required: true },
     },
-    data: function() {
+    data() {
         return {
-            // for data-table
-            showAll: true,
-            editableCell: true,
-            keepPrimitiveValue: true,
-            // nested form
-            isValid: false,
             // Parameters table section
             variableValueTableHeaders: [
                 { text: 'Variable', value: 'id', width: '1px' },
@@ -102,14 +94,13 @@ export default {
             //
             portValue: null,
             socketValue: null,
-
             parameterTooltip: null,
             // this is needed when using custom activator in v-tooltip.
             componentId: this.$helpers.lodash.uniqueId('component_tooltip_'),
         }
     },
     computed: {
-        parametersTableRow: function() {
+        parametersTableRow() {
             const parameters = this.parameters
             let arr = []
             parameters.forEach(param => {
@@ -125,7 +116,8 @@ export default {
                 paramObj['id'] = paramObj.name
                 delete paramObj.name
                 arr.push(paramObj)
-                this.assignPortSocketDependencyValues(paramObj)
+                if (this.$helpers.isServerOrListenerType(this.objType))
+                    this.setPortAndSocketValues(paramObj)
             })
             return arr
         },
@@ -147,23 +139,21 @@ export default {
          * This function helps to assign value to component's data: portValue, socketValue
          * @param {Object} parameter object
          */
-        assignPortSocketDependencyValues(parameter) {
-            if (this.usePortOrSocket) {
-                const { id, value } = parameter
-                switch (id) {
-                    case 'port':
-                        this.portValue = value
-                        break
-                    case 'socket':
-                        this.socketValue = value
-                        break
-                }
+        setPortAndSocketValues(parameter) {
+            const { id, value } = parameter
+            switch (id) {
+                case 'port':
+                    this.portValue = value
+                    break
+                case 'socket':
+                    this.socketValue = value
+                    break
             }
         },
-
-        /*
-            Function to be called by parent component
-        */
+        /**
+         * @public
+         * Function to be called by parent component
+         */
         getParameterObj() {
             let resultObj = {}
             this.changedParametersArr.forEach(obj => {

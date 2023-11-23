@@ -200,9 +200,6 @@ public:
      */
     bool restart();
 
-    // Links a client DCB to a session
-    void set_client_dcb(ClientDCB* dcb);
-
     const FilterList& get_filters() const
     {
         return m_filters;
@@ -363,17 +360,17 @@ public:
         return *m_metadata;
     }
 
+    bool is_enabled() const
+    {
+        return m_enabled;
+    }
+
 protected:
     std::shared_ptr<mxs::Endpoint> m_down;
 
 private:
     void enable_events();
     void disable_events();
-
-    bool is_enabled() const
-    {
-        return m_enabled;
-    }
 
     size_t get_memory_statistics(size_t* connection_buffers,
                                  size_t* last_queries,

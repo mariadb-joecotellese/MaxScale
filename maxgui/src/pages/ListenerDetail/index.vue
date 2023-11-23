@@ -9,8 +9,8 @@
                         :resourceId="current_listener.id"
                         :parameters="current_listener.attributes.parameters"
                         :updateResourceParameters="updateListenerParameters"
-                        usePortOrSocket
                         :onEditSucceeded="dispatchFetchListener"
+                        :objType="MXS_OBJ_TYPES.LISTENERS"
                     />
                 </v-col>
                 <v-col cols="6">
@@ -50,6 +50,7 @@ export default {
     computed: {
         ...mapState({
             current_listener: state => state.listener.current_listener,
+            MXS_OBJ_TYPES: state => state.app_config.MXS_OBJ_TYPES,
         }),
     },
     watch: {

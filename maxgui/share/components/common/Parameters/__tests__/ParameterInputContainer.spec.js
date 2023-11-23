@@ -60,6 +60,7 @@ describe('ParameterInputContainer.vue', () => {
                 changedParametersArr: [],
                 /* changedParametersArr is a required props which
                 will be overwritten on test watching on get-changed-params event */
+                objType: 'monitors',
             },
         })
     })
@@ -82,26 +83,21 @@ describe('ParameterInputContainer.vue', () => {
 
     it(`Component passes dependency props to a parameter-input component to handle
       address, port, socket required rule when updating or creating a server`, async () => {
-        // when usePortOrSocket is true, the below props should be passed to parameter-input
-        let dependencyProps = {
+        const props = {
+            item: portParam,
             validate: () => null,
             portValue: portParam.value,
             socketValue: socketParam.value,
-            isListener: false,
+            objType: 'servers',
         }
-        await wrapper.setProps({
-            item: portParam,
-            // below are optional props which are required when updating or creating a server
-            usePortOrSocket: true,
-            ...dependencyProps,
-        })
+        await wrapper.setProps(props)
         const parameter_input = wrapper.findAllComponents({ name: 'parameter-input' })
         expect(parameter_input.length).to.be.equal(1)
-        let parameter_input_props = parameter_input.at(0).vm.$props
-        expect(parameter_input_props.validate).to.be.equal(dependencyProps.validate)
-        expect(parameter_input_props.portValue).to.be.equal(dependencyProps.portValue)
-        expect(parameter_input_props.socketValue).to.be.equal(dependencyProps.socketValue)
-        expect(parameter_input_props.isListener).to.be.equal(dependencyProps.isListener)
+        const { validate, portValue, socketValue, objType } = parameter_input.at(0).vm.$props
+        expect(validate).to.be.equal(props.validate)
+        expect(portValue).to.be.equal(props.portValue)
+        expect(socketValue).to.be.equal(props.socketValue)
+        expect(objType).to.be.equal(props.objType)
     })
 
     it(`Deep changes (Adding new item) of an enum mask parameter should emit
