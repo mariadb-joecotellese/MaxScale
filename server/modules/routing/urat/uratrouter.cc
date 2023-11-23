@@ -74,6 +74,22 @@ bool UratRouter::start(json_t** ppOutput)
     return true;
 }
 
+bool UratRouter::status(json_t** ppOutput)
+{
+    mxs::RoutingWorker::SuspendResult sr = mxs::RoutingWorker::suspended_sessions(m_service.name());
+
+    json_t* pOutput = json_object();
+    json_object_set_new(pOutput, "state", json_string(urat::to_string(m_urat_state)));
+    json_t* pSessions = json_object();
+    json_object_set_new(pSessions, "total", json_integer(sr.total));
+    json_object_set_new(pSessions, "suspended", json_integer(sr.suspended));
+    json_object_set_new(pOutput, "sessions", pSessions);
+
+    *ppOutput = pOutput;
+
+    return true;
+}
+
 void UratRouter::ship(json_t* pJson)
 {
     {

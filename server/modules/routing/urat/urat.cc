@@ -7,6 +7,27 @@
 #include "uratrouter.hh"
 #include "uratcommands.hh"
 
+namespace urat
+{
+
+const char* to_string(State state)
+{
+    switch (state)
+    {
+    case State::PREPARED:
+        return "prepared";
+
+    case State::SYNCHRONIZING:
+        return "synchronizing";
+
+    case State::CAPTURING:
+        return "capturing";
+    }
+
+    mxb_assert(!true);
+    return "unknown";
+}
+}
 
 extern "C" MXS_MODULE* MXS_CREATE_MODULE()
 {

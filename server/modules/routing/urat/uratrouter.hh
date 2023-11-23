@@ -55,14 +55,17 @@ public:
     bool post_configure();
 
     bool start(json_t** ppOutput);
+    bool status(json_t** ppOutput);
 
 private:
     UratRouter(SERVICE* pService)
-        : m_config(pService->name(), this)
+        : m_urat_state(urat::State::PREPARED)
+        , m_config(pService->name(), this)
         , m_service(*pService)
     {
     }
 
+    urat::State                   m_urat_state;
     UratConfig                    m_config;
     std::unique_ptr<UratExporter> m_sExporter;
     mxb::shared_mutex             m_rw_lock;

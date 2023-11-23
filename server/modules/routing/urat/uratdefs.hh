@@ -17,4 +17,13 @@ namespace urat
 
 const uint64_t CAPABILITIES = RCAP_TYPE_REQUEST_TRACKING | RCAP_TYPE_RUNTIME_CONFIG;
 
+enum class State
+{
+    PREPARED,      // Setup for action.
+    SYNCHRONIZING, // Started, suspending sessions, stopping replication, etc.
+    CAPTURING      // Sessions restarted, capturing in process.
+};
+
+const char* to_string(State state);
+
 }

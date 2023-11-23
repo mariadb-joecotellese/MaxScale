@@ -29,12 +29,14 @@ namespace
 {
 void register_prepare_command();
 void register_start_command();
+void register_status_command();
 }
 
 void urat_register_commands()
 {
     register_prepare_command();
     register_start_command();
+    register_status_command();
 }
 
 namespace
@@ -372,6 +374,46 @@ void register_start_command()
                                                   MXS_ARRAY_NELEMS(command_start_argv),
                                                   command_start_argv,
                                                   "Start Urat for Service");
+    mxb_assert(rv);
+}
+
+}
+
+/**
+ * call command status
+ */
+namespace
+{
+
+static modulecmd_arg_type_t command_status_argv[] =
+{
+    {MODULECMD_ARG_SERVICE | MODULECMD_ARG_NAME_MATCHES_DOMAIN, "Service name"},
+};
+
+static int command_status_argc = MXS_ARRAY_NELEMS(command_status_argv);
+
+
+bool command_status(const MODULECMD_ARG* pArgs, json_t** ppOutput)
+{
+    check_args(pArgs, command_status_argv, command_status_argc);
+
+    auto* pService = pArgs->argv[0].value.service;
+    auto* pRouter = static_cast<UratRouter*>(pService->router());
+
+    return pRouter->status(ppOutput);
+};
+
+void register_status_command()
+{
+    MXB_AT_DEBUG(bool rv);
+
+    MXB_AT_DEBUG(rv =) modulecmd_register_command(MXB_MODULE_NAME,
+                                                  "status",
+                                                  MODULECMD_TYPE_ACTIVE,
+                                                  command_status,
+                                                  MXS_ARRAY_NELEMS(command_status_argv),
+                                                  command_status_argv,
+                                                  "Urat service status");
     mxb_assert(rv);
 }
 
