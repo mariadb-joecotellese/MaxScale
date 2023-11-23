@@ -9,6 +9,7 @@
 #include <maxscale/filter.hh>
 #include <maxscale/routing.hh>
 #include "wcarconfig.hh"
+#include "wcarrecorder.hh"
 #include "wcarfiltersession.hh"
 
 class WcarFilterSession;
@@ -19,8 +20,7 @@ public:
     // TODO: This probably needs tuning.
     static constexpr uint64_t CAPABILITIES = RCAP_TYPE_REQUEST_TRACKING;
 
-    WcarFilter(const WcarFilter&) = delete;
-    WcarFilter& operator=(const WcarFilter&) = delete;
+    WcarFilter(WcarFilter&&) = delete;
 
     static WcarFilter* create(const char* zName);
 
@@ -33,7 +33,7 @@ public:
         return CAPABILITIES;
     }
 
-    mxs::config::Configuration& getConfiguration() override
+    WcarConfig& getConfiguration() override
     {
         return m_config;
     }
@@ -43,9 +43,16 @@ public:
         return {MXS_ANY_PROTOCOL};
     }
 
-private:
-    WcarFilter(const std::string& name);
+    WcarRecorder& recorder() const
+    {
+        return m_recorder;
+    }
 
 private:
-    WcarConfig m_config;
+    WcarFilter(const std::string& name);
+    ~WcarFilter();
+
+private:
+    WcarConfig           m_config;
+    mutable WcarRecorder m_recorder;
 };

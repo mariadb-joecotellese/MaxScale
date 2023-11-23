@@ -11,7 +11,14 @@
 WcarFilter::WcarFilter(const std::string& name)
     : m_config(name)
 {
+    m_recorder.start();
 }
+
+WcarFilter::~WcarFilter()
+{
+    m_recorder.stop();
+}
+
 
 // static
 WcarFilter* WcarFilter::create(const char* zName)
