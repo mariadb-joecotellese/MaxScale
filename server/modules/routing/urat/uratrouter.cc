@@ -8,6 +8,25 @@
 #include "uratsession.hh"
 
 // static
+const char* UratRouter::to_string(UratState state)
+{
+    switch (state)
+    {
+    case UratState::PREPARED:
+        return "prepared";
+
+    case UratState::SYNCHRONIZING:
+        return "synchronizing";
+
+    case UratState::CAPTURING:
+        return "capturing";
+    }
+
+    mxb_assert(!true);
+    return "unknown";
+}
+
+// static
 UratRouter* UratRouter::create(SERVICE* pService)
 {
     return new UratRouter(pService);
@@ -44,7 +63,7 @@ json_t* UratRouter::diagnostics() const
 
 uint64_t UratRouter::getCapabilities() const
 {
-    return urat::CAPABILITIES;
+    return URAT_CAPABILITIES;
 }
 
 bool UratRouter::post_configure()
@@ -79,7 +98,7 @@ bool UratRouter::status(json_t** ppOutput)
     mxs::RoutingWorker::SuspendResult sr = mxs::RoutingWorker::suspended_sessions(m_service.name());
 
     json_t* pOutput = json_object();
-    json_object_set_new(pOutput, "state", json_string(urat::to_string(m_urat_state)));
+    json_object_set_new(pOutput, "state", json_string(to_string(m_urat_state)));
     json_t* pSessions = json_object();
     json_object_set_new(pSessions, "total", json_integer(sr.total));
     json_object_set_new(pSessions, "suspended", json_integer(sr.suspended));
@@ -98,18 +117,18 @@ bool UratRouter::stop(json_t** ppOutput)
 
     switch (m_urat_state)
     {
-    case urat::State::PREPARED:
+    case UratState::PREPARED:
         MXB_ERROR("The state of '%s' is '%s' and hence it cannot be stopped.",
-                  m_service.name(), urat::to_string(m_urat_state));
+                  m_service.name(), to_string(m_urat_state));
         break;
 
-    case urat::State::SYNCHRONIZING:
+    case UratState::SYNCHRONIZING:
         mxb_assert(false);
         // TODO: Handle stop when synchronizing.
         MXB_ERROR("Not implemented yet.");
         break;
 
-    case urat::State::CAPTURING:
+    case UratState::CAPTURING:
         mxb_assert(false);
         // TODO: Handle stop when capturing.
         MXB_ERROR("Not implemented yet.");
