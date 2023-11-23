@@ -1,6 +1,8 @@
 # Requires Kafka for the time being.
-include(${CMAKE_SOURCE_DIR}/cmake/BuildRdkafka.cmake)
-include_directories(${RDKAFKA_INCLUDE_DIR})
+if (NOT RDKAFKA_FOUND)
+  include(${CMAKE_SOURCE_DIR}/cmake/BuildRdkafka.cmake)
+  include_directories(${RDKAFKA_INCLUDE_DIR})
+endif()
 
 add_library(urat SHARED
   urat.cc
