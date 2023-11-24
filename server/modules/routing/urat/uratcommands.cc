@@ -204,6 +204,7 @@ Service* create_urat_service(const string& name,
     params.set("exporter", "file");
     params.set("file", "urat.txt");
     params.set("servers", mxb::join(servers, ","));
+    params.set("service", service.name());
 
     Service* pUrat_service = Service::create(name.c_str(), params);
 

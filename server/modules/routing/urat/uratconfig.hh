@@ -48,6 +48,8 @@ public:
     mxs::config::Enum<ErrorAction>  on_error;
     mxs::config::Enum<ReportAction> report;
 
+    SERVICE*     service;
+
     static mxs::config::Specification* specification();
 
 protected:

@@ -78,6 +78,9 @@ config::ParamEnum<ReportAction> report(
     },
     ReportAction::REPORT_ALWAYS, config::Param::AT_RUNTIME);
 
+config::ParamService service(
+    &specification, "service", "The service the Urat service is installed for",
+    config::Param::Kind::MANDATORY);
 }
 
 
@@ -130,6 +133,7 @@ UratConfig::UratConfig(const char* zName, UratRouter* pInstance)
     add_native(&UratConfig::file, &urat::file);
     add_native(&UratConfig::kafka_broker, &urat::kafka_broker);
     add_native(&UratConfig::kafka_topic, &urat::kafka_topic);
+    add_native(&UratConfig::service, &urat::service);
 }
 
 bool UratConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)
