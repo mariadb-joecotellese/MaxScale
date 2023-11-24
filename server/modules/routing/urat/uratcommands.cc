@@ -15,7 +15,6 @@
 #include <maxscale/modulecmd.hh>
 #include <maxscale/utils.hh>
 #include <maxscale/protocol/mariadb/maxscale.hh>
-#include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/monitormanager.hh"
 #include "../../../core/internal/service.hh"
 #include "uratrouter.hh"
@@ -239,24 +238,6 @@ Service* create_urat_service(const SERVICE& service,
     return pUrat_service;
 }
 
-bool rewire_service(Service& service, SERVER& server, const Service& urat_service)
-{
-    bool rv = false;
-
-    std::set<std::string> servers { server.name() };
-
-    rv = runtime_unlink_service(&service, servers);
-
-    if (rv)
-    {
-        std::set<std::string> targets { urat_service.name() };
-
-        rv = runtime_link_service(&service, targets);
-    }
-
-    return rv;
-}
-
 bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
     check_args(pArgs, command_prepare_argv, command_prepare_argc);
@@ -290,20 +271,16 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
                         if (pUrat_service)
                         {
-                            rv = rewire_service(*pService, *pPrimary, *pUrat_service);
+                            json_t* pOutput = json_object();
+                            auto s = mxb::string_printf("Monitor '%s' and service '%s' created. "
+                                                        "Server '%s' ready to be evaluated.",
+                                                        pUrat_monitor->name(),
+                                                        pUrat_service->name(),
+                                                        pReplica->name());
+                            json_object_set_new(pOutput, "status", json_string(s.c_str()));
+                            *ppOutput = pOutput;
 
-                            if (rv)
-                            {
-                                json_t* pOutput = json_object();
-                                auto s = mxb::string_printf("Monitor '%s' and service '%s' created. Service "
-                                                            "'%s' rewired for the evaluation of '%s'.",
-                                                            pUrat_monitor->name(),
-                                                            pUrat_service->name(),
-                                                            pService->name(),
-                                                            pReplica->name());
-                                json_object_set_new(pOutput, "status", json_string(s.c_str()));
-                                *ppOutput = pOutput;
-                            }
+                            rv = true;
                         }
                     }
                 }

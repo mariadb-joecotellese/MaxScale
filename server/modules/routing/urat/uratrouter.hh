@@ -7,10 +7,11 @@
 
 #include "uratdefs.hh"
 
+#include <maxbase/shared_mutex.hh>
+#include <maxbase/worker.hh>
 #include <maxscale/router.hh>
 #include <maxscale/backend.hh>
 #include <maxscale/protocol/mariadb/module_names.hh>
-#include <maxbase/shared_mutex.hh>
 #include <maxscale/service.hh>
 
 #include "uratconfig.hh"
@@ -19,6 +20,7 @@
 class UratSession;
 
 class UratRouter : public mxs::Router
+                 , private mxb::Worker::Callable
 {
 public:
     enum class UratState
@@ -43,7 +45,7 @@ public:
 
     mxs::Target* get_main() const
     {
-        return m_config.main;
+        return m_config.pMain;
     }
 
     mxs::config::Configuration& getConfiguration() override
@@ -68,16 +70,23 @@ public:
     bool stop(json_t** ppOutput);
 
 private:
-    UratRouter(SERVICE* pService)
-        : m_urat_state(UratState::PREPARED)
-        , m_config(pService->name(), this)
-        , m_service(*pService)
+    bool all_sessions_suspended(mxs::RoutingWorker::SuspendResult sr)
     {
+        return sr.total == sr.suspended;
     }
+
+    void get_status(mxs::RoutingWorker::SuspendResult sr, json_t** ppOutput);
+
+    bool rewire_service();
+    bool rewire_service_dcall();
+    bool rewire_and_restart();
+
+    UratRouter(SERVICE* pService);
 
     UratState                     m_urat_state;
     UratConfig                    m_config;
     std::unique_ptr<UratExporter> m_sExporter;
     mxb::shared_mutex             m_rw_lock;
     SERVICE&                      m_service;
+    mxb::Worker::DCId             m_dcstart { mxb::Worker::NO_CALL };
 };

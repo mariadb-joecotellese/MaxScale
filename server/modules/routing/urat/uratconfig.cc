@@ -129,11 +129,11 @@ UratConfig::UratConfig(const char* zName, UratRouter* pInstance)
     , m_instance(*pInstance)
 {
     add_native(&UratConfig::exporter, &urat::exporter);
-    add_native(&UratConfig::main, &urat::main);
+    add_native(&UratConfig::pMain, &urat::main);
     add_native(&UratConfig::file, &urat::file);
     add_native(&UratConfig::kafka_broker, &urat::kafka_broker);
     add_native(&UratConfig::kafka_topic, &urat::kafka_topic);
-    add_native(&UratConfig::service, &urat::service);
+    add_native(&UratConfig::pService, &urat::service);
 }
 
 bool UratConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)

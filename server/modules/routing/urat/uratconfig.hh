@@ -39,7 +39,7 @@ public:
 
     UratConfig(const char* zName, UratRouter* pInstance);
 
-    mxs::Target* main;
+    mxs::Target* pMain;
     ExporterType exporter;
     std::string  file;
     std::string  kafka_broker;
@@ -48,7 +48,7 @@ public:
     mxs::config::Enum<ErrorAction>  on_error;
     mxs::config::Enum<ReportAction> report;
 
-    SERVICE*     service;
+    SERVICE*     pService;
 
     static mxs::config::Specification* specification();
 
