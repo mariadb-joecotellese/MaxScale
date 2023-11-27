@@ -111,7 +111,7 @@ bool UratRouter::start(json_t** ppOutput)
 
     m_urat_state = UratState::SYNCHRONIZING;
 
-    RoutingWorker::SuspendResult sr = RoutingWorker::suspend_sessions(m_service.name());
+    RoutingWorker::SuspendResult sr = suspend_sessions();
 
     if (all_sessions_suspended(sr))
     {
@@ -134,7 +134,7 @@ bool UratRouter::start(json_t** ppOutput)
 
 bool UratRouter::status(json_t** ppOutput)
 {
-    RoutingWorker::SuspendResult sr = RoutingWorker::suspended_sessions(m_service.name());
+    RoutingWorker::SuspendResult sr = suspended_sessions();
 
     get_status(sr, ppOutput);
 
@@ -170,6 +170,21 @@ bool UratRouter::stop(json_t** ppOutput)
     *ppOutput = pOutput;
 
     return rv;
+}
+
+mxs::RoutingWorker::SuspendResult UratRouter::suspend_sessions()
+{
+    return mxs::RoutingWorker::suspend_sessions(m_config.pService->name());
+}
+
+mxs::RoutingWorker::SuspendResult UratRouter::resume_sessions()
+{
+    return mxs::RoutingWorker::resume_sessions(m_config.pService->name());
+}
+
+mxs::RoutingWorker::SuspendResult UratRouter::suspended_sessions()
+{
+    return mxs::RoutingWorker::suspended_sessions(m_config.pService->name());
 }
 
 void UratRouter::get_status(mxs::RoutingWorker::SuspendResult sr, json_t** ppOutput)
@@ -229,7 +244,7 @@ bool UratRouter::rewire_service_dcall()
 
     bool rv = true;
 
-    RoutingWorker::SuspendResult sr = RoutingWorker::suspend_sessions(m_service.name());
+    RoutingWorker::SuspendResult sr = suspend_sessions();
 
     if (all_sessions_suspended(sr))
     {
@@ -260,7 +275,7 @@ bool UratRouter::rewire_and_restart()
     }
 
     // Regardless of anything, the sessions are resumed.
-    RoutingWorker::resume_sessions(m_service.name());
+    resume_sessions();
 
     return m_urat_state == UratState::CAPTURING;
 }

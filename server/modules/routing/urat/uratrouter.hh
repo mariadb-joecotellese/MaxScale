@@ -75,6 +75,10 @@ private:
         return sr.total == sr.suspended;
     }
 
+    mxs::RoutingWorker::SuspendResult suspend_sessions();
+    mxs::RoutingWorker::SuspendResult resume_sessions();
+    mxs::RoutingWorker::SuspendResult suspended_sessions();
+
     void get_status(mxs::RoutingWorker::SuspendResult sr, json_t** ppOutput);
 
     bool rewire_service();
