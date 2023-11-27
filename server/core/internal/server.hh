@@ -25,6 +25,7 @@
 #include <maxscale/config.hh>
 #include <maxscale/config2.hh>
 #include <maxscale/server.hh>
+#include <maxscale/utils.hh>
 #include <maxscale/workerlocal.hh>
 #include <maxscale/measurements.hh>
 #include <maxscale/response_distribution.hh>
@@ -59,7 +60,7 @@ public:
     {
     }
 
-    ~Server() = default;
+    ~Server();
 
     const char* address() const override
     {
@@ -294,6 +295,7 @@ public:
 
     uint64_t gtid_pos(uint32_t domain) const override;
     void     set_gtid_list(const std::vector<std::pair<uint32_t, uint64_t>>& positions) override;
+    std::unordered_map<uint32_t, uint64_t> get_gtid_list() const override;
     void     clear_gtid_list() override;
 
     uint8_t charset() const override;
@@ -319,6 +321,11 @@ public:
     mxs::config::Configuration& configuration() override;
 
     const std::set<std::string>& protocols() const override;
+
+    /**
+     * Trigger server address info update.
+     */
+    void schedule_addr_info_update();
 
 private:
     bool create_server_config(const char* filename) const;
@@ -420,7 +427,7 @@ private:
     const std::string m_name;       /**< Server config name */
     Settings          m_settings;   /**< Server settings */
     VersionInfo       m_info;       /**< Server version and type information */
-    uint64_t          m_status {0};
+    uint64_t          m_status {SERVER_NEED_DNS};
     bool              m_active {true};
     int64_t           m_rpl_lag {mxs::Target::RLAG_UNDEFINED};  /**< Replication lag in seconds */
     int64_t           m_ping {mxs::Target::PING_UNDEFINED};     /**< Ping in microseconds */
@@ -429,6 +436,13 @@ private:
     mutable std::mutex                                  m_ssl_lock;
     mxb::SSLConfig                                      m_ssl_config;
     mxs::WorkerGlobal<std::shared_ptr<mxs::SSLContext>> m_ssl_ctx;
+
+    mxs::WorkerGlobal<SAddrInfo> m_addr_info;                       /**< Cached getaddrinfo result */
+
+    /**
+     * DCId of the MainWorker task. The address info update scheduling task runs on the main worker,
+     * but the getaddrinfo itself runs in the threadpool. */
+    mxb::Worker::DCId m_addr_update_dcid {mxb::Worker::NO_CALL};
 
     // Character set. Read from backend and sent to client. As no character set has the numeric value of 0, it
     // can be used to detect servers we haven't connected to.
