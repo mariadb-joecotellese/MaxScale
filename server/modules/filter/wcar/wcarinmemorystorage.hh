@@ -19,7 +19,7 @@ public:
     size_t   num_unread() const override;
 
 private:
-    QueryEvent next_event(const QueryEvent& event) override;
+    QueryEvent next_event() override;
 
     struct CanonicalEntry
     {

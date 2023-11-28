@@ -179,7 +179,7 @@ Storage::Iterator SqliteStorage::begin()
                                                         << m_path << "' error: " << sqlite3_errmsg(m_pDb));
     }
 
-    return Storage::Iterator(this, next_event({"", maxsimd::CanonicalArgs {}, m_last_event_read}));
+    return Storage::Iterator(this, next_event());
 }
 
 Storage::Iterator SqliteStorage::end() const
@@ -247,7 +247,7 @@ maxsimd::CanonicalArgs SqliteStorage::select_canonical_args(ssize_t event_id)
     return canonical_args;
 }
 
-QueryEvent SqliteStorage::next_event(const QueryEvent& event)
+QueryEvent SqliteStorage::next_event()
 {
     mxb_assert(m_pEvent_stmt != nullptr);
     auto rc = sqlite3_step(m_pEvent_stmt);

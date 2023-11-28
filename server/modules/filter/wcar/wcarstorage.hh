@@ -67,7 +67,7 @@ public:
 protected:
     size_t             next_can_id();
     size_t             next_event_id();
-    virtual QueryEvent next_event(const QueryEvent& event) = 0;
+    virtual QueryEvent next_event() = 0;
 
 private:
     size_t m_can_id_generator{0};
@@ -110,7 +110,7 @@ inline const QueryEvent* Storage::Iterator::operator->() const
 
 inline Storage::Iterator& Storage::Iterator::operator++()
 {
-    m_event = m_pStorage->next_event(m_event);
+    m_event = m_pStorage->next_event();
     return *this;
 }
 

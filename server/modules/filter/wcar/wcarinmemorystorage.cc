@@ -30,8 +30,7 @@ void InmemoryStorage::add_query_event(QueryEvent&& qevent)
 
 Storage::Iterator InmemoryStorage::begin()
 {
-    QueryEvent qe{"", maxsimd::CanonicalArgs{}, m_read_event_idx};
-    return Storage::Iterator(this, next_event(std::move(qe)));
+    return Storage::Iterator(this, next_event());
 }
 
 Storage::Iterator InmemoryStorage::end() const
@@ -44,7 +43,7 @@ size_t InmemoryStorage::num_unread() const
     return m_events.size();
 }
 
-QueryEvent InmemoryStorage::next_event(const QueryEvent& event)
+QueryEvent InmemoryStorage::next_event()
 {
     if (m_events.empty())
     {
