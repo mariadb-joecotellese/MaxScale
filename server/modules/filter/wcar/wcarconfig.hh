@@ -6,7 +6,10 @@
 #pragma once
 
 #include "wcardefs.hh"
+#include <maxbase/exception.hh>
 #include <maxscale/config2.hh>
+
+DEFINE_EXCEPTION(WcarError);
 
 namespace wcar
 {
