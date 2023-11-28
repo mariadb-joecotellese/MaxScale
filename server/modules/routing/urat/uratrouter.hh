@@ -30,7 +30,17 @@ public:
         CAPTURING      // Sessions restarted, capturing in process.
     };
 
-    static const char* to_string(UratState state);
+    enum class SyncState
+    {
+        IDLE,                   // No synchronization in progress.
+        SUSPENDING,             // Sessions are being suspended.
+        REWIRING,               // Service is being rewired.
+        STOPPING_REPLICATION,   // Replication is being stopped.
+        RESTARTING_AND_RESUMING // Sessions are being restarted and resumed.
+    };
+
+    static const char* to_string(UratState urat_state);
+    static const char* to_string(SyncState sync_state);
 
     UratRouter(const UratRouter&) = delete;
     UratRouter& operator=(const UratRouter&) = delete;
@@ -70,24 +80,33 @@ public:
     bool stop(json_t** ppOutput);
 
 private:
-    bool all_sessions_suspended(mxs::RoutingWorker::SuspendResult sr)
+    bool all_sessions_suspended(mxs::RoutingWorker::SessionResult sr)
     {
-        return sr.total == sr.suspended;
+        return sr.total == sr.affected;
     }
 
-    mxs::RoutingWorker::SuspendResult suspend_sessions();
-    mxs::RoutingWorker::SuspendResult resume_sessions();
-    mxs::RoutingWorker::SuspendResult suspended_sessions();
+    mxs::RoutingWorker::SessionResult restart_sessions();
+    mxs::RoutingWorker::SessionResult suspend_sessions();
+    mxs::RoutingWorker::SessionResult resume_sessions();
+    mxs::RoutingWorker::SessionResult suspended_sessions();
 
-    void get_status(mxs::RoutingWorker::SuspendResult sr, json_t** ppOutput);
+    void get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOutput);
 
     bool rewire_service();
-    bool rewire_service_dcall();
-    bool rewire_and_restart();
+    bool stop_replication(const SERVER& server);
+
+    bool synchronize();
+    void sync_suspend();
+    void sync_rewire();
+    void sync_stop_replication();
+    void sync_restart_and_resume();
+
+    void start_synchronize_dcall();
 
     UratRouter(SERVICE* pService);
 
-    UratState                     m_urat_state;
+    UratState                     m_urat_state { UratState::PREPARED };
+    SyncState                     m_sync_state { SyncState::IDLE };
     UratConfig                    m_config;
     std::unique_ptr<UratExporter> m_sExporter;
     mxb::shared_mutex             m_rw_lock;
