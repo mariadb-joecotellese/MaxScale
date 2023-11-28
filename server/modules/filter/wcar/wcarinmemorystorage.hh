@@ -63,5 +63,5 @@ private:
     Canonicals      m_canonicals;
     CanonicalLookup m_canonical_lookup;
     CaptureEvents   m_events;
-    size_t          m_read_event_idx = 0;
+    ssize_t         m_read_event_idx = 0;
 };

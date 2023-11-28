@@ -131,7 +131,7 @@ void SqliteStorage::add_query_event(QueryEvent&& qevent)
         sqlite_execute(insert_canonical);
     }
 
-    if (qevent.event_id == size_t(-1))
+    if (qevent.event_id == -1)
     {
         qevent.event_id = next_event_id();
     }

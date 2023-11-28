@@ -12,7 +12,7 @@ struct QueryEvent
 {
     std::string            canonical;
     maxsimd::CanonicalArgs canonical_args;
-    size_t                 event_id = -1;   // managed by storage
+    ssize_t                event_id = -1;   // managed by storage
 };
 
 /** Abstract Storage for QueryEvents.
