@@ -53,7 +53,7 @@ SqliteStorage::SqliteStorage(const fs::path& path)
     }
 
     int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_CREATE;
-    if (auto rv = sqlite3_open_v2(m_path.c_str(), &m_pDb, flags, nullptr); rv != SQLITE_OK)
+    if (sqlite3_open_v2(m_path.c_str(), &m_pDb, flags, nullptr) != SQLITE_OK)
     {
         std::string error_msg = "Could not create sqlite3 database '" + m_path.string() + '\'';
         if (m_pDb)
@@ -78,7 +78,7 @@ SqliteStorage::~SqliteStorage()
 void SqliteStorage::sqlite_execute(const std::string& sql)
 {
     char* pError = nullptr;
-    if (auto rv = sqlite3_exec(m_pDb, sql.c_str(), 0, nullptr, &pError); rv != SQLITE_OK)
+    if (sqlite3_exec(m_pDb, sql.c_str(), 0, nullptr, &pError) != SQLITE_OK)
     {
         MXB_THROW(WcarError, "Failed sqlite3 query in database '"
                   << m_path << "' error: " << (pError ? pError : "unknown")
@@ -93,7 +93,7 @@ SqliteStorage::SelectCanIdRes SqliteStorage::select_can_id(size_t hash)
 
         SqliteStorage::SelectCanIdRes* pSelect_res = static_cast<SqliteStorage::SelectCanIdRes*>(pData);
         pSelect_res->exists = true;
-        pSelect_res->can_id = std::stoul(ppColumn[0]); // TODO throws, rethrow as WcarError, maybe.
+        pSelect_res->can_id = std::stol(ppColumn[0]);       // TODO throws, rethrow as WcarError, maybe.
 
         return 0;
     };
@@ -102,7 +102,7 @@ SqliteStorage::SelectCanIdRes SqliteStorage::select_can_id(size_t hash)
     SelectCanIdRes select_res;
     char* pError = nullptr;
 
-    if (int rv = sqlite3_exec(m_pDb, sql.c_str(), select_can_id_cb, &select_res, &pError); rv != SQLITE_OK)
+    if (sqlite3_exec(m_pDb, sql.c_str(), select_can_id_cb, &select_res, &pError) != SQLITE_OK)
     {
         MXB_THROW(WcarError, "Failed sqlite3 query in database '"
                   << m_path << "' error: " << (pError ? pError : "unknown")
@@ -165,8 +165,21 @@ void SqliteStorage::add_query_event(QueryEvent&& qevent)
 
 Storage::Iterator SqliteStorage::begin()
 {
-    QueryEvent qe{"", maxsimd::CanonicalArgs{}, 0};
-    return Storage::Iterator(this, next_event(std::move(qe)));
+    if (m_pEvent_stmt != nullptr)
+    {
+        sqlite3_finalize(m_pEvent_stmt);
+        m_pEvent_stmt = nullptr;
+    }
+
+    auto event_query = MAKE_STR("select event_id, can_id from event where event_id > " << m_last_event_read);
+
+    if (sqlite3_prepare_v2(m_pDb, event_query.c_str(), -1, &m_pEvent_stmt, nullptr) != SQLITE_OK)
+    {
+        MXB_THROW(WcarError, "Failed to prepare stmt '" << event_query << "' in database "
+                                                        << m_path << "' error: " << sqlite3_errmsg(m_pDb));
+    }
+
+    return Storage::Iterator(this, next_event({"", maxsimd::CanonicalArgs {}, m_last_event_read}));
 }
 
 Storage::Iterator SqliteStorage::end() const
@@ -179,8 +192,87 @@ size_t SqliteStorage::num_unread() const
     return 42;      // TODO
 }
 
+std::string SqliteStorage::select_canonical(ssize_t can_id)
+{
+
+    auto select_can_id_cb = [](void* pData, int nColumns, char** ppColumn, char** ppNames){
+
+        mxb_assert(nColumns == 1);
+
+        std::string* pCanonical = static_cast<std::string*>(pData);
+        *pCanonical = ppColumn[0];
+
+        return 0;
+    };
+
+    auto sql = MAKE_STR("select canonical from canonical where can_id = " << can_id);
+    std::string canonical;
+    char* pError = nullptr;
+
+    if (sqlite3_exec(m_pDb, sql.c_str(), select_can_id_cb, &canonical, &pError) != SQLITE_OK)
+    {
+        MXB_THROW(WcarError, "Failed sqlite3 query in database '"
+                  << m_path << "' error: " << (pError ? pError : "unknown")
+                  << " sql '" << sql << '\'');
+    }
+
+    return canonical;
+}
+
+maxsimd::CanonicalArgs SqliteStorage::select_canonical_args(ssize_t event_id)
+{
+
+    auto select_can_args_cb = [](void* pData, int nColumns, char** ppColumn, char** ppNames){
+
+        mxb_assert(nColumns == 2);
+
+        maxsimd::CanonicalArgs* pArgs = static_cast<maxsimd::CanonicalArgs*>(pData);
+        pArgs->emplace_back(std::stoi(ppColumn[0]), std::string(ppColumn[1]));      // TODO throws
+
+        return 0;
+    };
+
+    auto sql = MAKE_STR("select pos, value from argument where event_id = " << event_id);
+
+    maxsimd::CanonicalArgs canonical_args;
+    char* pError = nullptr;
+
+    if (sqlite3_exec(m_pDb, sql.c_str(), select_can_args_cb, &canonical_args, &pError)  != SQLITE_OK)
+    {
+        MXB_THROW(WcarError, "Failed sqlite3 query in database '"
+                  << m_path << "' error: " << (pError ? pError : "unknown")
+                  << " sql '" << sql << '\'');
+    }
+
+    return canonical_args;
+}
+
 QueryEvent SqliteStorage::next_event(const QueryEvent& event)
 {
-    // TODO
-    return QueryEvent{};
+    mxb_assert(m_pEvent_stmt != nullptr);
+    auto rc = sqlite3_step(m_pEvent_stmt);
+
+    if (rc == SQLITE_DONE)
+    {
+        sqlite3_finalize(m_pEvent_stmt);
+        m_pEvent_stmt = nullptr;
+        return QueryEvent {};
+    }
+    else if (rc != SQLITE_ROW)
+    {
+        MXB_THROW(WcarError, "sqlite3_step error: "
+                  << sqlite3_errmsg(m_pDb)
+                  << " database " << m_path
+                  << " Note: add_query_event() cannot be called during iteration");
+    }
+
+    auto event_id = sqlite3_column_int64(m_pEvent_stmt, 0);
+    auto can_id = sqlite3_column_int64(m_pEvent_stmt, 1);
+
+    auto canonical = select_canonical(can_id);
+    auto can_args = select_canonical_args(event_id);
+
+    m_last_event_read = event_id;
+
+    return QueryEvent{std::move(canonical), std::move(can_args), event_id};
 }

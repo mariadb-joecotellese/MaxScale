@@ -33,7 +33,12 @@ private:
     };
 
     SelectCanIdRes select_can_id(size_t hash);
+    std::string    select_canonical(ssize_t can_id);
 
-    fs::path m_path;
-    sqlite3* m_pDb = nullptr;
+    maxsimd::CanonicalArgs select_canonical_args(ssize_t event_id);
+
+    fs::path      m_path;
+    sqlite3*      m_pDb = nullptr;
+    ssize_t       m_last_event_read = -1;
+    sqlite3_stmt* m_pEvent_stmt = nullptr;
 };
