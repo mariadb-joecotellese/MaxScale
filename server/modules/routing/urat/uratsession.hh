@@ -33,7 +33,7 @@ public:
 
 private:
     SUratBackends     m_backends;
-    UratBackend*      m_main = nullptr;
+    UratBackend*      m_pMain = nullptr;
     int               m_responses = 0;
     UratRouter&       m_router;
     std::deque<GWBUF> m_queue;

@@ -86,9 +86,9 @@ RouterSession* UratRouter::newSession(MXS_SESSION* pSession, const Endpoints& en
     auto backends = UratBackend::from_endpoints(endpoints);
     bool connected = false;
 
-    for (const auto& a : backends)
+    for (const auto& sBackend : backends)
     {
-        if (a->can_connect() && a->connect())
+        if (sBackend->can_connect() && sBackend->connect())
         {
             connected = true;
         }

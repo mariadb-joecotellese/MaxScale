@@ -15,11 +15,11 @@ UratSession::UratSession(MXS_SESSION* pSession, UratRouter* pRouter, SUratBacken
     , m_backends(std::move(backends))
     , m_router(*pRouter)
 {
-    for (const auto& a : m_backends)
+    for (const auto& sBackend : m_backends)
     {
-        if (a->target() == m_router.get_main())
+        if (sBackend->target() == m_router.get_main())
         {
-            m_main = a.get();
+            m_pMain = sBackend.get();
         }
     }
 }
@@ -39,18 +39,19 @@ bool UratSession::routeQuery(GWBUF&& packet)
         m_command = mxs_mysql_get_command(packet);
         bool expecting_response = protocol_data().will_respond(packet);
 
-        for (const auto& a : m_backends)
+        for (const auto& sBackend : m_backends)
         {
             auto type = mxs::Backend::NO_RESPONSE;
 
             if (expecting_response)
             {
-                type = a.get() == m_main ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::IGNORE_RESPONSE;
+                type = sBackend.get() == m_pMain
+                    ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::IGNORE_RESPONSE;
             }
 
-            if (a->in_use() && a->write(packet.shallow_clone(), type))
+            if (sBackend->in_use() && sBackend->write(packet.shallow_clone(), type))
             {
-                if (a.get() == m_main)
+                if (sBackend.get() == m_pMain)
                 {
                     // Routing is successful as long as we can write to the main connection
                     rc = 1;
@@ -96,7 +97,7 @@ void UratSession::finalize_reply()
     // that we've been storing in the session.
     MXB_INFO("All replies received, routing last chunk to the client.");
 
-    RouterSession::clientReply(std::move(m_last_chunk), m_last_route, m_main->reply());
+    RouterSession::clientReply(std::move(m_last_chunk), m_last_route, m_pMain->reply());
     m_last_chunk.clear();
 
     generate_report();
@@ -105,18 +106,18 @@ void UratSession::finalize_reply()
 
 bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mxs::Reply& reply)
 {
-    auto backend = static_cast<UratBackend*>(down.endpoint()->get_userdata());
-    backend->process_result(packet, reply);
+    auto* pBackend = static_cast<UratBackend*>(down.endpoint()->get_userdata());
+    pBackend->process_result(packet, reply);
 
     if (reply.is_complete())
     {
-        backend->ack_write();
+        pBackend->ack_write();
         --m_responses;
 
-        MXB_INFO("Reply from '%s' complete%s.", backend->name(), backend == m_main ?
+        MXB_INFO("Reply from '%s' complete%s.", pBackend->name(), pBackend == m_pMain ?
                  ", delaying routing of last chunk until all replies have been received" : "");
 
-        if (backend == m_main)
+        if (pBackend == m_pMain)
         {
             m_last_chunk = std::move(packet);
             m_last_route = down;
@@ -126,7 +127,7 @@ bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const
         if (m_responses == 0)
         {
             mxb_assert(!m_last_chunk.empty());
-            mxb_assert(!packet || backend != m_main);
+            mxb_assert(!packet || pBackend != m_pMain);
 
             packet.clear();
             finalize_reply();
@@ -135,7 +136,7 @@ bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const
 
     bool rc = true;
 
-    if (packet && backend == m_main)
+    if (packet && pBackend == m_pMain)
     {
         rc = RouterSession::clientReply(std::move(packet), down, reply);
     }
@@ -148,22 +149,22 @@ bool UratSession::handleError(mxs::ErrorType type,
                               mxs::Endpoint* pProblem,
                               const mxs::Reply& reply)
 {
-    Backend* backend = static_cast<Backend*>(pProblem->get_userdata());
+    auto* pBackend = static_cast<Backend*>(pProblem->get_userdata());
 
-    if (backend->is_waiting_result())
+    if (pBackend->is_waiting_result())
     {
         --m_responses;
 
-        if (m_responses == 0 && backend != m_main)
+        if (m_responses == 0 && pBackend != m_pMain)
         {
             finalize_reply();
         }
     }
 
-    backend->close();
+    pBackend->close();
 
     // We can continue as long as the main connection isn't dead
-    bool ok = m_router.config().on_error.get() == ErrorAction::ERRACT_IGNORE && backend != m_main;
+    bool ok = m_router.config().on_error.get() == ErrorAction::ERRACT_IGNORE && pBackend != m_pMain;
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
@@ -176,15 +177,15 @@ bool UratSession::should_report() const
         rval = false;
         std::string checksum;
 
-        for (const auto& a : m_backends)
+        for (const auto& sBackend : m_backends)
         {
-            if (a->in_use())
+            if (sBackend->in_use())
             {
                 if (checksum.empty())
                 {
-                    checksum = a->checksum().hex();
+                    checksum = sBackend->checksum().hex();
                 }
-                else if (checksum != a->checksum().hex())
+                else if (checksum != sBackend->checksum().hex())
                 {
                     rval = true;
                 }
