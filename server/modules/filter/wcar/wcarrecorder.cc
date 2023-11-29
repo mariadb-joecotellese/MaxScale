@@ -9,8 +9,8 @@ namespace
 {
 }
 
-WcarRecorder::WcarRecorder()
-    : Collector{std::make_unique<RecordContext>(),
+WcarRecorder::WcarRecorder(std::unique_ptr<RecorderContext>&& context)
+    : Collector{std::move(context),
                 0,      // Support dynamic thread count
                 10000,  // Queue length.
                 0}      // Cap, not used in updates_only mode
@@ -28,6 +28,10 @@ void WcarRecorder::finish_for(maxscale::RoutingWorker* pWorker)
     decrease_client_count(pWorker->index());
 }
 
-void WcarRecorder::make_updates(RecordContext*, std::vector<SharedUpdate::UpdateType>& queue)
+void WcarRecorder::make_updates(RecorderContext* pContext, std::vector<SharedUpdate::UpdateType>& queue)
 {
+    for (auto& update : queue)
+    {
+        pContext->pStorage->add_query_event(std::move(update));
+    }
 }

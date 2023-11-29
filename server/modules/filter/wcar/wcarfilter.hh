@@ -6,6 +6,8 @@
 #pragma once
 
 #include "wcardefs.hh"
+#include "wcarrecorder.hh"
+#include "wcarstorage.hh"
 #include <maxscale/filter.hh>
 #include <maxscale/routing.hh>
 #include "wcarconfig.hh"
@@ -45,14 +47,16 @@ public:
 
     WcarRecorder& recorder() const
     {
-        return m_recorder;
+        return *m_sRecorder;
     }
 
 private:
     WcarFilter(const std::string& name);
+    bool post_configure();
     ~WcarFilter();
 
 private:
-    WcarConfig           m_config;
-    mutable WcarRecorder m_recorder;
+    WcarConfig                    m_config;
+    std::unique_ptr<Storage>      m_sStorage;
+    std::unique_ptr<WcarRecorder> m_sRecorder;
 };
