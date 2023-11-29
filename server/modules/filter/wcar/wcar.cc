@@ -25,7 +25,7 @@ extern "C" MXS_MODULE* MXS_CREATE_MODULE()
         nullptr,    /* Process finish. */
         nullptr,    /* Thread init. */
         nullptr,    /* Thread finish. */
-        &wcar::specification
+        WcarConfig::specification()
     };
 
     return &info;
