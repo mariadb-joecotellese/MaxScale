@@ -97,12 +97,23 @@ bool check_prepare_prerequisites(const SERVICE& service,
                 // TODO: One may be expressed using an IP and the other using a hostname.
                 if (master_host == primary.address() && master_port == primary.port())
                 {
-                    // The server to test replicates from the server used, so all things green.
-                    rv = true;
+                    auto slave_io_state = sResult->get_string("Slave_IO_State");
+
+                    if (!slave_io_state.empty())
+                    {
+                        // The server to test replicates from the server used, so all things green.
+                        rv = true;
+                    }
+                    else
+                    {
+                        MXB_ERROR("Server '%s' is configured to replicate from %s:%d, "
+                                  "but is currently not replicating.",
+                                  replica.name(), master_host.c_str(), master_port);
+                    }
                 }
                 else
                 {
-                    MXB_ERROR("Server %s replicates from %s:%d and not from %s (%s:%d).",
+                    MXB_ERROR("Server '%s' replicates from %s:%d and not from '%s' (%s:%d).",
                               replica.name(),
                               master_host.c_str(), master_port,
                               primary.name(), primary.address(), primary.port());
