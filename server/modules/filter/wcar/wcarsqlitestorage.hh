@@ -11,10 +11,16 @@
 
 namespace fs = std::filesystem;
 
+enum class Access
+{
+    READ_ONLY,
+    READ_WRITE
+};
+
 class SqliteStorage final : public Storage
 {
 public:
-    SqliteStorage(const fs::path& path);
+    SqliteStorage(const fs::path& path, Access access = Access::READ_WRITE);
     ~SqliteStorage();
 
     void     add_query_event(QueryEvent&& qevent) override;
@@ -37,6 +43,7 @@ private:
 
     maxsimd::CanonicalArgs select_canonical_args(ssize_t event_id);
 
+    Access        m_access;
     fs::path      m_path;
     sqlite3*      m_pDb = nullptr;
     ssize_t       m_last_event_read = -1;

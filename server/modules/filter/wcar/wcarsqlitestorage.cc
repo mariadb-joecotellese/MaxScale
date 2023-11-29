@@ -44,15 +44,21 @@ static auto CREATE_TABLES_SQL =
     SQL_CREATE_ARGUMENT_INDEX
 };
 
-SqliteStorage::SqliteStorage(const fs::path& path)
-    : m_path(path)
+SqliteStorage::SqliteStorage(const fs::path& path, Access access)
+    : m_access(access)
+    , m_path(path)
 {
-    if (fs::exists(m_path))
+    if (access == Access::READ_WRITE && fs::exists(m_path))
     {
-        MXB_THROW(WcarError, "sqlite3 database '" << m_path << "' already exists");
+        MXB_THROW(WcarError, "sqlite3 database '"
+                  << m_path << "' already exists."
+                  << " Appending to existing database is not allowed.");
     }
 
-    int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_CREATE;
+    int flags = (access == Access::READ_WRITE) ?
+        SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE :
+        SQLITE_OPEN_READONLY;
+
     if (sqlite3_open_v2(m_path.c_str(), &m_pDb, flags, nullptr) != SQLITE_OK)
     {
         std::string error_msg = "Could not create sqlite3 database '" + m_path.string() + '\'';
@@ -64,9 +70,12 @@ SqliteStorage::SqliteStorage(const fs::path& path)
         MXB_THROW(WcarError, error_msg);
     }
 
-    for (const auto& create : CREATE_TABLES_SQL)
+    if (access == Access::READ_WRITE)
     {
-        sqlite_execute(create);
+        for (const auto& create : CREATE_TABLES_SQL)
+        {
+            sqlite_execute(create);
+        }
     }
 }
 
