@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2027-10-10
+ * Change Date: 2027-11-30
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -173,6 +173,9 @@ public:
      * @return              True on success
      */
     static bool clear_server_status(SERVER* srv, int bit, std::string* errmsg_out = nullptr);
+
+    static bool set_clear_server_status(SERVER* srv, int bit, mxs::Monitor::BitOp op,
+                                        std::string* errmsg_out = nullptr);
 
     static json_t* monitored_server_attributes_json(const SERVER* srv);
 

@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2027-10-10
+ * Change Date: 2027-11-30
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -339,10 +339,6 @@ bool MonitorSpec::do_post_validate(const cfg::Configuration* config, Params& par
 const char journal_name[] = "monitor.dat";
 const char journal_template[] = "%s/%s/%s";
 
-const char ERR_CANNOT_MODIFY[] =
-    "The server is monitored, so only the maintenance status can be "
-    "set/cleared manually. Status was not modified.";
-
 /**
  * Helper class for running monitor in a worker-thread.
  */
@@ -544,9 +540,15 @@ const MonitorServer::ConnectionSettings& Monitor::conn_settings() const
     return m_settings.shared.conn_settings;
 }
 
-long Monitor::ticks() const
+long Monitor::ticks_started() const
 {
-    return m_ticks.load(std::memory_order_acquire);
+    auto val = m_half_ticks.load(std::memory_order_acquire);
+    return (val / 2) + val % 2;
+}
+
+long Monitor::ticks_complete() const
+{
+    return m_half_ticks.load(std::memory_order_acquire) / 2;
 }
 
 const char* Monitor::state_string() const
@@ -689,7 +691,7 @@ json_t* Monitor::to_json(const char* host) const
 
     json_object_set_new(attr, CN_MODULE, json_string(m_module.c_str()));
     json_object_set_new(attr, CN_STATE, json_string(state_string()));
-    json_object_set_new(attr, CN_TICKS, json_integer(ticks()));
+    json_object_set_new(attr, CN_TICKS, json_integer(ticks_complete()));
     json_object_set_new(attr, CN_SOURCE, mxs::Config::object_source_to_json(name()));
 
     /** Monitor parameters */
@@ -776,12 +778,12 @@ void Monitor::wait_for_status_change()
     mxb_assert(Monitor::is_main_worker());
 
     // Store the tick count before we request the change
-    auto start = ticks();
+    auto start = ticks_started();
 
     // Set a flag so the next loop happens sooner.
     m_status_change_pending.store(true, std::memory_order_release);
 
-    while (start == ticks())
+    while (start >= ticks_complete())
     {
         std::this_thread::sleep_for(milliseconds(100));
     }
@@ -1082,15 +1084,16 @@ bool Monitor::can_be_disabled(const MonitorServer& server, DisableType type, std
     return true;
 }
 
-bool Monitor::set_server_status(SERVER* srv, int bit, string* errmsg_out)
+bool Monitor::set_clear_server_status(SERVER* srv, int bit, BitOp op, std::string* errmsg_out)
 {
     MonitorServer* msrv = get_monitored_server(srv);
-    mxb_assert(msrv);
+    bool set = op == BitOp::SET;
 
     if (!msrv)
     {
-        MXB_ERROR("Monitor %s requested to set status of server %s that it does not monitor.",
-                  name(), srv->address());
+        mxb_assert(!true);
+        MXB_ERROR("Monitor %s requested to %s status of server %s that it does not monitor.",
+                  name(), set ? "set" : "clear", srv->name());
         return false;
     }
 
@@ -1098,10 +1101,10 @@ bool Monitor::set_server_status(SERVER* srv, int bit, string* errmsg_out)
 
     if (is_running())
     {
-        /* This server is monitored, in which case modifying any other status bit than Maintenance is
-         * disallowed. */
-        if (bit & ~(SERVER_MAINT | SERVER_DRAINING))
+        if (bit & ~(SERVER_MAINT | SERVER_DRAINING | SERVER_NEED_DNS))
         {
+            const char ERR_CANNOT_MODIFY[] = "The server is monitored so only maintenance and drain "
+                                             "status can be altered manually. Status was not modified.";
             MXB_ERROR(ERR_CANNOT_MODIFY);
             if (errmsg_out)
             {
@@ -1110,22 +1113,28 @@ bool Monitor::set_server_status(SERVER* srv, int bit, string* errmsg_out)
         }
         else
         {
-            /* Maintenance and being-drained are set/cleared using a special variable which the
+            /* Bits are set/cleared using a special variable which the
              * monitor reads when starting the next update cycle. */
             MonitorServer::StatusRequest request;
-            auto type = DisableType::DRAIN;
+            auto type = DisableType::MAINTENANCE;
             if (bit & SERVER_MAINT)
             {
-                request = MonitorServer::MAINT_ON;
-                type = DisableType::MAINTENANCE;
+                request = set ? MonitorServer::MAINT_ON : MonitorServer::MAINT_OFF;
             }
-            else
+            else if (bit & SERVER_DRAINING)
             {
-                mxb_assert(bit & SERVER_DRAINING);
-                request = MonitorServer::DRAINING_ON;
+                request = set ? MonitorServer::DRAINING_ON : MonitorServer::DRAINING_OFF;
+                type = DisableType::DRAIN;
+            }
+            else if (bit & SERVER_NEED_DNS)
+            {
+                // NEED_DNS cannot be reapplied right now, but this may change later on.
+                mxb_assert(!set);
+                request = MonitorServer::DNS_DONE;
             }
 
-            if (can_be_disabled(*msrv, type, errmsg_out))
+            // Any of the three bits can be removed, but monitor may block setting a bit.
+            if (!set || can_be_disabled(*msrv, type, errmsg_out))
             {
                 msrv->add_status_request(request);
                 written = true;
@@ -1137,66 +1146,15 @@ bool Monitor::set_server_status(SERVER* srv, int bit, string* errmsg_out)
     }
     else
     {
-        /* The monitor is not running, the bit can be set directly */
-        srv->set_status(bit);
-        written = true;
-    }
-
-    return written;
-}
-
-bool Monitor::clear_server_status(SERVER* srv, int bit, string* errmsg_out)
-{
-    MonitorServer* msrv = get_monitored_server(srv);
-    mxb_assert(msrv);
-
-    if (!msrv)
-    {
-        MXB_ERROR("Monitor %s requested to clear status of server %s that it does not monitor.",
-                  name(), srv->address());
-        return false;
-    }
-
-    bool written = false;
-
-    if (is_running())
-    {
-        if (bit & ~(SERVER_MAINT | SERVER_DRAINING | SERVER_NEED_DNS))
+        /* The monitor is not running, the bit can be set/cleared directly */
+        if (set)
         {
-            MXB_ERROR(ERR_CANNOT_MODIFY);
-            if (errmsg_out)
-            {
-                *errmsg_out = ERR_CANNOT_MODIFY;
-            }
+            srv->set_status(bit);
         }
         else
         {
-            MonitorServer::StatusRequest request;
-            if (bit & SERVER_MAINT)
-            {
-                request = MonitorServer::MAINT_OFF;
-            }
-            else if (bit & SERVER_NEED_DNS)
-            {
-                request = MonitorServer::DNS_DONE;
-            }
-            else
-            {
-                mxb_assert(bit & SERVER_DRAINING);
-                request = MonitorServer::DRAINING_OFF;
-            }
-
-            msrv->add_status_request(request);
-            written = true;
-
-            // Wait until the monitor picks up the change
-            wait_for_status_change();
+            srv->clear_status(bit);
         }
-    }
-    else
-    {
-        /* The monitor is not running, the bit can be cleared directly */
-        srv->clear_status(bit);
         written = true;
     }
 
@@ -1410,7 +1368,6 @@ bool Monitor::start()
     // not exist during program start/stop.
     mxb_assert(Monitor::is_main_worker());
     mxb_assert(!is_running());
-    mxb_assert(m_thread_running.load() == false);
 
     remove_old_journal();
 
@@ -1425,7 +1382,7 @@ bool Monitor::start()
     {
         // Worker::start() waits until thread has started and completed its 'pre_run()`. This means that
         // Monitor::pre_run() has now completed and any writes should be visible.
-        mxb_assert(m_thread_running.load(std::memory_order_relaxed));
+        mxb_assert(is_running());
         started = true;
     }
     return started;
@@ -1436,11 +1393,10 @@ void Monitor::stop()
     // This should only be called by monitor_stop().
     mxb_assert(Monitor::is_main_worker());
     mxb_assert(is_running());
-    mxb_assert(m_thread_running.load() == true);
 
     m_worker->shutdown();
     m_worker->join();
-    m_thread_running.store(false, std::memory_order_release);
+    mxb_assert(!is_running());
 }
 
 std::tuple<bool, string> Monitor::soft_stop()
@@ -1514,7 +1470,7 @@ void SimpleMonitor::tick()
     check_maintenance_requests();
     pre_tick();
 
-    bool first_tick = (ticks() == 0);
+    bool first_tick = (ticks_complete() == 0);
 
     const bool should_update_disk_space = check_disk_space_this_tick();
 
@@ -1579,8 +1535,7 @@ void SimpleMonitor::tick()
 
 void Monitor::pre_run()
 {
-    m_ticks.store(0, std::memory_order_release);
-    m_thread_running.store(true, std::memory_order_release);
+    m_half_ticks.store(0, std::memory_order_release);
     pre_loop();
     m_callable.dcall(1ms, &Monitor::call_run_one_tick, this);
 }
@@ -1621,8 +1576,14 @@ bool Monitor::call_run_one_tick()
 
 void Monitor::run_one_tick()
 {
+    // Update the tick counter both when starting a tick and when completing a tick. This way other threads
+    // can see if a tick is in progress.
+    auto half_ticks = m_half_ticks.load(std::memory_order_relaxed);
+    m_half_ticks.store(++half_ticks, std::memory_order_release);
+
     tick();
-    m_ticks.fetch_add(1, std::memory_order_acq_rel);
+
+    m_half_ticks.store(++half_ticks, std::memory_order_release);
 }
 
 bool Monitor::immediate_tick_required()

@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2027-10-10
+ * Change Date: 2027-11-30
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -694,7 +694,7 @@ void MariaDBMonitor::tick()
     }
 
     // Query all servers for their status.
-    bool first_tick = ticks() == 0;
+    bool first_tick = ticks_complete() == 0;
     bool should_update_disk_space = check_disk_space_this_tick();
 
     // Concurrently query all servers for their status.

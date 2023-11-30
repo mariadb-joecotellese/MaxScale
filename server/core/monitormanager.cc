@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2027-10-10
+ * Change Date: 2027-11-30
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -186,7 +186,7 @@ bool MonitorManager::wait_one_tick()
         [&tick_counts](Monitor* mon) {
             if (mon->is_running())
             {
-                tick_counts[mon] = mon->ticks();
+                tick_counts[mon] = mon->ticks_started();
                 mon->request_immediate_tick();
             }
             return true;
@@ -211,13 +211,10 @@ bool MonitorManager::wait_one_tick()
                 auto it = tick_counts.find(mon);
                 if (it != tick_counts.end())
                 {
-                    auto prev_tick_count = it->second;
+                    auto ticks_started_count = it->second;
                     while (true)
                     {
-                        // We need two ticks to be certain that at least one complete monitoring loop has been
-                        // done. Otherwise it's possible that the moment we read the tick value, the monitor
-                        // proceeds to increment it and then go into a long, blocking operation.
-                        if (mon->ticks() > prev_tick_count + 1)
+                        if (mon->ticks_complete() > ticks_started_count)
                         {
                             break;
                         }
@@ -481,35 +478,35 @@ json_t* MonitorManager::monitor_relations_to_server(const SERVER* server,
 
 bool MonitorManager::set_server_status(SERVER* srv, int bit, string* errmsg_out)
 {
-    mxb_assert(Monitor::is_main_worker());
-    bool written = false;
-    Monitor* mon = MonitorManager::server_is_monitored(srv);
-    if (mon)
-    {
-        written = mon->set_server_status(srv, bit, errmsg_out);
-    }
-    else
-    {
-        /* Set the bit directly */
-        srv->set_status(bit);
-        written = true;
-    }
-    return written;
+    return set_clear_server_status(srv, bit, Monitor::BitOp::SET, errmsg_out);
 }
 
 bool MonitorManager::clear_server_status(SERVER* srv, int bit, string* errmsg_out)
 {
+    return set_clear_server_status(srv, bit, Monitor::BitOp::CLEAR, errmsg_out);
+}
+
+bool MonitorManager::set_clear_server_status(SERVER* srv, int bit, mxs::Monitor::BitOp op,
+                                             std::string* errmsg_out)
+{
     mxb_assert(Monitor::is_main_worker());
-    bool written = false;
+    bool written;
     Monitor* mon = MonitorManager::server_is_monitored(srv);
     if (mon)
     {
-        written = mon->clear_server_status(srv, bit, errmsg_out);
+        written = mon->set_clear_server_status(srv, bit, op, errmsg_out);
     }
     else
     {
-        /* Clear bit directly */
-        srv->clear_status(bit);
+        // Set/clear the bit directly
+        if (op == Monitor::BitOp::SET)
+        {
+            srv->set_status(bit);
+        }
+        else
+        {
+            srv->clear_status(bit);
+        }
         written = true;
     }
     return written;

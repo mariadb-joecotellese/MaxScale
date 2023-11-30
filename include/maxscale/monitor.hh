@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2027-10-10
+ * Change Date: 2027-11-30
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -141,9 +141,14 @@ public:
     const mxs::ConfigParameters& parameters() const;
 
     /**
+     * @return The number of monitoring cycles the monitor has started
+     */
+    long ticks_started() const;
+
+    /**
      * @return The number of monitoring cycles the monitor has done
      */
-    long ticks() const;
+    long ticks_complete() const;
 
     /**
      * Starts the monitor.
@@ -199,29 +204,19 @@ public:
      */
     virtual json_t* diagnostics(MonitorServer* server) const;
 
-    /**
-     * Set status of monitored server.
-     *
-     * @param srv   Server, must be monitored by this monitor.
-     * @param bit   The server status bit to be sent.
-     * @errmsg_out  If the setting of the bit fails, on return the human readable
-     *              reason why it could not be set.
-     *
-     * @return True, if the bit could be set.
-     */
-    bool set_server_status(SERVER* srv, int bit, std::string* errmsg_out);
+    enum class BitOp {SET, CLEAR};
 
     /**
-     * Clear status of monitored server.
+     * Set/clear status of monitored server.
      *
      * @param srv   Server, must be monitored by this monitor.
-     * @param bit   The server status bit to be cleared.
-     * @errmsg_out  If the clearing of the bit fails, on return the human readable
-     *              reason why it could not be cleared.
+     * @param bit   Status bit to alter
+     * @param op    Set or clear
+     * @errmsg_out  Error output
      *
-     * @return True, if the bit could be cleared.
+     * @return True, if the bit could be set/cleared.
      */
-    bool clear_server_status(SERVER* srv, int bit, std::string* errmsg_out);
+    bool set_clear_server_status(SERVER* srv, int bit, BitOp op, std::string* errmsg_out);
 
     json_t* monitored_server_json_attributes(const SERVER* srv) const;
 
@@ -561,11 +556,8 @@ private:
     mxs::ConfigParameters m_parameters; /**< Configuration parameters in text form */
     Settings              m_settings;   /**< Base class settings */
 
-    mxb::Semaphore    m_semaphore;              /**< Semaphore for synchronizing with monitor thread. */
-    std::atomic<bool> m_thread_running {false}; /**< Thread state. */
-
-    int64_t          m_loop_called; /**< When was the loop called the last time. */
-    std::atomic_long m_ticks {0};   /**< Number of monitor ticks ran. */
+    int64_t          m_loop_called;     /**< When was the loop called the last time. */
+    std::atomic_long m_half_ticks {0};  /**< Number of monitor ticks started + completed. */
 
     /** Currently configured servers. Only written to and accessed from MainWorker. Changes only when
      * monitor is stopped for reconfiguration. */
