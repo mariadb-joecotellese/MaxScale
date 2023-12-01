@@ -24,8 +24,8 @@ public:
 
     UratSession(MXS_SESSION* pSession,
                 UratRouter* pRouter,
-                SUratBackend sMain,
-                SUratBackends backends);
+                SUratMainBackend sMain,
+                SUratOtherBackends backends);
 
     bool routeQuery(GWBUF&& packet) override;
 
@@ -35,8 +35,8 @@ public:
                      mxs::Endpoint* pProblem, const mxs::Reply& reply) override final;
 
 private:
-    SUratBackend            m_sMain;
-    SUratBackends           m_backends;
+    SUratMainBackend        m_sMain;
+    SUratOtherBackends      m_others;
     int                     m_responses = 0;
     UratRouter&             m_router;
     std::deque<GWBUF>       m_queue;

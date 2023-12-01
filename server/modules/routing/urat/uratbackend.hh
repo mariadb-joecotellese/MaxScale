@@ -14,9 +14,11 @@
 #include <maxscale/router.hh>
 #include <maxbase/checksum.hh>
 
-class UratBackend;
-using SUratBackend = std::unique_ptr<UratBackend>;
-using SUratBackends = std::vector<SUratBackend>;
+class UratMainBackend;
+class UratOtherBackend;
+using SUratMainBackend = std::unique_ptr<UratMainBackend>;
+using SUratOtherBackend = std::unique_ptr<UratOtherBackend>;
+using SUratOtherBackends = std::vector<SUratOtherBackend>;
 
 class UratResult;
 
@@ -25,9 +27,7 @@ using Clock = std::chrono::steady_clock;
 class UratBackend : public mxs::Backend
 {
 public:
-    using mxs::Backend::Backend;
-
-    static std::pair<SUratBackend, SUratBackends>
+    static std::pair<SUratMainBackend, SUratOtherBackends>
     from_endpoints(const mxs::Target& main_target, const mxs::Endpoints& endpoints);
 
     bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override;
@@ -40,9 +40,31 @@ public:
         return m_reply;
     }
 
+protected:
+    using mxs::Backend::Backend;
+
 private:
     Clock::time_point m_start;
     Clock::time_point m_end;
     mxb::CRC32        m_checksum;
     mxs::Reply        m_reply;
+};
+
+class UratMainBackend : public UratBackend
+{
+public:
+    using UratBackend::UratBackend;
+};
+
+class UratOtherBackend : public UratBackend
+{
+public:
+    UratOtherBackend(mxs::Endpoint* pEndpoint, UratMainBackend* pMain)
+        : UratBackend(pEndpoint)
+        , m_main(*pMain)
+    {
+    }
+
+private:
+    UratMainBackend& m_main;
 };

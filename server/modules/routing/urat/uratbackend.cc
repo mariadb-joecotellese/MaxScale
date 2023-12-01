@@ -8,28 +8,34 @@
 #include "uratresult.hh"
 
 // static
-std::pair<SUratBackend,SUratBackends>
+std::pair<SUratMainBackend,SUratOtherBackends>
 UratBackend::from_endpoints(const mxs::Target& main_target, const mxs::Endpoints& endpoints)
 {
     mxb_assert(endpoints.size() > 1);
 
-    SUratBackend sMain;
-    SUratBackends backends;
-    backends.reserve(endpoints.size() - 1);
+    SUratMainBackend sMain;
 
     for (auto* pEndpoint : endpoints)
     {
         if (pEndpoint->target() == &main_target)
         {
-            sMain.reset(new UratBackend(pEndpoint));
-        }
-        else
-        {
-            backends.emplace_back(new UratBackend(pEndpoint));
+            sMain.reset(new UratMainBackend(pEndpoint));
+            break;
         }
     }
 
-    return std::make_pair(std::move(sMain), std::move(backends));
+    SUratOtherBackends others;
+    others.reserve(endpoints.size() - 1);
+
+    for (auto* pEndpoint : endpoints)
+    {
+        if (pEndpoint->target() != &main_target)
+        {
+            others.emplace_back(new UratOtherBackend(pEndpoint, sMain.get()));
+        }
+    }
+
+    return std::make_pair(std::move(sMain), std::move(others));
 }
 
 bool UratBackend::write(GWBUF&& buffer, response_type type)

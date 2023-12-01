@@ -13,11 +13,11 @@ using namespace maxscale;
 
 UratSession::UratSession(MXS_SESSION* pSession,
                          UratRouter* pRouter,
-                         SUratBackend sMain,
-                         SUratBackends backends)
+                         SUratMainBackend sMain,
+                         SUratOtherBackends others)
     : RouterSession(pSession)
     , m_sMain(std::move(sMain))
-    , m_backends(std::move(backends))
+    , m_others(std::move(others))
     , m_router(*pRouter)
 {
 }
@@ -54,9 +54,9 @@ bool UratSession::routeQuery(GWBUF&& packet)
             type = mxs::Backend::IGNORE_RESPONSE;
         }
 
-        for (const auto& sBackend : m_backends)
+        for (const auto& sOther : m_others)
         {
-            if (sBackend->in_use() && sBackend->write(packet.shallow_clone(), type))
+            if (sOther->in_use() && sOther->write(packet.shallow_clone(), type))
             {
                 if (expecting_response)
                 {
