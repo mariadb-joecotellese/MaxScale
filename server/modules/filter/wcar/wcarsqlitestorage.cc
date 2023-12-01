@@ -46,6 +46,7 @@ static auto CREATE_TABLES_SQL =
 
 static const char SQL_CANONICAL_INSERT[] = "insert into canonical values(?, ?, ?)";
 static const char SQL_EVENT_INSERT[] = "insert into event values(?, ?)";
+static const char SQL_CANONICAL_ARGUMENT_INSERT[] = "insert into argument values(?, ?, ?)";
 
 SqliteStorage::SqliteStorage(const fs::path& path, Access access)
     : m_access(access)
@@ -82,6 +83,7 @@ SqliteStorage::SqliteStorage(const fs::path& path, Access access)
 
         sqlite_prepare(SQL_CANONICAL_INSERT, &m_pCanonical_insert_stmt);
         sqlite_prepare(SQL_EVENT_INSERT, &m_pEvent_insert_stmt);
+        sqlite_prepare(SQL_CANONICAL_ARGUMENT_INSERT, &m_pArg_insert_stmt);
     }
 }
 
@@ -125,10 +127,29 @@ void SqliteStorage::insert_event(int64_t event_id, int64_t can_id)
     sqlite3_reset(m_pEvent_insert_stmt);
 }
 
+void SqliteStorage::insert_canonical_args(int64_t event_id, const maxsimd::CanonicalArgs& args)
+{
+    for (const auto& arg : args)
+    {
+        int idx = 0;
+        sqlite3_bind_int64(m_pArg_insert_stmt, ++idx, event_id);
+        sqlite3_bind_int64(m_pArg_insert_stmt, ++idx, arg.pos);
+        sqlite3_bind_text(m_pArg_insert_stmt, ++idx, arg.value.c_str(), arg.value.size() + 1, nullptr);
+        if (sqlite3_step(m_pArg_insert_stmt) != SQLITE_DONE)
+        {
+            MXB_THROW(WcarError, "Failed to execute canonical insert prepared stmt in database "
+                      << m_path << "' error: " << sqlite3_errmsg(m_pDb));
+        }
+
+        sqlite3_reset(m_pArg_insert_stmt);
+    }
+}
+
 SqliteStorage::~SqliteStorage()
 {
     sqlite3_finalize(m_pCanonical_insert_stmt);
     sqlite3_finalize(m_pEvent_read_stmt);
+    sqlite3_finalize(m_pArg_insert_stmt);
     sqlite3_close_v2(m_pDb);
 }
 
@@ -195,24 +216,7 @@ void SqliteStorage::add_query_event(QueryEvent&& qevent)
 
     if (!qevent.canonical_args.empty())
     {
-        std::ostringstream insert_args_os;
-        insert_args_os << "insert into argument values ";
-
-        auto first = true;
-        for (const auto& arg : qevent.canonical_args)
-        {
-            if (!first)
-            {
-                insert_args_os << ',';
-            }
-            first = false;
-
-            insert_args_os << '(' << qevent.event_id << ','
-                           << arg.pos << ", '"
-                           << arg.value << "')";
-        }
-
-        sqlite_execute(insert_args_os.str());
+        insert_canonical_args(qevent.event_id, std::move(qevent.canonical_args));
     }
 }
 
