@@ -44,6 +44,8 @@ static auto CREATE_TABLES_SQL =
     SQL_CREATE_ARGUMENT_INDEX
 };
 
+static const char SQL_CANONICAL_INSERT[] = "insert into canonical values(?, ?, ?)";
+
 SqliteStorage::SqliteStorage(const fs::path& path, Access access)
     : m_access(access)
     , m_path(path)
@@ -76,11 +78,40 @@ SqliteStorage::SqliteStorage(const fs::path& path, Access access)
         {
             sqlite_execute(create);
         }
+
+        sqlite_prepare(SQL_CANONICAL_INSERT, &m_pCanonical_insert_stmt);
     }
+}
+
+void SqliteStorage::sqlite_prepare(const string& sql, sqlite3_stmt** ppStmt)
+{
+    if (sqlite3_prepare_v2(m_pDb, sql.c_str(), sql.length() + 1, ppStmt, nullptr) != SQLITE_OK)
+    {
+        MXB_THROW(WcarError, "Failed to prepare stmt '" << sql << "' in database "
+                                                        << m_path << "' error: " << sqlite3_errmsg(m_pDb));
+    }
+}
+
+void SqliteStorage::insert_canonical(int64_t hash, int64_t id, const std::string& canonical)
+{
+    int idx = 0;
+    sqlite3_bind_int64(m_pCanonical_insert_stmt, ++idx, hash);
+    sqlite3_bind_int64(m_pCanonical_insert_stmt, ++idx, id);
+    sqlite3_bind_text(m_pCanonical_insert_stmt, ++idx, canonical.c_str(), canonical.size() + 1, nullptr);
+
+    if (sqlite3_step(m_pCanonical_insert_stmt) != SQLITE_DONE)
+    {
+        MXB_THROW(WcarError, "Failed to execute canonical insert prepared stmt in database "
+                  << m_path << "' error: " << sqlite3_errmsg(m_pDb));
+    }
+
+    sqlite3_reset(m_pCanonical_insert_stmt);
 }
 
 SqliteStorage::~SqliteStorage()
 {
+    sqlite3_finalize(m_pCanonical_insert_stmt);
+    sqlite3_finalize(m_pEvent_read_stmt);
     sqlite3_close_v2(m_pDb);
 }
 
@@ -135,9 +166,7 @@ void SqliteStorage::add_query_event(QueryEvent&& qevent)
     else
     {
         can_id = next_can_id();
-        auto insert_canonical = MAKE_STR("insert into canonical values("
-                                         << hash << ", " << can_id << ", '" << qevent.canonical << "')");
-        sqlite_execute(insert_canonical);
+        insert_canonical(hash, can_id, qevent.canonical);
     }
 
     if (qevent.event_id == -1)
@@ -174,19 +203,15 @@ void SqliteStorage::add_query_event(QueryEvent&& qevent)
 
 Storage::Iterator SqliteStorage::begin()
 {
-    if (m_pEvent_stmt != nullptr)
+    if (m_pEvent_read_stmt != nullptr)
     {
-        sqlite3_finalize(m_pEvent_stmt);
-        m_pEvent_stmt = nullptr;
+        sqlite3_finalize(m_pEvent_read_stmt);
+        m_pEvent_read_stmt = nullptr;
     }
 
     auto event_query = MAKE_STR("select event_id, can_id from event where event_id > " << m_last_event_read);
 
-    if (sqlite3_prepare_v2(m_pDb, event_query.c_str(), -1, &m_pEvent_stmt, nullptr) != SQLITE_OK)
-    {
-        MXB_THROW(WcarError, "Failed to prepare stmt '" << event_query << "' in database "
-                                                        << m_path << "' error: " << sqlite3_errmsg(m_pDb));
-    }
+    sqlite_prepare(event_query, &m_pEvent_read_stmt);
 
     return Storage::Iterator(this, next_event());
 }
@@ -258,13 +283,13 @@ maxsimd::CanonicalArgs SqliteStorage::select_canonical_args(int64_t event_id)
 
 QueryEvent SqliteStorage::next_event()
 {
-    mxb_assert(m_pEvent_stmt != nullptr);
-    auto rc = sqlite3_step(m_pEvent_stmt);
+    mxb_assert(m_pEvent_read_stmt != nullptr);
+    auto rc = sqlite3_step(m_pEvent_read_stmt);
 
     if (rc == SQLITE_DONE)
     {
-        sqlite3_finalize(m_pEvent_stmt);
-        m_pEvent_stmt = nullptr;
+        sqlite3_finalize(m_pEvent_read_stmt);
+        m_pEvent_read_stmt = nullptr;
         return QueryEvent {};
     }
     else if (rc != SQLITE_ROW)
@@ -275,8 +300,8 @@ QueryEvent SqliteStorage::next_event()
                   << " Note: add_query_event() cannot be called during iteration");
     }
 
-    auto event_id = sqlite3_column_int64(m_pEvent_stmt, 0);
-    auto can_id = sqlite3_column_int64(m_pEvent_stmt, 1);
+    auto event_id = sqlite3_column_int64(m_pEvent_read_stmt, 0);
+    auto can_id = sqlite3_column_int64(m_pEvent_read_stmt, 1);
 
     auto canonical = select_canonical(can_id);
     auto can_args = select_canonical_args(event_id);

@@ -30,7 +30,12 @@ public:
 
 private:
     QueryEvent next_event() override;
-    void       sqlite_execute(const std::string& sql);
+
+    void                   sqlite_execute(const std::string& sql);
+    void                   sqlite_prepare(const std::string& sql, sqlite3_stmt** ppStmt);
+    void                   insert_canonical(int64_t hash, int64_t id, const std::string& canonical);
+    std::string            select_canonical(int64_t can_id);
+    maxsimd::CanonicalArgs select_canonical_args(int64_t event_id);
 
     struct SelectCanIdRes
     {
@@ -39,13 +44,12 @@ private:
     };
 
     SelectCanIdRes select_can_id(int64_t hash);
-    std::string    select_canonical(int64_t can_id);
 
-    maxsimd::CanonicalArgs select_canonical_args(int64_t event_id);
 
     Access        m_access;
     fs::path      m_path;
     sqlite3*      m_pDb = nullptr;
     int64_t       m_last_event_read = -1;
-    sqlite3_stmt* m_pEvent_stmt = nullptr;
+    sqlite3_stmt* m_pCanonical_insert_stmt = nullptr;
+    sqlite3_stmt* m_pEvent_read_stmt = nullptr;
 };
