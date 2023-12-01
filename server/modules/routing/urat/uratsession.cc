@@ -11,18 +11,15 @@
 
 using namespace maxscale;
 
-UratSession::UratSession(MXS_SESSION* pSession, UratRouter* pRouter, SUratBackends backends)
+UratSession::UratSession(MXS_SESSION* pSession,
+                         UratRouter* pRouter,
+                         SUratBackend sMain,
+                         SUratBackends backends)
     : RouterSession(pSession)
+    , m_sMain(std::move(sMain))
     , m_backends(std::move(backends))
     , m_router(*pRouter)
 {
-    for (const auto& sBackend : m_backends)
-    {
-        if (sBackend->target() == m_router.get_main())
-        {
-            m_pMain = sBackend.get();
-        }
-    }
 }
 
 bool UratSession::routeQuery(GWBUF&& packet)
@@ -39,25 +36,28 @@ bool UratSession::routeQuery(GWBUF&& packet)
         m_query = get_sql_string(packet);
         m_command = mxs_mysql_get_command(packet);
         bool expecting_response = protocol_data().will_respond(packet);
+        mxs::Backend::response_type type = expecting_response
+            ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::NO_RESPONSE;
 
-        for (const auto& sBackend : m_backends)
+        if (m_sMain->in_use() && m_sMain->write(packet.shallow_clone(), type))
         {
-            auto type = mxs::Backend::NO_RESPONSE;
+            rc = 1;
 
             if (expecting_response)
             {
-                type = sBackend.get() == m_pMain
-                    ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::IGNORE_RESPONSE;
+                ++m_responses;
             }
+        }
 
+        if (type == mxs::Backend::EXPECT_RESPONSE)
+        {
+            type = mxs::Backend::IGNORE_RESPONSE;
+        }
+
+        for (const auto& sBackend : m_backends)
+        {
             if (sBackend->in_use() && sBackend->write(packet.shallow_clone(), type))
             {
-                if (sBackend.get() == m_pMain)
-                {
-                    // Routing is successful as long as we can write to the main connection
-                    rc = 1;
-                }
-
                 if (expecting_response)
                 {
                     ++m_responses;
@@ -98,7 +98,7 @@ void UratSession::finalize_reply()
     // that we've been storing in the session.
     MXB_INFO("All replies received, routing last chunk to the client.");
 
-    RouterSession::clientReply(std::move(m_last_chunk), m_last_route, m_pMain->reply());
+    RouterSession::clientReply(std::move(m_last_chunk), m_last_route, m_sMain->reply());
     m_last_chunk.clear();
 
     generate_report();
@@ -121,10 +121,10 @@ bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const
         pBackend->ack_write();
         --m_responses;
 
-        MXB_INFO("Reply from '%s' complete%s.", pBackend->name(), pBackend == m_pMain ?
+        MXB_INFO("Reply from '%s' complete%s.", pBackend->name(), pBackend == m_sMain.get() ?
                  ", delaying routing of last chunk until all replies have been received" : "");
 
-        if (pBackend == m_pMain)
+        if (pBackend == m_sMain.get())
         {
             m_last_chunk = std::move(packet);
             m_last_route = down;
@@ -134,7 +134,7 @@ bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const
         if (m_responses == 0)
         {
             mxb_assert(!m_last_chunk.empty());
-            mxb_assert(!packet || pBackend != m_pMain);
+            mxb_assert(!packet || pBackend != m_sMain.get());
 
             packet.clear();
             finalize_reply();
@@ -143,7 +143,7 @@ bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const
 
     bool rc = true;
 
-    if (packet && pBackend == m_pMain)
+    if (packet && pBackend == m_sMain.get())
     {
         rc = RouterSession::clientReply(std::move(packet), down, reply);
     }
@@ -162,7 +162,7 @@ bool UratSession::handleError(mxs::ErrorType type,
     {
         --m_responses;
 
-        if (m_responses == 0 && pBackend != m_pMain)
+        if (m_responses == 0 && pBackend != m_sMain.get())
         {
             finalize_reply();
         }
@@ -171,7 +171,7 @@ bool UratSession::handleError(mxs::ErrorType type,
     pBackend->close();
 
     // We can continue as long as the main connection isn't dead
-    bool ok = m_router.config().on_error.get() == ErrorAction::ERRACT_IGNORE && pBackend != m_pMain;
+    bool ok = m_router.config().on_error.get() == ErrorAction::ERRACT_IGNORE && pBackend != m_sMain.get();
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
@@ -182,11 +182,11 @@ bool UratSession::should_report() const
     if (m_router.config().report.get() == ReportAction::REPORT_ON_CONFLICT)
     {
         rval = false;
-        std::string checksum;
 
-        for (const auto& result : m_results)
+        if (m_sMain->in_use())
         {
-            if (result.backend().in_use())
+            std::string checksum;
+            for (const auto& result : m_results)
             {
                 if (checksum.empty())
                 {
@@ -195,6 +195,7 @@ bool UratSession::should_report() const
                 else if (checksum != result.checksum().hex())
                 {
                     rval = true;
+                    break;
                 }
             }
         }
@@ -217,27 +218,27 @@ void UratSession::generate_report()
 
         for (const auto& result : m_results)
         {
-            UratBackend& backend = result.backend();
-
-            if (backend.in_use())
-            {
-                const char* type = result.reply().error() ?
-                    "error" : (result.reply().is_resultset() ? "resultset" : "ok");
-
-                json_t* pO = json_object();
-                json_object_set_new(pO, "target", json_string(backend.name()));
-                json_object_set_new(pO, "checksum", json_string(result.checksum().hex().c_str()));
-                json_object_set_new(pO, "rows", json_integer(result.reply().rows_read()));
-                json_object_set_new(pO, "warnings", json_integer(result.reply().num_warnings()));
-                json_object_set_new(pO, "duration", json_integer(result.duration().count()));
-                json_object_set_new(pO, "type", json_string(type));
-
-                json_array_append_new(pArr, pO);
-            }
+            json_array_append_new(pArr, generate_report(result));
         }
 
         json_object_set_new(pJson, "results", pArr);
 
         m_router.ship(pJson);
     }
+}
+
+json_t* UratSession::generate_report(const UratResult& result)
+{
+    const char* type = result.backend().reply().error() ?
+        "error" : (result.backend().reply().is_resultset() ? "resultset" : "ok");
+
+    json_t* pO = json_object();
+    json_object_set_new(pO, "target", json_string(result.backend().name()));
+    json_object_set_new(pO, "checksum", json_string(result.checksum().hex().c_str()));
+    json_object_set_new(pO, "rows", json_integer(result.reply().rows_read()));
+    json_object_set_new(pO, "warnings", json_integer(result.reply().num_warnings()));
+    json_object_set_new(pO, "duration", json_integer(result.duration().count()));
+    json_object_set_new(pO, "type", json_string(type));
+
+    return pO;
 }

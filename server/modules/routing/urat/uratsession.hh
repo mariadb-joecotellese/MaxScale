@@ -22,7 +22,10 @@ public:
     UratSession(const UratSession&) = delete;
     UratSession& operator=(const UratSession&) = delete;
 
-    UratSession(MXS_SESSION* pSession, UratRouter* pRouter, SUratBackends backends);
+    UratSession(MXS_SESSION* pSession,
+                UratRouter* pRouter,
+                SUratBackend sMain,
+                SUratBackends backends);
 
     bool routeQuery(GWBUF&& packet) override;
 
@@ -32,8 +35,8 @@ public:
                      mxs::Endpoint* pProblem, const mxs::Reply& reply) override final;
 
 private:
+    SUratBackend            m_sMain;
     SUratBackends           m_backends;
-    UratBackend*            m_pMain = nullptr;
     int                     m_responses = 0;
     UratRouter&             m_router;
     std::deque<GWBUF>       m_queue;
@@ -47,5 +50,6 @@ private:
     void route_queued_queries();
     bool should_report() const;
     void generate_report();
+    json_t* generate_report(const UratResult& result);
     void finalize_reply();
 };

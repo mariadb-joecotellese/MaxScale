@@ -15,7 +15,8 @@
 #include <maxbase/checksum.hh>
 
 class UratBackend;
-using SUratBackends = std::vector<std::unique_ptr<UratBackend>>;
+using SUratBackend = std::unique_ptr<UratBackend>;
+using SUratBackends = std::vector<SUratBackend>;
 
 class UratResult;
 
@@ -26,7 +27,8 @@ class UratBackend : public mxs::Backend
 public:
     using mxs::Backend::Backend;
 
-    static SUratBackends from_endpoints(const mxs::Endpoints& endpoints);
+    static std::pair<SUratBackend, SUratBackends>
+    from_endpoints(const mxs::Target& main_target, const mxs::Endpoints& endpoints);
 
     bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override;
 

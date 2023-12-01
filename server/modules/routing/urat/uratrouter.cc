@@ -83,18 +83,24 @@ RouterSession* UratRouter::newSession(MXS_SESSION* pSession, const Endpoints& en
         return nullptr;
     }
 
-    auto backends = UratBackend::from_endpoints(endpoints);
+    auto [ sMain, backends ] = UratBackend::from_endpoints(*m_config.pMain, endpoints);
     bool connected = false;
 
-    for (const auto& sBackend : backends)
+    if (sMain->can_connect() && sMain->connect())
     {
-        if (sBackend->can_connect() && sBackend->connect())
+        connected = true;
+
+        for (const auto& sBackend : backends)
         {
-            connected = true;
+            if (sBackend->can_connect())
+            {
+                // TODO: Ignore if it cannot connect?
+                sBackend->connect();
+            }
         }
     }
 
-    return connected ? new UratSession(pSession, this, std::move(backends)) : NULL;
+    return connected ? new UratSession(pSession, this, std::move(sMain), std::move(backends)) : NULL;
 }
 
 json_t* UratRouter::diagnostics() const
