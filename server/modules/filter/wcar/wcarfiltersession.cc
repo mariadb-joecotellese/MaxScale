@@ -27,7 +27,7 @@ WcarFilterSession* WcarFilterSession::create(MXS_SESSION* pSession, SERVICE* pSe
 
 bool WcarFilterSession::routeQuery(GWBUF&& buffer)
 {
-    m_query_event.canonical= parser().get_sql(buffer);
+    m_query_event.canonical = parser().get_sql(buffer);
     m_query_event.canonical_args.clear();
     maxsimd::get_canonical(&m_query_event.canonical, &m_query_event.canonical_args);
 

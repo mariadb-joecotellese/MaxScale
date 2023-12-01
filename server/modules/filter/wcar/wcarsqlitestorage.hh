@@ -26,7 +26,7 @@ public:
     void     add_query_event(QueryEvent&& qevent) override;
     Iterator begin() override;
     Iterator end() const override;
-    size_t   num_unread() const override;
+    int64_t  num_unread() const override;
 
 private:
     QueryEvent next_event() override;
@@ -34,18 +34,18 @@ private:
 
     struct SelectCanIdRes
     {
-        bool   exists = false;
-        size_t can_id;
+        bool    exists = false;
+        int64_t can_id;
     };
 
-    SelectCanIdRes select_can_id(size_t hash);
-    std::string    select_canonical(ssize_t can_id);
+    SelectCanIdRes select_can_id(int64_t hash);
+    std::string    select_canonical(int64_t can_id);
 
-    maxsimd::CanonicalArgs select_canonical_args(ssize_t event_id);
+    maxsimd::CanonicalArgs select_canonical_args(int64_t event_id);
 
     Access        m_access;
     fs::path      m_path;
     sqlite3*      m_pDb = nullptr;
-    ssize_t       m_last_event_read = -1;
+    int64_t       m_last_event_read = -1;
     sqlite3_stmt* m_pEvent_stmt = nullptr;
 };

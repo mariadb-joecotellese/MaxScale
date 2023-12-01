@@ -12,7 +12,7 @@ struct QueryEvent
 {
     std::string            canonical;
     maxsimd::CanonicalArgs canonical_args;
-    ssize_t                event_id = -1;   // managed by storage
+    int64_t                event_id = -1;   // managed by storage
 };
 
 /** Abstract Storage for QueryEvents.
@@ -62,16 +62,16 @@ public:
     virtual Iterator end() const = 0;
 
     // Can be used to conditionally write to external storage in batches.
-    virtual size_t num_unread() const = 0;
+    virtual int64_t num_unread() const = 0;
 
 protected:
-    size_t             next_can_id();
-    size_t             next_event_id();
+    int64_t            next_can_id();
+    int64_t            next_event_id();
     virtual QueryEvent next_event() = 0;
 
 private:
-    size_t m_can_id_generator{0};
-    size_t m_event_id_generator{0};
+    int64_t m_can_id_generator{0};
+    int64_t m_event_id_generator{0};
 };
 
 inline void Storage::move_values_from(Storage& other)
@@ -82,12 +82,12 @@ inline void Storage::move_values_from(Storage& other)
     }
 }
 
-inline size_t Storage::next_can_id()
+inline int64_t Storage::next_can_id()
 {
     return ++m_can_id_generator;
 }
 
-inline size_t Storage::next_event_id()
+inline int64_t Storage::next_event_id()
 {
     return ++m_event_id_generator;
 }

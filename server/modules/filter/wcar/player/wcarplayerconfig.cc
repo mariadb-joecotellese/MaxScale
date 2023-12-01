@@ -31,7 +31,7 @@ constexpr int INDENT = 12;
 template<typename H>
 auto OPT(int optval, H help)
 {
-    size_t idx;
+    int64_t idx;
     for (idx = 0; long_opts[idx].val; ++idx)
     {
         if (long_opts[idx].val == optval)

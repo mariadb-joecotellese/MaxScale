@@ -16,16 +16,16 @@ public:
     void     add_query_event(QueryEvent&& qevent) override;
     Iterator begin() override;
     Iterator end() const override;
-    size_t   num_unread() const override;
+    int64_t  num_unread() const override;
 
 private:
     QueryEvent next_event() override;
 
     struct CanonicalEntry
     {
-        size_t      can_id;
+        int64_t     can_id;
         std::string canonical;
-        CanonicalEntry(size_t can_id, std::string&& canonical)
+        CanonicalEntry(int64_t can_id, std::string&& canonical)
             : can_id(can_id)
             , canonical(std::move(canonical))
         {
@@ -36,20 +36,20 @@ private:
     // The reason for using a map is so that the canonical can be moved in and out
     // from the container. Could use an unordered_set: given an iterator, break the
     // rules and const_cast the element, extract canonical and erase using the iterator.
-    using Canonicals = std::map<size_t, CanonicalEntry>;
+    using Canonicals = std::map<int64_t, CanonicalEntry>;
 
     // Reverse lookup into above map using can_id. Not const_iterator because
     // the element is moved from, before it is erased.
-    using CanonicalLookup = std::unordered_map<size_t, Canonicals::iterator>;
+    using CanonicalLookup = std::unordered_map<int64_t, Canonicals::iterator>;
 
     struct CaptureEvent
     {
-        size_t event_id;
-        size_t can_id;
+        int64_t event_id;
+        int64_t can_id;
 
         maxsimd::CanonicalArgs args;
 
-        CaptureEvent(size_t event_id, size_t can_id, maxsimd::CanonicalArgs&& args)
+        CaptureEvent(int64_t event_id, int64_t can_id, maxsimd::CanonicalArgs&& args)
             : event_id(event_id)
             , can_id(can_id)
             , args(std::move(args))
@@ -63,5 +63,5 @@ private:
     Canonicals      m_canonicals;
     CanonicalLookup m_canonical_lookup;
     CaptureEvents   m_events;
-    ssize_t         m_read_event_idx = 0;
+    int64_t         m_read_event_idx = 0;
 };

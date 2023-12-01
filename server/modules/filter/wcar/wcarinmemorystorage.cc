@@ -9,7 +9,7 @@
 
 void InmemoryStorage::add_query_event(QueryEvent&& qevent)
 {
-    auto hash = std::hash<std::string>{}(qevent.canonical);
+    auto hash = std::hash<std::string> {}(qevent.canonical);
     auto can_id = next_can_id();
     CanonicalEntry entry{can_id, std::move(qevent.canonical)};
 
@@ -38,7 +38,7 @@ Storage::Iterator InmemoryStorage::end() const
     return Storage::Iterator(nullptr, QueryEvent {});
 }
 
-size_t InmemoryStorage::num_unread() const
+int64_t InmemoryStorage::num_unread() const
 {
     return m_events.size();
 }

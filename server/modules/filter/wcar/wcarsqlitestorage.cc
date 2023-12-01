@@ -95,7 +95,7 @@ void SqliteStorage::sqlite_execute(const std::string& sql)
     }
 }
 
-SqliteStorage::SelectCanIdRes SqliteStorage::select_can_id(size_t hash)
+SqliteStorage::SelectCanIdRes SqliteStorage::select_can_id(int64_t hash)
 {
     auto select_can_id_cb = [](void* pData, int nColumns, char** ppColumn, char** ppNames){
         mxb_assert(nColumns == 1);
@@ -123,8 +123,8 @@ SqliteStorage::SelectCanIdRes SqliteStorage::select_can_id(size_t hash)
 
 void SqliteStorage::add_query_event(QueryEvent&& qevent)
 {
-    size_t hash = std::hash<std::string> {}(qevent.canonical);
-    size_t can_id;
+    int64_t hash {static_cast<int64_t>(std::hash<std::string> {}(qevent.canonical))};
+    int64_t can_id;
 
     SelectCanIdRes select_res = select_can_id(hash);
 
@@ -196,12 +196,12 @@ Storage::Iterator SqliteStorage::end() const
     return {nullptr, QueryEvent {}};
 }
 
-size_t SqliteStorage::num_unread() const
+int64_t SqliteStorage::num_unread() const
 {
     return 42;      // TODO
 }
 
-std::string SqliteStorage::select_canonical(ssize_t can_id)
+std::string SqliteStorage::select_canonical(int64_t can_id)
 {
 
     auto select_can_id_cb = [](void* pData, int nColumns, char** ppColumn, char** ppNames){
@@ -228,7 +228,7 @@ std::string SqliteStorage::select_canonical(ssize_t can_id)
     return canonical;
 }
 
-maxsimd::CanonicalArgs SqliteStorage::select_canonical_args(ssize_t event_id)
+maxsimd::CanonicalArgs SqliteStorage::select_canonical_args(int64_t event_id)
 {
 
     auto select_can_args_cb = [](void* pData, int nColumns, char** ppColumn, char** ppNames){
@@ -246,7 +246,7 @@ maxsimd::CanonicalArgs SqliteStorage::select_canonical_args(ssize_t event_id)
     maxsimd::CanonicalArgs canonical_args;
     char* pError = nullptr;
 
-    if (sqlite3_exec(m_pDb, sql.c_str(), select_can_args_cb, &canonical_args, &pError)  != SQLITE_OK)
+    if (sqlite3_exec(m_pDb, sql.c_str(), select_can_args_cb, &canonical_args, &pError) != SQLITE_OK)
     {
         MXB_THROW(WcarError, "Failed sqlite3 query in database '"
                   << m_path << "' error: " << (pError ? pError : "unknown")
