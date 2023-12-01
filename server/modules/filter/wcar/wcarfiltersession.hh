@@ -26,7 +26,16 @@ private:
     WcarFilterSession(WcarFilterSession&&) = delete;
 
 private:
+    /**
+     * @brief generate_event_for - Fill *pQuery_event for a non-sql buffer
+     * @param buffer
+     * @param query_event
+     * @return true if the event should be captured
+     */
+    bool generate_event_for(const GWBUF& buffer, QueryEvent* pQuery_event);
+
     const WcarFilter& m_filter;
 
+    bool       m_skip_capture = false;
     QueryEvent m_query_event;
 };
