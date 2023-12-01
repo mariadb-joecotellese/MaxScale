@@ -45,6 +45,7 @@ static auto CREATE_TABLES_SQL =
 };
 
 static const char SQL_CANONICAL_INSERT[] = "insert into canonical values(?, ?, ?)";
+static const char SQL_EVENT_INSERT[] = "insert into event values(?, ?)";
 
 SqliteStorage::SqliteStorage(const fs::path& path, Access access)
     : m_access(access)
@@ -80,6 +81,7 @@ SqliteStorage::SqliteStorage(const fs::path& path, Access access)
         }
 
         sqlite_prepare(SQL_CANONICAL_INSERT, &m_pCanonical_insert_stmt);
+        sqlite_prepare(SQL_EVENT_INSERT, &m_pEvent_insert_stmt);
     }
 }
 
@@ -106,6 +108,21 @@ void SqliteStorage::insert_canonical(int64_t hash, int64_t id, const std::string
     }
 
     sqlite3_reset(m_pCanonical_insert_stmt);
+}
+
+void SqliteStorage::insert_event(int64_t event_id, int64_t can_id)
+{
+    int idx = 0;
+    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, event_id);
+    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, can_id);
+
+    if (sqlite3_step(m_pEvent_insert_stmt) != SQLITE_DONE)
+    {
+        MXB_THROW(WcarError, "Failed to execute canonical insert prepared stmt in database "
+                  << m_path << "' error: " << sqlite3_errmsg(m_pDb));
+    }
+
+    sqlite3_reset(m_pEvent_insert_stmt);
 }
 
 SqliteStorage::~SqliteStorage()
@@ -174,9 +191,7 @@ void SqliteStorage::add_query_event(QueryEvent&& qevent)
         qevent.event_id = next_event_id();
     }
 
-    auto insert_event = MAKE_STR("insert into event values( " << qevent.event_id << ',' << can_id << ')');
-
-    sqlite_execute(insert_event);
+    insert_event(qevent.event_id, can_id);
 
     if (!qevent.canonical_args.empty())
     {
