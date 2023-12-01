@@ -23,7 +23,9 @@ public:
     SqliteStorage(const fs::path& path, Access access = Access::READ_WRITE);
     ~SqliteStorage();
 
-    void     add_query_event(QueryEvent&& qevent) override;
+    void add_query_event(QueryEvent&& qevent) override;
+    void add_query_event(std::vector<QueryEvent>& qevents) override;
+
     Iterator begin() override;
     Iterator end() const override;
     int64_t  num_unread() const override;

@@ -60,7 +60,7 @@ SqliteStorage::SqliteStorage(const fs::path& path, Access access)
     }
 
     int flags = (access == Access::READ_WRITE) ?
-        SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE :
+        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE :
         SQLITE_OPEN_READONLY;
 
     if (sqlite3_open_v2(m_path.c_str(), &m_pDb, flags, nullptr) != SQLITE_OK)
@@ -85,6 +85,14 @@ SqliteStorage::SqliteStorage(const fs::path& path, Access access)
         sqlite_prepare(SQL_EVENT_INSERT, &m_pEvent_insert_stmt);
         sqlite_prepare(SQL_CANONICAL_ARGUMENT_INSERT, &m_pArg_insert_stmt);
     }
+}
+
+SqliteStorage::~SqliteStorage()
+{
+    sqlite3_finalize(m_pCanonical_insert_stmt);
+    sqlite3_finalize(m_pEvent_read_stmt);
+    sqlite3_finalize(m_pArg_insert_stmt);
+    sqlite3_close_v2(m_pDb);
 }
 
 void SqliteStorage::sqlite_prepare(const string& sql, sqlite3_stmt** ppStmt)
@@ -145,18 +153,10 @@ void SqliteStorage::insert_canonical_args(int64_t event_id, const maxsimd::Canon
     }
 }
 
-SqliteStorage::~SqliteStorage()
-{
-    sqlite3_finalize(m_pCanonical_insert_stmt);
-    sqlite3_finalize(m_pEvent_read_stmt);
-    sqlite3_finalize(m_pArg_insert_stmt);
-    sqlite3_close_v2(m_pDb);
-}
-
 void SqliteStorage::sqlite_execute(const std::string& sql)
 {
     char* pError = nullptr;
-    if (sqlite3_exec(m_pDb, sql.c_str(), 0, nullptr, &pError) != SQLITE_OK)
+    if (sqlite3_exec(m_pDb, sql.c_str(), nullptr, nullptr, &pError) != SQLITE_OK)
     {
         MXB_THROW(WcarError, "Failed sqlite3 query in database '"
                   << m_path << "' error: " << (pError ? pError : "unknown")
@@ -218,6 +218,18 @@ void SqliteStorage::add_query_event(QueryEvent&& qevent)
     {
         insert_canonical_args(qevent.event_id, std::move(qevent.canonical_args));
     }
+}
+
+void SqliteStorage::add_query_event(std::vector<QueryEvent>& qevents)
+{
+    sqlite_execute("begin transaction");
+
+    for (auto& event : qevents)
+    {
+        add_query_event(std::move(event));
+    }
+
+    sqlite_execute("commit transaction");
 }
 
 Storage::Iterator SqliteStorage::begin()

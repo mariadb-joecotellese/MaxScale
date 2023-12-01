@@ -28,6 +28,14 @@ void InmemoryStorage::add_query_event(QueryEvent&& qevent)
     m_events.emplace_back(next_event_id(), can_id, std::move(qevent.canonical_args));
 }
 
+void InmemoryStorage::add_query_event(std::vector<QueryEvent>& qevents)
+{
+    for (auto& event : qevents)
+    {
+        add_query_event(std::move(event));
+    }
+}
+
 Storage::Iterator InmemoryStorage::begin()
 {
     return Storage::Iterator(this, next_event());

@@ -39,7 +39,7 @@ void replay(const PlayerConfig& config)
 
     for (const auto& event : storage)
     {
-        auto sql = maxsimd::recreate_sql(event.canonical, event.canonical_args);
+        auto sql = maxsimd::canonical_args_to_sql(event.canonical, event.canonical_args);
         std::cout << sql << std::endl;
 
         // TODO: Ignoring the return value until erranous queries are handled.

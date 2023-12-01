@@ -57,6 +57,7 @@ public:
     void move_values_from(Storage& other);
 
     virtual void add_query_event(QueryEvent&& qevent) = 0;
+    virtual void add_query_event(std::vector<QueryEvent>& qevents) = 0;
 
     virtual Iterator begin() = 0;
     virtual Iterator end() const = 0;

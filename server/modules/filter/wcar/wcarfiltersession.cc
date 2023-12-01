@@ -47,7 +47,7 @@ bool WcarFilterSession::routeQuery(GWBUF&& buffer)
     if (mariadb::is_com_query_or_prepare(buffer))
     {
         m_query_event.canonical = parser().get_sql(buffer);
-        maxsimd::get_canonical(&m_query_event.canonical, &m_query_event.canonical_args);
+        maxsimd::get_canonical_args(&m_query_event.canonical, &m_query_event.canonical_args);
     }
     else
     {
@@ -76,7 +76,7 @@ bool WcarFilterSession::clientReply(GWBUF&& buffer,
 
 bool WcarFilterSession::generate_event_for(const GWBUF& buffer, QueryEvent* pQuery_event)
 {
-    auto cmd = mxs_mysql_get_command(buffer);
+    auto cmd = mariadb::get_command(buffer);
 
     // TODO add prepared statement handling (text and binary)
     switch (cmd)

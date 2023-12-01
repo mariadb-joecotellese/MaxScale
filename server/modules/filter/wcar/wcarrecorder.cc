@@ -28,10 +28,15 @@ void WcarRecorder::finish_for(maxscale::RoutingWorker* pWorker)
     decrease_client_count(pWorker->index());
 }
 
-void WcarRecorder::make_updates(RecorderContext* pContext, std::vector<SharedUpdate::UpdateType>& queue)
+void WcarRecorder::make_updates(RecorderContext* pContext, std::vector<SharedUpdate::UpdateType>& events)
 {
-    for (auto& update : queue)
+    try
     {
-        pContext->pStorage->add_query_event(std::move(update));
+        pContext->pStorage->add_query_event(events);
+    }
+    catch (std::exception& ex)
+    {
+        MXB_SERROR("TODO: unhandled exception " << ex.what());
+        throw;
     }
 }

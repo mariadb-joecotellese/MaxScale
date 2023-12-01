@@ -37,5 +37,5 @@ private:
     void finish_for(maxscale::RoutingWorker* pWorker) override;
 
     void make_updates(RecorderContext* pContext,
-                      std::vector<typename SharedUpdate::UpdateType>& queue) override;
+                      std::vector<typename SharedUpdate::UpdateType>& events) override;
 };
