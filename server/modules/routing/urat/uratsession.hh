@@ -32,16 +32,17 @@ public:
                      mxs::Endpoint* pProblem, const mxs::Reply& reply) override final;
 
 private:
-    SUratBackends     m_backends;
-    UratBackend*      m_pMain = nullptr;
-    int               m_responses = 0;
-    UratRouter&       m_router;
-    std::deque<GWBUF> m_queue;
-    std::string       m_query;
-    uint8_t           m_command = 0;
-    uint64_t          m_num_queries = 0;
-    GWBUF             m_last_chunk;
-    mxs::ReplyRoute   m_last_route;
+    SUratBackends           m_backends;
+    UratBackend*            m_pMain = nullptr;
+    int                     m_responses = 0;
+    UratRouter&             m_router;
+    std::deque<GWBUF>       m_queue;
+    std::string             m_query;
+    uint8_t                 m_command = 0;
+    uint64_t                m_num_queries = 0;
+    GWBUF                   m_last_chunk;
+    mxs::ReplyRoute         m_last_route;
+    std::vector<UratResult> m_results;
 
     void route_queued_queries();
     bool should_report() const;

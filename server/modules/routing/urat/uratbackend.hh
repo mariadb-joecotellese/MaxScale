@@ -17,6 +17,8 @@
 class UratBackend;
 using SUratBackends = std::vector<std::unique_ptr<UratBackend>>;
 
+class UratResult;
+
 using Clock = std::chrono::steady_clock;
 
 class UratBackend : public mxs::Backend
@@ -29,6 +31,7 @@ public:
     bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override;
 
     void process_result(const GWBUF& buffer, const mxs::Reply& reply);
+    UratResult finish_result(const GWBUF& buffer, const mxs::Reply& reply);
 
     const mxb::CRC32& checksum() const
     {

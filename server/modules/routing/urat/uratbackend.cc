@@ -5,6 +5,7 @@
  */
 
 #include "uratbackend.hh"
+#include "uratresult.hh"
 
 SUratBackends UratBackend::from_endpoints(const mxs::Endpoints& endpoints)
 {
@@ -28,12 +29,20 @@ bool UratBackend::write(GWBUF&& buffer, response_type type)
 
 void UratBackend::process_result(const GWBUF& buffer, const mxs::Reply& reply)
 {
+    mxb_assert(!reply.is_complete());
+
     m_checksum.update(buffer);
+}
+
+UratResult UratBackend::finish_result(const GWBUF& buffer, const mxs::Reply& reply)
+{
+    mxb_assert(reply.is_complete());
+
     m_reply = reply;
 
-    if (reply.is_complete())
-    {
-        m_checksum.finalize();
-        m_end = Clock::now();
-    }
+    m_checksum.update(buffer);
+    m_checksum.finalize();
+    m_end = Clock::now();
+
+    return UratResult(this, checksum(), m_reply, std::chrono::milliseconds { duration() });
 }

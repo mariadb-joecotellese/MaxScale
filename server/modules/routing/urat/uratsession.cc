@@ -4,6 +4,7 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 #include "uratsession.hh"
+#include "uratresult.hh"
 #include "uratrouter.hh"
 
 #include <maxscale/protocol/mariadb/mysql.hh>
@@ -101,16 +102,22 @@ void UratSession::finalize_reply()
     m_last_chunk.clear();
 
     generate_report();
+    m_results.clear();
     route_queued_queries();
 }
 
 bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mxs::Reply& reply)
 {
     auto* pBackend = static_cast<UratBackend*>(down.endpoint()->get_userdata());
-    pBackend->process_result(packet, reply);
 
-    if (reply.is_complete())
+    if (!reply.is_complete())
     {
+        pBackend->process_result(packet, reply);
+    }
+    else
+    {
+        UratResult result = pBackend->finish_result(packet, reply);
+        m_results.emplace_back(result);
         pBackend->ack_write();
         --m_responses;
 
