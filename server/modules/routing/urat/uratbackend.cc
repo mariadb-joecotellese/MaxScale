@@ -44,5 +44,7 @@ UratResult UratBackend::finish_result(const GWBUF& buffer, const mxs::Reply& rep
     m_checksum.finalize();
     m_end = Clock::now();
 
-    return UratResult(this, checksum(), m_reply, std::chrono::milliseconds { duration() });
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(m_end - m_start);
+
+    return UratResult(this, m_checksum, m_reply, duration);
 }

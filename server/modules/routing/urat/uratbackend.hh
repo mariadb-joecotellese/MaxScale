@@ -33,17 +33,6 @@ public:
     void process_result(const GWBUF& buffer, const mxs::Reply& reply);
     UratResult finish_result(const GWBUF& buffer, const mxs::Reply& reply);
 
-    const mxb::CRC32& checksum() const
-    {
-        return m_checksum;
-    }
-
-    // Query duration in milliseconds
-    uint64_t duration() const
-    {
-        return std::chrono::duration_cast<std::chrono::milliseconds>(m_end - m_start).count();
-    }
-
     const mxs::Reply& reply() const
     {
         return m_reply;

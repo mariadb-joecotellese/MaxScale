@@ -184,15 +184,15 @@ bool UratSession::should_report() const
         rval = false;
         std::string checksum;
 
-        for (const auto& sBackend : m_backends)
+        for (const auto& result : m_results)
         {
-            if (sBackend->in_use())
+            if (result.backend().in_use())
             {
                 if (checksum.empty())
                 {
-                    checksum = sBackend->checksum().hex();
+                    checksum = result.checksum().hex();
                 }
-                else if (checksum != sBackend->checksum().hex())
+                else if (checksum != result.checksum().hex())
                 {
                     rval = true;
                 }
@@ -215,19 +215,21 @@ void UratSession::generate_report()
 
         json_t* pArr = json_array();
 
-        for (const auto& sBackend : m_backends)
+        for (const auto& result : m_results)
         {
-            if (sBackend->in_use())
+            UratBackend& backend = result.backend();
+
+            if (backend.in_use())
             {
-                const char* type = sBackend->reply().error() ?
-                    "error" : (sBackend->reply().is_resultset() ? "resultset" : "ok");
+                const char* type = result.reply().error() ?
+                    "error" : (result.reply().is_resultset() ? "resultset" : "ok");
 
                 json_t* pO = json_object();
-                json_object_set_new(pO, "target", json_string(sBackend->name()));
-                json_object_set_new(pO, "checksum", json_string(sBackend->checksum().hex().c_str()));
-                json_object_set_new(pO, "rows", json_integer(sBackend->reply().rows_read()));
-                json_object_set_new(pO, "warnings", json_integer(sBackend->reply().num_warnings()));
-                json_object_set_new(pO, "duration", json_integer(sBackend->duration()));
+                json_object_set_new(pO, "target", json_string(backend.name()));
+                json_object_set_new(pO, "checksum", json_string(result.checksum().hex().c_str()));
+                json_object_set_new(pO, "rows", json_integer(result.reply().rows_read()));
+                json_object_set_new(pO, "warnings", json_integer(result.reply().num_warnings()));
+                json_object_set_new(pO, "duration", json_integer(result.duration().count()));
                 json_object_set_new(pO, "type", json_string(type));
 
                 json_array_append_new(pArr, pO);
