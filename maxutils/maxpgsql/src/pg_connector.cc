@@ -4,7 +4,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2027-10-10
+ * Change Date: 2027-11-30
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -160,8 +160,6 @@ bool PgSQL::open(const std::string& host, int port, const std::string& db)
             ssl_version_str = "TLSv1.3";
             break;
 
-        case mxb::ssl_version::SSL_MAX:
-        case mxb::ssl_version::TLS_MAX:
         case mxb::ssl_version::SSL_TLS_MAX:
         case mxb::ssl_version::SSL_UNKNOWN:
             // Leave empty, causes connection to use at least TLSv1.2. Higher versions may also be used if
