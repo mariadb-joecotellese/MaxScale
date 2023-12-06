@@ -192,7 +192,7 @@ SqliteStorage::SelectCanIdRes SqliteStorage::select_can_id(int64_t hash)
 
 void SqliteStorage::add_query_event(QueryEvent&& qevent)
 {
-    int64_t hash {static_cast<int64_t>(std::hash<std::string> {}(qevent.canonical))};
+    int64_t hash {static_cast<int64_t>(std::hash<std::string> {}(*qevent.sCanonical))};
     int64_t can_id;
 
     SelectCanIdRes select_res = select_can_id(hash);
@@ -204,7 +204,7 @@ void SqliteStorage::add_query_event(QueryEvent&& qevent)
     else
     {
         can_id = next_can_id();
-        insert_canonical(hash, can_id, qevent.canonical);
+        insert_canonical(hash, can_id, *qevent.sCanonical);
     }
 
     if (qevent.event_id == -1)
@@ -339,5 +339,5 @@ QueryEvent SqliteStorage::next_event()
 
     m_last_event_read = event_id;
 
-    return QueryEvent{std::move(canonical), std::move(can_args), event_id};
+    return QueryEvent{make_shared<std::string>(std::move(canonical)), std::move(can_args), event_id};
 }

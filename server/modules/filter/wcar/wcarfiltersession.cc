@@ -30,7 +30,7 @@ WcarFilterSession::WcarFilterSession(MXS_SESSION* pSession, SERVICE* pService, c
         auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
 
         QueryEvent event;
-        event.canonical = "use " + maria_ses.current_db;
+        event.sCanonical = std::make_shared<std::string>("use " + maria_ses.current_db);
         pShared_data->send_update(event);
     }
 }
@@ -46,8 +46,8 @@ bool WcarFilterSession::routeQuery(GWBUF&& buffer)
 
     if (mariadb::is_com_query_or_prepare(buffer))
     {
-        m_query_event.canonical = parser().get_sql(buffer);
-        maxsimd::get_canonical_args(&m_query_event.canonical, &m_query_event.canonical_args);
+        m_query_event.sCanonical = std::make_shared<std::string>(parser().get_sql(buffer));
+        maxsimd::get_canonical_args(&*m_query_event.sCanonical, &m_query_event.canonical_args);
     }
     else
     {
@@ -86,7 +86,8 @@ bool WcarFilterSession::generate_event_for(const GWBUF& buffer, QueryEvent* pQue
             const uint8_t* data = buffer.data();
             auto* pStart = data + MYSQL_HEADER_LEN + 1;
             auto* pEnd = data + buffer.length();
-            pQuery_event->canonical = "create database "s + std::string(pStart, pEnd);
+            pQuery_event->sCanonical =
+                std::make_shared<std::string>("create database "s + std::string(pStart, pEnd));
         }
         break;
 
@@ -95,7 +96,8 @@ bool WcarFilterSession::generate_event_for(const GWBUF& buffer, QueryEvent* pQue
             const uint8_t* data = buffer.data();
             auto* pStart = data + MYSQL_HEADER_LEN + 1;
             auto* pEnd = data + buffer.length();
-            pQuery_event->canonical = "drop database "s + std::string(pStart, pEnd);
+            pQuery_event->sCanonical =
+                std::make_shared<std::string>("drop database "s + std::string(pStart, pEnd));
         }
         break;
 
@@ -104,7 +106,8 @@ bool WcarFilterSession::generate_event_for(const GWBUF& buffer, QueryEvent* pQue
             const uint8_t* data = buffer.data();
             auto* pStart = data + MYSQL_HEADER_LEN + 1;
             auto* pEnd = data + buffer.length();
-            pQuery_event->canonical = "use "s + std::string(pStart, pEnd);
+            pQuery_event->sCanonical =
+                std::make_shared<std::string>("use "s + std::string(pStart, pEnd));
         }
         break;
 

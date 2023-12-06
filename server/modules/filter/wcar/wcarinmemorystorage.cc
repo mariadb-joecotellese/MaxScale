@@ -5,27 +5,34 @@
  */
 #include "wcarinmemorystorage.hh"
 #include <maxbase/assert.hh>
-#include <sstream>
 
 void InmemoryStorage::add_query_event(QueryEvent&& qevent)
 {
-    auto hash = std::hash<std::string> {}(qevent.canonical);
-    auto can_id = next_can_id();
-    CanonicalEntry entry{can_id, std::move(qevent.canonical)};
+    int64_t hash{static_cast<int64_t>(std::hash<std::string> {}(*qevent.sCanonical))};
+    auto canon_ite = m_canonicals.find(hash);
 
-    auto p = m_canonicals.try_emplace(hash, std::move(entry));
-    if (p.second == false)
+    if (canon_ite != std::end(m_canonicals))
     {
-        if (p.first->second.canonical != entry.canonical)
+        if (std::shared_ptr<std::string> sCanonical = canon_ite->second.lock())
         {
-            // TODO potentially serious, although very unlikely error. Decide what to do.
-            MXB_SERROR("Hash collision. In storage:'" << p.first->first << "' attempt to insert '"
-                                                      << entry.canonical);
+            // cached
+            qevent.sCanonical = std::move(sCanonical);
+        }
+        else
+        {
+            // cache entry expired
+            m_canonicals.erase(canon_ite);
+            m_canonicals.emplace(hash, qevent.sCanonical);
         }
     }
+    else
+    {
+        // insert a weak_ptr
+        m_canonicals.emplace(hash, qevent.sCanonical);
+    }
 
-    m_canonical_lookup.emplace(can_id, p.first);
-    m_events.emplace_back(next_event_id(), can_id, std::move(qevent.canonical_args));
+    qevent.event_id = next_event_id();
+    m_events.emplace_back(std::move(qevent));
 }
 
 void InmemoryStorage::add_query_event(std::vector<QueryEvent>& qevents)
@@ -58,16 +65,13 @@ QueryEvent InmemoryStorage::next_event()
         return QueryEvent{};
     }
 
-    auto& cap_event = m_events.front();
-    auto lookup_ite = m_canonical_lookup.find(cap_event.can_id);
-    auto& canon_ite = lookup_ite->second;
-
-    QueryEvent ret{std::move(canon_ite->second.canonical), std::move(cap_event.args), m_read_event_idx};
-
-    ++m_read_event_idx;
-    m_canonical_lookup.erase(lookup_ite);
-    m_canonicals.erase(canon_ite);
+    QueryEvent ret{std::move(m_events.front())};
     m_events.pop_front();
+
+    if (m_events.empty())
+    {
+        m_canonicals.clear();
+    }
 
     return ret;
 }

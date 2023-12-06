@@ -7,12 +7,16 @@
 
 #include <maxbase/ccdefs.hh>
 #include <maxsimd/canonical.hh>
+#include <memory>
 
 struct QueryEvent
 {
-    std::string            canonical;
-    maxsimd::CanonicalArgs canonical_args;
-    int64_t                event_id = -1;   // managed by storage
+    /* shared_ptr at this level because every kind of storage benefits
+     * from the shared_ptr for caching.
+     */
+    std::shared_ptr<std::string> sCanonical;
+    maxsimd::CanonicalArgs       canonical_args;
+    int64_t                      event_id = -1; // managed by storage
 };
 
 /** Abstract Storage for QueryEvents.
@@ -38,8 +42,9 @@ public:
         using pointer = QueryEvent*;
         using reference = QueryEvent&;
 
-        const QueryEvent& operator*() const;
-        const QueryEvent* operator->() const;
+        // non-const. The returned QueryEvent can be moved by the client
+        QueryEvent& operator*();
+        QueryEvent* operator->();
 
         Iterator& operator++();
 
@@ -79,7 +84,7 @@ inline void Storage::move_values_from(Storage& other)
 {
     for (auto& event : other)
     {
-        add_query_event(std::move(const_cast<QueryEvent&>(event)));
+        add_query_event(std::move(event));
     }
 }
 
@@ -99,12 +104,12 @@ inline Storage::Iterator::Iterator(Storage* pStorage, QueryEvent&& event)
 {
 }
 
-inline const QueryEvent& Storage::Iterator::operator*() const
+inline QueryEvent& Storage::Iterator::operator*()
 {
     return m_event;
 }
 
-inline const QueryEvent* Storage::Iterator::operator->() const
+inline QueryEvent* Storage::Iterator::operator->()
 {
     return &m_event;
 }
