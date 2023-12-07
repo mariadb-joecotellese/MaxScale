@@ -6,13 +6,13 @@
 #pragma once
 
 #include "uratdefs.hh"
-#include "uratbackend.hh"
-#include "uratrouter.hh"
-
+#include <deque>
 #include <maxscale/backend.hh>
 #include <maxscale/buffer.hh>
-
-#include <deque>
+#include "uratbackend.hh"
+#include "uratround.hh"
+#include "uratrouter.hh"
+#include "uratresult.hh"
 
 class UratRouter;
 
@@ -45,11 +45,11 @@ private:
     uint64_t                m_num_queries = 0;
     GWBUF                   m_last_chunk;
     mxs::ReplyRoute         m_last_route;
-    std::vector<UratResult> m_results;
+    UratRound               m_round;
 
     void route_queued_queries();
     bool should_report() const;
     void generate_report();
-    json_t* generate_report(const UratResult& result);
+    json_t* generate_report(const UratBackend* pBackend, const UratResult& result);
     void finalize_reply();
 };

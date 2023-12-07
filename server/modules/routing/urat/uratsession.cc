@@ -102,7 +102,7 @@ void UratSession::finalize_reply()
     m_last_chunk.clear();
 
     generate_report();
-    m_results.clear();
+    m_round.clear();
     route_queued_queries();
 }
 
@@ -117,7 +117,7 @@ bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const
     else
     {
         UratResult result = pBackend->finish_result(packet, reply);
-        m_results.emplace_back(result);
+        m_round.set_result(pBackend, result);
         pBackend->ack_write();
         --m_responses;
 
@@ -186,8 +186,10 @@ bool UratSession::should_report() const
         if (m_sMain->in_use())
         {
             std::string checksum;
-            for (const auto& result : m_results)
+            for (const auto& kv : m_round.results())
             {
+                const UratResult& result = kv.second;
+
                 if (checksum.empty())
                 {
                     checksum = result.checksum().hex();
@@ -216,9 +218,12 @@ void UratSession::generate_report()
 
         json_t* pArr = json_array();
 
-        for (const auto& result : m_results)
+        for (const auto& kv : m_round.results())
         {
-            json_array_append_new(pArr, generate_report(result));
+            const UratBackend* pBackend = kv.first;
+            const UratResult& result = kv.second;
+
+            json_array_append_new(pArr, generate_report(pBackend, result));
         }
 
         json_object_set_new(pJson, "results", pArr);
@@ -227,13 +232,13 @@ void UratSession::generate_report()
     }
 }
 
-json_t* UratSession::generate_report(const UratResult& result)
+json_t* UratSession::generate_report(const UratBackend* pBackend, const UratResult& result)
 {
-    const char* type = result.backend().reply().error() ?
-        "error" : (result.backend().reply().is_resultset() ? "resultset" : "ok");
+    const char* type = result.reply().error() ?
+        "error" : (result.reply().is_resultset() ? "resultset" : "ok");
 
     json_t* pO = json_object();
-    json_object_set_new(pO, "target", json_string(result.backend().name()));
+    json_object_set_new(pO, "target", json_string(pBackend->name()));
     json_object_set_new(pO, "checksum", json_string(result.checksum().hex().c_str()));
     json_object_set_new(pO, "rows", json_integer(result.reply().rows_read()));
     json_object_set_new(pO, "warnings", json_integer(result.reply().num_warnings()));

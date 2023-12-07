@@ -3,6 +3,7 @@
  *
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
+#pragma once
 
 #include "uratdefs.hh"
 #include <maxbase/checksum.hh>
@@ -10,24 +11,30 @@
 
 class UratBackend;
 
+/**
+ * @class UratResult
+ *
+ * The result of executing one particular statement.
+ */
 class UratResult final
 {
 public:
-    UratResult(UratBackend*                     pBackend,
-               const mxb::CRC32&                checksum,
+    UratResult() = default;
+
+    UratResult(const mxb::CRC32&                checksum,
                const mxs::Reply&                reply,
                const std::chrono::milliseconds& duration)
-        : m_pBackend(pBackend)
-        , m_checksum(checksum)
+        : m_checksum(checksum)
         , m_reply(reply)
         , m_duration(duration)
     {
-        mxb_assert(pBackend);
     }
 
-    UratBackend& backend() const
+    void clear()
     {
-        return *m_pBackend;
+        m_checksum.reset();
+        m_reply.clear();
+        m_duration = std::chrono::milliseconds {0};
     }
 
     const mxb::CRC32& checksum() const
@@ -46,8 +53,7 @@ public:
     }
 
 private:
-    UratBackend*              m_pBackend;
     mxb::CRC32                m_checksum;
     mxs::Reply                m_reply;
-    std::chrono::milliseconds m_duration;
+    std::chrono::milliseconds m_duration { 0 };
 };
