@@ -33,8 +33,8 @@ bool UratSession::routeQuery(GWBUF&& packet)
     }
     else
     {
-        m_query = get_sql_string(packet);
-        m_command = mxs_mysql_get_command(packet);
+        m_rounds.emplace_back(UratRound(get_sql_string(packet), mxs_mysql_get_command(packet)));
+
         bool expecting_response = protocol_data().will_respond(packet);
         mxs::Backend::response_type type = expecting_response
             ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::NO_RESPONSE;
@@ -101,8 +101,9 @@ void UratSession::finalize_reply()
     RouterSession::clientReply(std::move(m_last_chunk), m_last_route, m_sMain->reply());
     m_last_chunk.clear();
 
-    generate_report();
-    m_round.clear();
+    mxb_assert(!m_rounds.empty());
+    generate_report(m_rounds.front());
+    m_rounds.pop_front();
     route_queued_queries();
 }
 
@@ -117,7 +118,8 @@ bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const
     else
     {
         UratResult result = pBackend->finish_result(packet, reply);
-        m_round.set_result(pBackend, result);
+        mxb_assert(!m_rounds.empty());
+        m_rounds.front().set_result(pBackend, result);
         pBackend->ack_write();
         --m_responses;
 
@@ -185,8 +187,10 @@ bool UratSession::should_report() const
 
         if (m_sMain->in_use())
         {
+            mxb_assert(!m_rounds.empty());
+            const UratRound& round = m_rounds.front();
             std::string checksum;
-            for (const auto& kv : m_round.results())
+            for (const auto& kv : round.results())
             {
                 const UratResult& result = kv.second;
 
@@ -206,19 +210,19 @@ bool UratSession::should_report() const
     return rval;
 }
 
-void UratSession::generate_report()
+void UratSession::generate_report(const UratRound& round)
 {
     if (should_report())
     {
         json_t* pJson = json_object();
-        json_object_set_new(pJson, "query", json_string(m_query.c_str()));
-        json_object_set_new(pJson, "command", json_string(mariadb::cmd_to_string(m_command)));
+        json_object_set_new(pJson, "query", json_string(round.query().c_str()));
+        json_object_set_new(pJson, "command", json_string(mariadb::cmd_to_string(round.command())));
         json_object_set_new(pJson, "session", json_integer(m_pSession->id()));
         json_object_set_new(pJson, "query_id", json_integer(++m_num_queries));
 
         json_t* pArr = json_array();
 
-        for (const auto& kv : m_round.results())
+        for (const auto& kv : round.results())
         {
             const UratBackend* pBackend = kv.first;
             const UratResult& result = kv.second;

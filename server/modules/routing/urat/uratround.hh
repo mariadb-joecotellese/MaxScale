@@ -23,12 +23,31 @@ public:
     {
     }
 
+    UratRound(const std::string& query, uint8_t command)
+        : m_query(query)
+        , m_command(command)
+    {
+    }
+
     void clear()
     {
+        m_query.clear();
+        m_command = 0;
+
         for (auto kv : m_results)
         {
             kv.second.clear();
         }
+    }
+
+    const std::string& query() const
+    {
+        return m_query;
+    }
+
+    uint8_t command() const
+    {
+        return m_command;
     }
 
     const Results& results() const
@@ -47,5 +66,7 @@ public:
     }
 
 private:
+    std::string                              m_query;
+    uint8_t                                  m_command { 0 };
     std::map<const UratBackend*, UratResult> m_results;
 };
