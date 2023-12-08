@@ -19,22 +19,30 @@ class UratBackend;
 class UratResult final
 {
 public:
-    UratResult() = default;
+    using Clock = std::chrono::steady_clock;
 
-    UratResult(const mxb::CRC32&                checksum,
-               const mxs::Reply&                reply,
-               const std::chrono::milliseconds& duration)
-        : m_checksum(checksum)
-        , m_reply(reply)
-        , m_duration(duration)
+    UratResult()
+        : m_start(Clock::now())
     {
     }
 
-    void clear()
+    void update_checksum(const GWBUF& buffer)
     {
+        m_checksum.update(buffer);
+    }
+
+    void close(const mxs::Reply& reply)
+    {
+        m_reply = reply;
+        m_end = Clock::now();
+    }
+
+    void reset()
+    {
+        m_start = Clock::now();
+        m_end = m_start;
         m_checksum.reset();
         m_reply.clear();
-        m_duration = std::chrono::milliseconds {0};
     }
 
     const mxb::CRC32& checksum() const
@@ -47,13 +55,14 @@ public:
         return m_reply;
     }
 
-    const std::chrono::milliseconds& duration() const
+    std::chrono::milliseconds duration() const
     {
-        return m_duration;
+        return std::chrono::duration_cast<std::chrono::milliseconds>(m_end - m_start);
     }
 
 private:
-    mxb::CRC32                m_checksum;
-    mxs::Reply                m_reply;
-    std::chrono::milliseconds m_duration { 0 };
+    Clock::time_point m_start;
+    Clock::time_point m_end;
+    mxb::CRC32        m_checksum;
+    mxs::Reply        m_reply;
 };

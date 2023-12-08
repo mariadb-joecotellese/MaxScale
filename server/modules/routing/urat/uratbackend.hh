@@ -6,13 +6,12 @@
 #pragma once
 
 #include "uratdefs.hh"
-
 #include <vector>
 #include <memory>
-
 #include <maxscale/backend.hh>
 #include <maxscale/router.hh>
 #include <maxbase/checksum.hh>
+#include "uratresult.hh"
 
 class UratMainBackend;
 class UratOtherBackend;
@@ -21,8 +20,6 @@ using SUratOtherBackend = std::unique_ptr<UratOtherBackend>;
 using SUratOtherBackends = std::vector<SUratOtherBackend>;
 
 class UratResult;
-
-using Clock = std::chrono::steady_clock;
 
 class UratBackend : public mxs::Backend
 {
@@ -35,19 +32,11 @@ public:
     void process_result(const GWBUF& buffer, const mxs::Reply& reply);
     UratResult finish_result(const GWBUF& buffer, const mxs::Reply& reply);
 
-    const mxs::Reply& reply() const
-    {
-        return m_reply;
-    }
-
 protected:
     using mxs::Backend::Backend;
 
 private:
-    Clock::time_point m_start;
-    Clock::time_point m_end;
-    mxb::CRC32        m_checksum;
-    mxs::Reply        m_reply;
+    UratResult m_result;
 };
 
 class UratMainBackend : public UratBackend

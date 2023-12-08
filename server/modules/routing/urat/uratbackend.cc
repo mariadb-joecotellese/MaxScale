@@ -40,8 +40,7 @@ UratBackend::from_endpoints(const mxs::Target& main_target, const mxs::Endpoints
 
 bool UratBackend::write(GWBUF&& buffer, response_type type)
 {
-    m_start = Clock::now();
-    m_checksum.reset();
+    m_result.reset();
     return Backend::write(std::move(buffer), type);
 }
 
@@ -49,20 +48,15 @@ void UratBackend::process_result(const GWBUF& buffer, const mxs::Reply& reply)
 {
     mxb_assert(!reply.is_complete());
 
-    m_checksum.update(buffer);
+    m_result.update_checksum(buffer);
 }
 
 UratResult UratBackend::finish_result(const GWBUF& buffer, const mxs::Reply& reply)
 {
     mxb_assert(reply.is_complete());
 
-    m_reply = reply;
+    m_result.update_checksum(buffer);
+    m_result.close(reply);
 
-    m_checksum.update(buffer);
-    m_checksum.finalize();
-    m_end = Clock::now();
-
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(m_end - m_start);
-
-    return UratResult(m_checksum, m_reply, duration);
+    return m_result;
 }

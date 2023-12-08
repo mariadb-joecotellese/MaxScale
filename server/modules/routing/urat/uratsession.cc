@@ -98,7 +98,11 @@ void UratSession::finalize_reply()
     // that we've been storing in the session.
     MXB_INFO("All replies received, routing last chunk to the client.");
 
-    RouterSession::clientReply(std::move(m_last_chunk), m_last_route, m_sMain->reply());
+    mxb_assert(!m_rounds.empty());
+    UratRound& round = m_rounds.front();
+    const UratResult& result = round.get_result(m_sMain.get());
+
+    RouterSession::clientReply(std::move(m_last_chunk), m_last_route, result.reply());
     m_last_chunk.clear();
 
     mxb_assert(!m_rounds.empty());

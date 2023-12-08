@@ -36,7 +36,7 @@ public:
 
         for (auto kv : m_results)
         {
-            kv.second.clear();
+            kv.second.reset();
         }
     }
 
