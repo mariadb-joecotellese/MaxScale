@@ -6,6 +6,7 @@
 #pragma once
 
 #include "uratdefs.hh"
+#include <deque>
 #include <vector>
 #include <memory>
 #include <maxscale/backend.hh>
@@ -36,7 +37,7 @@ protected:
     using mxs::Backend::Backend;
 
 private:
-    UratResult m_result;
+    std::deque<UratResult> m_results;
 };
 
 class UratMainBackend : public UratBackend
