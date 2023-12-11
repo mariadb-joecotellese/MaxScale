@@ -24,12 +24,12 @@ UratSession::UratSession(MXS_SESSION* pSession,
 
 bool UratSession::routeQuery(GWBUF&& packet)
 {
-    int rc = 0;
+    bool rv = false;
 
     if (m_responses)
     {
         m_queue.push_back(std::move(packet));
-        rc = 1;
+        rv = true;
     }
     else
     {
@@ -41,7 +41,7 @@ bool UratSession::routeQuery(GWBUF&& packet)
 
         if (m_sMain->in_use() && m_sMain->write(packet.shallow_clone(), type))
         {
-            rc = 1;
+            rv = true;
 
             if (expecting_response)
             {
@@ -66,7 +66,7 @@ bool UratSession::routeQuery(GWBUF&& packet)
         }
     }
 
-    return rc;
+    return rv;
 }
 
 void UratSession::route_queued_queries()
@@ -145,14 +145,14 @@ bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const
         }
     }
 
-    bool rc = true;
+    bool rv = true;
 
     if (packet && pBackend == m_sMain.get())
     {
-        rc = RouterSession::clientReply(std::move(packet), down, reply);
+        rv = RouterSession::clientReply(std::move(packet), down, reply);
     }
 
-    return rc;
+    return rv;
 }
 
 bool UratSession::handleError(mxs::ErrorType type,
@@ -181,11 +181,11 @@ bool UratSession::handleError(mxs::ErrorType type,
 
 bool UratSession::should_report() const
 {
-    bool rval = true;
+    bool rv = true;
 
     if (m_router.config().report.get() == ReportAction::REPORT_ON_CONFLICT)
     {
-        rval = false;
+        rv = false;
 
         if (m_sMain->in_use())
         {
@@ -202,14 +202,14 @@ bool UratSession::should_report() const
                 }
                 else if (checksum != result.checksum().hex())
                 {
-                    rval = true;
+                    rv = true;
                     break;
                 }
             }
         }
     }
 
-    return rval;
+    return rv;
 }
 
 void UratSession::generate_report(const UratRound& round)
