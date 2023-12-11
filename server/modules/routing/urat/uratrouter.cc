@@ -349,11 +349,7 @@ bool UratRouter::synchronize()
     }
     else
     {
-        if (m_dcstart)
-        {
-            cancel_dcall(m_dcstart);
-        }
-
+        m_dcstart = 0;
         rv = false;
     }
 
@@ -492,9 +488,6 @@ void UratRouter::sync_restart_and_resume()
 
     m_sync_state = SyncState::IDLE;
     m_urat_state = UratState::CAPTURING;
-
-    cancel_dcall(m_dcstart);
-    m_dcstart = 0;
 }
 
 void UratRouter::start_synchronize_dcall()
@@ -502,14 +495,7 @@ void UratRouter::start_synchronize_dcall()
     mxb_assert(m_dcstart == 0);
 
     m_dcstart = dcall(std::chrono::milliseconds { 1000 }, [this]() {
-            bool call_again = synchronize();
-
-            if (!call_again)
-            {
-                m_dcstart = 0;
-            }
-
-            return call_again;
+            return synchronize();
         });
 }
 
