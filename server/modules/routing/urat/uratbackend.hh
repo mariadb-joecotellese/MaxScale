@@ -30,8 +30,8 @@ public:
 
     bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override;
 
-    void process_result(const GWBUF& buffer, const mxs::Reply& reply);
-    UratResult finish_result(const GWBUF& buffer, const mxs::Reply& reply);
+    void process_result(const GWBUF& buffer);
+    UratResult finish_result(const mxs::Reply& reply);
 
 protected:
     using mxs::Backend::Backend;

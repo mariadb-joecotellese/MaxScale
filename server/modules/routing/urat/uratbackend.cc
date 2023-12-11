@@ -48,15 +48,14 @@ bool UratBackend::write(GWBUF&& buffer, response_type type)
     return Backend::write(std::move(buffer), type);
 }
 
-void UratBackend::process_result(const GWBUF& buffer, const mxs::Reply& reply)
+void UratBackend::process_result(const GWBUF& buffer)
 {
-    mxb_assert(!reply.is_complete());
     mxb_assert(!m_results.empty());
 
     m_results.front().update_checksum(buffer);
 }
 
-UratResult UratBackend::finish_result(const GWBUF& buffer, const mxs::Reply& reply)
+UratResult UratBackend::finish_result(const mxs::Reply& reply)
 {
     mxb_assert(reply.is_complete());
     mxb_assert(!m_results.empty());
@@ -64,7 +63,6 @@ UratResult UratBackend::finish_result(const GWBUF& buffer, const mxs::Reply& rep
     UratResult result = std::move(m_results.front());
     m_results.pop_front();
 
-    result.update_checksum(buffer);
     result.close(reply);
 
     return result;

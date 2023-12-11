@@ -115,13 +115,11 @@ bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const
 {
     auto* pBackend = static_cast<UratBackend*>(down.endpoint()->get_userdata());
 
-    if (!reply.is_complete())
+    pBackend->process_result(packet);
+
+    if (reply.is_complete())
     {
-        pBackend->process_result(packet, reply);
-    }
-    else
-    {
-        UratResult result = pBackend->finish_result(packet, reply);
+        UratResult result = pBackend->finish_result(reply);
         mxb_assert(!m_rounds.empty());
         m_rounds.front().set_result(pBackend, result);
         pBackend->ack_write();
