@@ -23,16 +23,24 @@ public:
 
     UratResult()
         : m_start(Clock::now())
+        , m_end(Clock::time_point::max())
     {
+    }
+
+    bool closed() const
+    {
+        return m_end != Clock::time_point::max();
     }
 
     void update_checksum(const GWBUF& buffer)
     {
+        mxb_assert(!closed());
         m_checksum.update(buffer);
     }
 
     void close(const mxs::Reply& reply)
     {
+        mxb_assert(!closed());
         m_reply = reply;
         m_end = Clock::now();
     }
@@ -47,16 +55,19 @@ public:
 
     const mxb::CRC32& checksum() const
     {
+        mxb_assert(closed());
         return m_checksum;
     }
 
     const mxs::Reply& reply() const
     {
+        mxb_assert(closed());
         return m_reply;
     }
 
     std::chrono::milliseconds duration() const
     {
+        mxb_assert(closed());
         return std::chrono::duration_cast<std::chrono::milliseconds>(m_end - m_start);
     }
 
