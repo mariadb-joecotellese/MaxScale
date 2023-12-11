@@ -19,14 +19,40 @@ class UratRound final
 public:
     using Results = std::map<const UratBackend*, UratResult>;
 
-    UratRound()
-    {
-    }
-
-    UratRound(const std::string& query, uint8_t command)
+    UratRound(const std::string& query, uint8_t command, const UratBackend* pBackend)
         : m_query(query)
         , m_command(command)
     {
+        add_backend(pBackend);
+    }
+
+    bool ready() const
+    {
+        bool rv = true;
+
+        for (auto kv : m_results)
+        {
+            if (!kv.second.closed())
+            {
+                rv = false;
+            }
+        }
+
+        return rv;
+    }
+
+    void add_backend(const UratBackend* pBackend)
+    {
+        mxb_assert(m_results.find(pBackend) == m_results.end());
+
+        m_results.emplace(pBackend, UratResult {});
+    }
+
+    void remove_backend(const UratBackend* pBackend)
+    {
+        auto it = m_results.find(pBackend);
+        mxb_assert(it != m_results.end());
+        m_results.erase(it);
     }
 
     void clear()

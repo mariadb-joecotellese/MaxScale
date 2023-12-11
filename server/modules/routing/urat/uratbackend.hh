@@ -33,6 +33,11 @@ public:
     void process_result(const GWBUF& buffer);
     UratResult finish_result(const mxs::Reply& reply);
 
+    int32_t nBacklog() const
+    {
+        return m_results.size();
+    }
+
 protected:
     using mxs::Backend::Backend;
 

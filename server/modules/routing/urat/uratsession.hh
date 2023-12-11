@@ -35,19 +35,15 @@ public:
                      mxs::Endpoint* pProblem, const mxs::Reply& reply) override final;
 
 private:
-    SUratMainBackend        m_sMain;
-    SUratOtherBackends      m_others;
-    int                     m_responses = 0;
-    UratRouter&             m_router;
-    std::deque<GWBUF>       m_queue;
-    uint64_t                m_num_queries = 0;
-    GWBUF                   m_last_chunk;
-    mxs::ReplyRoute         m_last_route;
-    std::deque<UratRound>   m_rounds;
+    SUratMainBackend      m_sMain;
+    SUratOtherBackends    m_others;
+    int                   m_responses = 0;
+    UratRouter&           m_router;
+    uint64_t              m_num_queries = 0;
+    std::deque<UratRound> m_rounds;
 
-    void route_queued_queries();
-    bool should_report() const;
+    void check_if_round_is_ready();
+    bool should_report(const UratRound& round) const;
     void generate_report(const UratRound& round);
     json_t* generate_report(const UratBackend* pBackend, const UratResult& result);
-    void finalize_reply();
 };
