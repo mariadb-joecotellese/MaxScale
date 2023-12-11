@@ -68,6 +68,7 @@ public:
                 Guard guard(m_all_servers_lock);
                 m_all_servers.push_back(server_ptr);
                 rval = server_ptr;
+                rval->start_addr_info_update();
             }
             else
             {
@@ -103,6 +104,7 @@ public:
                 auto server_ptr = server.release();
                 m_all_servers.push_back(server_ptr);
                 rval = server_ptr;
+                rval->start_addr_info_update();
             }
         }
 
@@ -164,18 +166,6 @@ Server* ServerManager::create_volatile_server(const string& name, const mxs::Con
 {
     mxb::LogScope scope(name.c_str());
     return this_unit.add_volatile_server(Server::create(name.c_str(), params));
-}
-
-void ServerManager::server_free(Server* server)
-{
-    mxb_assert(server);
-    this_unit.erase(server);
-
-    auto pool_close_per_thread = [server] () {
-        mxs::RoutingWorker::get_current()->pool_close_all_conns_by_server(server);
-    };
-    mxs::RoutingWorker::execute_concurrently(pool_close_per_thread);
-    delete server;
 }
 
 void ServerManager::destroy_all()

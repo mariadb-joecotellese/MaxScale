@@ -170,15 +170,12 @@ public:
     std::tuple<bool, std::string> soft_stop();
 
     /**
-     * Should a monitor tick be ran immediately?  A monitor can override this to add specific conditions.
-     * This function is called every MXS_MON_BASE_INTERVAL_MS (100 ms) by the monitor worker thread,
-     * which then runs a monitor tick if true is returned.
+     * Request the monitor to run ticks as fast and as soon as possible. Can be called from any thread,
+     * returns immediately..
      *
-     * @return True if tick should be ran
+     * @param ticks How many fast ticks to run (default = 1)
      */
-    virtual bool immediate_tick_required();
-
-    void request_immediate_tick();
+    void request_fast_ticks(int ticks = 1);
 
     /**
      * Deactivate the monitor. Stops the monitor and removes all servers.
@@ -320,8 +317,6 @@ protected:
      */
     bool check_disk_space_this_tick();
 
-    bool server_status_request_waiting() const;
-
     /**
      * Returns the human-readable reason why the server changed state
      *
@@ -334,13 +329,6 @@ protected:
     {
         return "";
     }
-
-    /**
-     * Get current time from the monotonic clock.
-     *
-     * @return Current time
-     */
-    static int64_t get_time_ms();
 
     /**
      * Contains monitor base class settings. Since monitors are stopped before a setting change,
@@ -542,8 +530,6 @@ private:
     mxb::StopWatch   m_disk_space_checked;              /**< When was disk space checked the last time */
     std::atomic_bool m_status_change_pending {false};   /**< Set when admin requests a status change. */
 
-    std::atomic_bool m_immediate_tick_requested {false};    /**< Should monitor tick immediately? */
-
     /**
      * Has something changed such that journal needs to be updated. This is separate from the time-based
      * condition. */
@@ -556,8 +542,11 @@ private:
     mxs::ConfigParameters m_parameters; /**< Configuration parameters in text form */
     Settings              m_settings;   /**< Base class settings */
 
-    int64_t          m_loop_called;     /**< When was the loop called the last time. */
-    std::atomic_long m_half_ticks {0};  /**< Number of monitor ticks started + completed. */
+    std::atomic_long m_half_ticks {0};          /**< Number of monitor ticks started + completed. */
+    std::mutex       m_fast_ticks_lock;         /**< Protects m_fast_ticks_requested */
+    std::atomic_long m_fast_ticks_requested {0};/**< Number of fast ticks requested */
+
+    mxb::Worker::DCId m_next_tick_dcid {mxb::Worker::NO_CALL};      /**< DCId for the next tick */
 
     /** Currently configured servers. Only written to and accessed from MainWorker. Changes only when
      * monitor is stopped for reconfiguration. */

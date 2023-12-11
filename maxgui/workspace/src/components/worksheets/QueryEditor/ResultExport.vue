@@ -21,7 +21,7 @@
                 <template v-slot:form-body>
                     <v-container class="pa-1">
                         <v-row class="ma-n1">
-                            <v-col cols="12" md="12" class="pa-1">
+                            <v-col cols="12" class="pa-1">
                                 <label
                                     class="field__label mxs-color-helper text-small-text label-required"
                                 >
@@ -45,11 +45,55 @@
                                     hide-details="auto"
                                 />
                             </v-col>
-
-                            <v-col cols="12" md="12" class="pa-1">
+                            <v-col cols="12" class="pa-1">
                                 <label
                                     class="field__label mxs-color-helper text-small-text label-required"
                                 >
+                                    {{ $mxs_t('fieldsToExport') }}
+                                </label>
+                                <!-- isConfigDialogOpened is used as a key to re-render the fields dropdown because
+                                when the dialog is closed, all inputs inside the form are reset to null which
+                                breaks some functionalities of mxs-filter-list component -->
+                                <mxs-filter-list
+                                    :key="isConfigDialogOpened"
+                                    v-model="excludedFieldIndexes"
+                                    :items="fields"
+                                    maxWidth="unset"
+                                    :maxHeight="400"
+                                    returnIndex
+                                >
+                                    <template v-slot:activator="{ data: { on, attrs, value } }">
+                                        <div v-bind="attrs" v-on="on">
+                                            <v-text-field
+                                                :value="selectedFieldsLabel"
+                                                readonly
+                                                class="vuetify-input--override error--text__bottom"
+                                                dense
+                                                outlined
+                                                :height="36"
+                                            >
+                                                <template v-slot:append>
+                                                    <v-icon
+                                                        size="24"
+                                                        :color="value ? 'primary' : ''"
+                                                        class="pointer"
+                                                        :class="[
+                                                            value ? 'rotate-up' : 'rotate-down',
+                                                        ]"
+                                                    >
+                                                        mdi-menu-down
+                                                    </v-icon>
+                                                </template>
+                                            </v-text-field>
+                                        </div>
+                                    </template>
+                                </mxs-filter-list>
+                            </v-col>
+                        </v-row>
+                        <v-divider class="my-4" />
+                        <v-row class="ma-n1">
+                            <v-col cols="12" class="pa-1">
+                                <label class="field__label mxs-color-helper text-small-text">
                                     {{ $mxs_t('fileFormat') }}
                                 </label>
                                 <v-select
@@ -88,7 +132,9 @@
                                     md="12"
                                     class="pa-1"
                                 >
-                                    <label class="field__label mxs-color-helper text-small-text">
+                                    <label
+                                        class="field__label mxs-color-helper text-small-text label-required"
+                                    >
                                         {{ $mxs_t(key) }}
                                     </label>
                                     <v-text-field
@@ -149,6 +195,52 @@
                                 </v-col>
                             </v-row>
                         </template>
+                        <template v-if="$typy(selectedFormat, 'extension').safeObject === 'sql'">
+                            <v-row class="mt-3 mx-n1 mb-n1">
+                                <v-col cols="12" md="12" class="pa-1">
+                                    <label class="field__label mxs-color-helper text-small-text">
+                                        {{ $mxs_t('exportOpt') }}
+                                    </label>
+                                    <v-tooltip top transition="slide-y-transition">
+                                        <template v-slot:activator="{ on }">
+                                            <v-icon
+                                                class="ml-1 pointer"
+                                                size="14"
+                                                color="primary"
+                                                v-on="on"
+                                            >
+                                                $vuetify.icons.mxs_questionCircle
+                                            </v-icon>
+                                        </template>
+                                        <table>
+                                            <tr
+                                                v-for="(v, key) in ['data', 'structure']"
+                                                :key="`${key}`"
+                                            >
+                                                <td>{{ $mxs_t(v) }}:</td>
+                                                <td class="font-weight-bold pl-1">
+                                                    {{ $mxs_t(`info.sqlExportOpt.${v}`) }}
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </v-tooltip>
+                                    <v-select
+                                        v-model="chosenSqlOpt"
+                                        :items="sqlExportOpts"
+                                        outlined
+                                        dense
+                                        :height="36"
+                                        class="vuetify-input--override v-select--mariadb error--text__bottom"
+                                        :menu-props="{
+                                            contentClass: 'v-select--menu-mariadb',
+                                            bottom: true,
+                                            offsetY: true,
+                                        }"
+                                        hide-details="auto"
+                                    />
+                                </v-col>
+                            </v-row>
+                        </template>
                     </v-container>
                 </template>
             </mxs-dlg>
@@ -174,22 +266,16 @@
 export default {
     name: 'result-export',
     props: {
+        fields: { type: Array, required: true },
         rows: { type: Array, required: true },
         defExportFileName: { type: String, required: true },
-        headers: {
-            type: Array,
-            validator: arr => {
-                if (!arr.length) return true
-                else return arr.filter(item => 'text' in item).length === arr.length
-            },
-            required: true,
-        },
     },
     data() {
         return {
             isFormValid: false,
             isConfigDialogOpened: false,
             selectedFormat: null,
+            excludedFieldIndexes: [],
             fileName: '',
             // csv export options
             csvTerminatedOpts: {
@@ -200,6 +286,7 @@ export default {
                 noBackslashEscapes: false,
                 withHeaders: false,
             },
+            chosenSqlOpt: this.$mxs_t('bothStructureAndData'),
         }
     },
     computed: {
@@ -213,42 +300,38 @@ export default {
                     contentType: 'data:application/json;charset=utf-8;',
                     extension: 'json',
                 },
+                {
+                    contentType: 'data:application/sql;charset=utf-8;',
+                    extension: 'sql',
+                },
             ]
         },
-        jsonData() {
-            let arr = []
-            for (let i = 0; i < this.rows.length; ++i) {
-                let obj = {}
-                for (const [n, header] of this.headers.entries()) {
-                    obj[`${header.text}`] = this.rows[i][n]
-                }
-                arr.push(obj)
-            }
-            return JSON.stringify(arr)
+        sqlExportOpts() {
+            return [
+                this.$mxs_t('structure'),
+                this.$mxs_t('data'),
+                this.$mxs_t('bothStructureAndData'),
+            ]
         },
-        csvData() {
-            let fieldsTerminatedBy = this.unescapedUserInput(
-                this.csvTerminatedOpts.fieldsTerminatedBy
-            )
-            let linesTerminatedBy = this.unescapedUserInput(
-                this.csvTerminatedOpts.linesTerminatedBy
-            )
-            let str = ''
-            if (this.csvCheckboxOpts.withHeaders) {
-                let headers = this.headers.map(header => this.escapeCell(header.text))
-                str = `${headers.join(fieldsTerminatedBy)}${linesTerminatedBy}`
-            }
-            str += this.rows
-                .map(row => row.map(cell => this.escapeCell(cell)).join(fieldsTerminatedBy))
-                .join(linesTerminatedBy)
-
-            return `${str}${linesTerminatedBy}`
+        selectedFields() {
+            return this.fields.reduce((acc, field, i) => {
+                if (!this.excludedFieldIndexes.includes(i)) acc.push(field)
+                return acc
+            }, [])
+        },
+        totalSelectedFields() {
+            return this.selectedFields.length
+        },
+        selectedFieldsLabel() {
+            if (this.totalSelectedFields > 1)
+                return `${this.selectedFields[0]} (+${this.totalSelectedFields - 1} others)`
+            return this.selectedFields.join(', ')
         },
     },
     watch: {
         isConfigDialogOpened(v) {
             if (v) this.assignDefOpt()
-            else Object.assign(this.$data, this.$options.data())
+            else Object.assign(this.$data, this.$options.data.apply(this))
         },
     },
     methods: {
@@ -265,7 +348,7 @@ export default {
             try {
                 let str = v
                 // if user enters \\, escape it again so it won't be removed when it is parsed by JSON.parse
-                if (str.includes('\\\\')) str = this.escapeCell(str)
+                if (str.includes('\\\\')) str = this.escapeField(str)
                 return JSON.parse(
                     '"' +
                     str.replace(/"/g, '\\"') + // escape " to prevent json syntax errors
@@ -276,21 +359,65 @@ export default {
             }
         },
         /**
-         * @param {(String|Number)} v cell value
+         * @param {(String|Number)} v field value
          * @returns {(String|Number)} returns escape value
-         */ escapeCell(v) {
+         */
+        escapeField(v) {
             // NULL is returned as js null in the query result.
             if (this.$typy(v).isNull)
                 return this.csvCheckboxOpts.noBackslashEscapes ? 'NULL' : '\\N' // db escape
             if (this.$typy(v).isString) return v.replace(/\\/g, '\\\\') // replace \ with \\
             return v
         },
+        toJson() {
+            let arr = []
+            for (let i = 0; i < this.rows.length; ++i) {
+                let obj = {}
+                for (const [n, field] of this.fields.entries()) {
+                    if (!this.excludedFieldIndexes.includes(n)) obj[`${field}`] = this.rows[i][n]
+                }
+                arr.push(obj)
+            }
+            return JSON.stringify(arr)
+        },
+        toCsv() {
+            const fieldsTerminatedBy = this.unescapedUserInput(
+                this.csvTerminatedOpts.fieldsTerminatedBy
+            )
+            const linesTerminatedBy = this.unescapedUserInput(
+                this.csvTerminatedOpts.linesTerminatedBy
+            )
+            let str = ''
+            if (this.csvCheckboxOpts.withHeaders) {
+                const fields = this.selectedFields.map(field => this.escapeField(field))
+                str = `${fields.join(fieldsTerminatedBy)}${linesTerminatedBy}`
+            }
+            str += this.rows
+                .map(row =>
+                    row
+                        .reduce((acc, field, fieldIdx) => {
+                            if (!this.excludedFieldIndexes.includes(fieldIdx))
+                                acc.push(this.escapeField(field))
+                            return acc
+                        }, [])
+                        .join(fieldsTerminatedBy)
+                )
+                .join(linesTerminatedBy)
+
+            return `${str}${linesTerminatedBy}`
+        },
+        toSql() {
+            //TODO: Getting metadata from resultset to build script based on chosenSqlOpt
+            return ''
+        },
         getData(fileExtension) {
             switch (fileExtension) {
                 case 'json':
-                    return this.jsonData
+                    return this.toJson()
                 case 'csv':
-                    return this.csvData
+                    return this.toCsv()
+                case 'sql':
+                    return this.toSql()
             }
         },
         getDefFileName() {
