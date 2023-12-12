@@ -11,6 +11,26 @@
 
 using namespace maxscale;
 
+namespace
+{
+
+bool is_checksum_discrepancy(const UratResult& result, const std::string& main_checksum)
+{
+    return result.checksum().hex() != main_checksum;
+}
+
+// TODO: milliseconds is too coarse.
+bool is_execution_time_discrepancy(const UratResult& result,
+                                   const std::chrono::milliseconds& min,
+                                   const std::chrono::milliseconds& max)
+{
+    auto duration = result.duration();
+
+    return duration < min || duration > max;
+}
+
+}
+
 UratSession::UratSession(MXS_SESSION* pSession,
                          UratRouter* pRouter,
                          SUratMainBackend sMain,
@@ -138,7 +158,8 @@ void UratSession::check_if_round_is_ready()
 
 bool UratSession::should_report(const UratRound& round) const
 {
-    auto report = m_router.config().report.get();
+    auto& config = m_router.config();
+    auto report = config.report.get();
 
     bool rv = (report == ReportAction::REPORT_ALWAYS);
 
@@ -146,16 +167,32 @@ bool UratSession::should_report(const UratRound& round) const
     {
         if (m_sMain->in_use())
         {
-            std::string checksum;
+            const UratResult* pMain_result = round.get_result(m_sMain.get());
+            mxb_assert(pMain_result);
+
+            std::string main_checksum = pMain_result->checksum().hex();
+
+            std::chrono::milliseconds main_duration = pMain_result->duration();
+            std::chrono::milliseconds delta = (main_duration * config.max_execution_time_difference) / 100;
+            std::chrono::milliseconds min_duration = main_duration - delta;
+            std::chrono::milliseconds max_duration = main_duration + delta;
+
             for (const auto& kv : round.results())
             {
+                if (kv.first == m_sMain.get())
+                {
+                    continue;
+                }
+
                 const UratResult& result = kv.second;
 
-                if (checksum.empty())
+                if (is_checksum_discrepancy(result, main_checksum))
                 {
-                    checksum = result.checksum().hex();
+                    rv = true;
+                    break;
                 }
-                else if (checksum != result.checksum().hex())
+
+                if (is_execution_time_discrepancy(result, min_duration, max_duration))
                 {
                     rv = true;
                     break;

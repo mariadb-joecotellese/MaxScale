@@ -81,9 +81,11 @@ public:
         return m_results;
     }
 
-    const UratResult& get_result(const UratBackend* pBackend)
+    const UratResult* get_result(const UratBackend* pBackend) const
     {
-        return m_results[pBackend];
+        auto it = m_results.find(pBackend);
+
+        return it != m_results.end() ? &it->second : nullptr;
     }
 
     void set_result(const UratBackend* pBackend, const UratResult& result)
