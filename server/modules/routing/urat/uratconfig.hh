@@ -26,7 +26,7 @@ enum ErrorAction
 enum ReportAction
 {
     REPORT_ALWAYS,
-    REPORT_ON_CONFLICT,
+    REPORT_ON_DISCREPANCY,
 };
 
 class UratRouter;

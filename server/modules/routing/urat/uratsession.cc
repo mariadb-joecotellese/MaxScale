@@ -138,12 +138,12 @@ void UratSession::check_if_round_is_ready()
 
 bool UratSession::should_report(const UratRound& round) const
 {
-    bool rv = true;
+    auto report = m_router.config().report.get();
 
-    if (m_router.config().report.get() == ReportAction::REPORT_ON_CONFLICT)
+    bool rv = (report == ReportAction::REPORT_ALWAYS);
+
+    if (!rv)
     {
-        rv = false;
-
         if (m_sMain->in_use())
         {
             std::string checksum;
