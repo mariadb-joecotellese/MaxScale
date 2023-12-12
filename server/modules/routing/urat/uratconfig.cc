@@ -49,10 +49,6 @@ config::ParamEnum<ExporterType> exporter(
         {ExporterType::EXPORT_LOG, "log"}
     }, config::Param::AT_RUNTIME);
 
-config::ParamTarget main(
-    &specification, "main", "Server from which responses are returned",
-    config::Param::Kind::MANDATORY, config::Param::AT_RUNTIME);
-
 config::ParamString file(
     &specification, "file", "File where data is exported", "", config::Param::AT_RUNTIME);
 
@@ -61,6 +57,18 @@ config::ParamString kafka_broker(
 
 config::ParamString kafka_topic(
     &specification, "kafka_topic", "Kafka topic where data is exported", "", config::Param::AT_RUNTIME);
+
+config::ParamTarget main(
+    &specification, "main", "Server from which responses are returned",
+    config::Param::Kind::MANDATORY, config::Param::AT_RUNTIME);
+
+config::ParamCount max_execution_time_difference(
+    &specification, "max_execution_time_difference", "Maximum allowed execution time difference, "
+    "specified in percent, between the main and an other server before the result is logged.",
+    0, // Min
+    std::numeric_limits<config::ParamCount::value_type>::max(), // Max
+    10, // Default
+    config::Param::AT_RUNTIME);
 
 config::ParamEnum<ErrorAction> on_error(
     &specification, "on_error", "What to do when a non-main connection fails",
@@ -134,6 +142,7 @@ UratConfig::UratConfig(const char* zName, UratRouter* pInstance)
     add_native(&UratConfig::kafka_broker, &urat::kafka_broker);
     add_native(&UratConfig::kafka_topic, &urat::kafka_topic);
     add_native(&UratConfig::pService, &urat::service);
+    add_native(&UratConfig::max_execution_time_difference, &urat::max_execution_time_difference);
 }
 
 bool UratConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)

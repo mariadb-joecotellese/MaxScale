@@ -48,7 +48,9 @@ public:
     mxs::config::Enum<ErrorAction>  on_error;
     mxs::config::Enum<ReportAction> report;
 
-    SERVICE*     pService;
+    int64_t max_execution_time_difference;
+
+    SERVICE* pService;
 
     static mxs::config::Specification* specification();
 
