@@ -16,19 +16,20 @@
 #include <maxscale/ccdefs.hh>
 
 #include "perf_info.hh"
-#include <maxbase/gcupdater.hh>
+#include <maxbase/collector.hh>
 #include <maxscale/routingworker.hh>
 
-class PerformanceInfoUpdater : public maxbase::GCUpdater<SharedPerformanceInfo>
+class PerformanceInfoUpdater : public maxbase::Collector<SharedPerformanceInfo>
                              , private maxscale::RoutingWorker::Data
 {
 public:
     PerformanceInfoUpdater();
 private:
-    PerformanceInfoContainer* create_new_copy(const PerformanceInfoContainer* pCurrent) override;
+    std::unique_ptr<PerformanceInfoContainer> create_new_copy(const PerformanceInfoContainer* pCurrent)
+    override;
 
     void make_updates(PerformanceInfoContainer* pData,
-                      std::vector<typename SharedPerformanceInfo::InternalUpdate>& queue) override;
+                      std::vector<typename SharedPerformanceInfo::UpdateType>& queue) override;
 
     void init_for(maxscale::RoutingWorker* pWorker) override final;
     void finish_for(maxscale::RoutingWorker* pWorker) override final;

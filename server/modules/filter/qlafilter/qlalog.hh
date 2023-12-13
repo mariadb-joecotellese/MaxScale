@@ -15,7 +15,7 @@
 
 #include <maxscale/ccdefs.hh>
 #include <maxscale/routingworker.hh>
-#include <maxbase/gcupdater.hh>
+#include <maxbase/collector.hh>
 
 #include <fstream>
 
@@ -47,6 +47,13 @@ struct LogUpdate
     SFile       sFile;
     std::string line;
     bool        flush;
+
+    LogUpdate(const SFile& sFile, std::string&& line, bool flush)
+        : sFile(sFile)
+        , line(std::move(line))
+        , flush(flush)
+    {
+    }
 };
 
 /**
@@ -59,7 +66,7 @@ struct LogContext
 
 using SharedLogLine = maxbase::SharedData<LogContext, LogUpdate>;
 
-class QlaLog : public maxbase::GCUpdater<SharedLogLine>
+class QlaLog : public maxbase::Collector<SharedLogLine>
              , private maxscale::RoutingWorker::Data
 {
 public:
@@ -69,6 +76,6 @@ private:
     void finish_for(maxscale::RoutingWorker* pWorker) override final;
 
     void make_updates(LogContext*,
-                      std::vector<typename SharedLogLine::InternalUpdate>& queue) override;
+                      std::vector<typename SharedLogLine::UpdateType>& queue) override;
     bool m_error_logged{false};
 };

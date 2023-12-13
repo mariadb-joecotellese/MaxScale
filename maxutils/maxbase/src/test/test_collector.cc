@@ -11,11 +11,12 @@
  * Public License.
  */
 
-#include <maxbase/gcupdater.hh>
+#include <maxbase/collector.hh>
 #include <iostream>
+#include <maxbase/maxbase.hh>
 
 // This test checks that updates are correctly ordered
-// during update processing in a GCUpdater subclass.
+// during update processing in a Collector subclass.
 
 // For the specific bug that prompted this test, the queue
 // length (queue from a SharedData to GCUpdater) should be
@@ -35,17 +36,22 @@ struct TestUpdate
 
 using SharedTestUpdate = maxbase::SharedData<TestContext, TestUpdate>;
 
-class TestCollector : public maxbase::GCUpdater<SharedTestUpdate>
+const int NTHREADS = 6;
+const int QUEUE_LEN = 2;
+const bool UPDATES_ONLY = true;
+// This is what the GCUpdater guarantees with the settings above
+const int MAX_EVENTS = 2 * NTHREADS * QUEUE_LEN;
+
+class TestCollector : public maxbase::Collector<SharedTestUpdate>
 {
 public:
     TestCollector()
-        : maxbase::GCUpdater<SharedTestUpdate>(
-            new TestContext {},
-            6,      // nthreads
-            2,      // Queue length.
-            0,      // Cap, not used in updates_only mode
-            true,   // ordered
-            true)   // update only
+        : maxbase::Collector<SharedTestUpdate>(
+              std::make_unique<TestContext>(),
+            NTHREADS,        // nthreads
+            QUEUE_LEN,       // Queue length.
+            0,               // Cap, not used in updates_only mode
+            UPDATES_ONLY)    // update only
     {
     }
 
@@ -56,23 +62,8 @@ public:
 
 private:
     void make_updates(TestContext*,
-                      std::vector<SharedTestUpdate::InternalUpdate>& queue) override
+                      std::vector<SharedTestUpdate::UpdateType>& queue) override
     {
-        static bool once = true;
-        for (const auto& e : queue)
-        {
-            if (m_seq_no != e.tstamp)
-            {
-                if (once)
-                {
-                    std::cerr << "Sequence error: " << m_seq_no << " expected: " << e.tstamp << std::endl;
-                    m_seq_no = e.tstamp;
-                    once = false;
-                    m_success = false;
-                }
-            }
-            ++m_seq_no;
-        }
     }
 
     int64_t m_seq_no{0};
@@ -118,6 +109,8 @@ private:
 
 int main()
 {
+    mxb::MaxBase mxb(MXB_LOG_TARGET_STDOUT);
+
     TestCollector collector;
     collector.start();
     std::vector<SharedTestUpdate*> shared_datas = collector.get_shared_data_pointers();

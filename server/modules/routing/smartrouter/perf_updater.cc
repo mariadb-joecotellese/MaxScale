@@ -16,11 +16,10 @@
 #include <maxscale/config.hh>
 
 PerformanceInfoUpdater::PerformanceInfoUpdater()
-    : GCUpdater(new PerformanceInfoContainer(),
+    : Collector(std::make_unique<PerformanceInfoContainer>(),
                 0,
-                5000,                           // config, maybe. 5000 should be a pretty safe queue size.
-                3,                              // 3 copies. Not expecting the container to be very large.
-                true)                           // order updates.
+                5000,   // config, maybe. 5000 should be a pretty safe queue size.
+                3)      // 3 copies. Not expecting the container to be very large.
 {
     Data::initialize_workers();
 }
@@ -37,20 +36,21 @@ void PerformanceInfoUpdater::finish_for(maxscale::RoutingWorker* pWorker)
     decrease_client_count(pWorker->index());
 }
 
-PerformanceInfoContainer* PerformanceInfoUpdater::create_new_copy(const PerformanceInfoContainer* pCurrent)
+std::unique_ptr<PerformanceInfoContainer> PerformanceInfoUpdater::create_new_copy(
+    const PerformanceInfoContainer* pCurrent)
 {
-    return new PerformanceInfoContainer {*pCurrent};
+    return std::make_unique<PerformanceInfoContainer>(*pCurrent);
 }
 
 void PerformanceInfoUpdater::make_updates(PerformanceInfoContainer* pData,
-                                          std::vector<typename SharedPerformanceInfo::InternalUpdate>& queue)
+                                          std::vector<SharedPerformanceInfo::UpdateType>& queue)
 {
     for (const auto& e : queue)
     {
-        auto res = pData->emplace(e.update.key, e.update.value);
+        auto res = pData->emplace(e.key, e.value);
         if (!res.second)
         {
-            res.first->second = e.update.value;
+            res.first->second = std::move(e.value);
         }
     }
 }
