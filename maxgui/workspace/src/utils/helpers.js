@@ -105,7 +105,7 @@ export function addDaysToNow(days) {
 export function daysDiff(timestamp) {
     const now = startOfDay(new Date())
     const end = startOfDay(new Date(timestamp))
-    return differenceInCalendarDays(end, now) + 1
+    return differenceInCalendarDays(end, now)
 }
 
 //TODO: objects Re-order in array diff
@@ -210,3 +210,12 @@ export function exportToJpeg({ canvas, fileName }) {
 }
 
 export const addComma = () => ', '
+
+/**
+ * @param {string} url  from axios response config.url
+ * @returns {string} connection id
+ */
+export function getConnId(url) {
+    const matched = /\/sql\/([a-zA-z0-9-]*?)\//g.exec(url) || []
+    return matched.length > 1 ? matched[1] : null
+}

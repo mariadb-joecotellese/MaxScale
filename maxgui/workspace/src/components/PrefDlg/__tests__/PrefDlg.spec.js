@@ -70,14 +70,17 @@ describe(`PrefDlg`, () => {
 
         it(`QUERY EDITOR preferences type should have expected keys `, () => {
             const { QUERY_EDITOR } = wrapper.vm.PREF_TYPES
-            expect(wrapper.vm.prefFieldMap[QUERY_EDITOR]).to.have.all.keys('number', 'boolean')
+            expect(wrapper.vm.prefFieldMap[QUERY_EDITOR]).to.have.all.keys(
+                'positiveNumber',
+                'boolean'
+            )
         })
 
         const boolFields = [
-            'showQueryConfirm',
-            'showSysSchemas',
-            'tabMovesFocus',
-            'identifierAutoCompletion',
+            'query_confirm_flag',
+            'query_show_sys_schemas_flag',
+            'tab_moves_focus',
+            'identifier_auto_completion',
         ]
         boolFields.forEach(field => {
             it(`persistedPref.${field} should be a boolean`, () => {
@@ -97,7 +100,7 @@ describe(`PrefDlg`, () => {
         it(`Should return accurate value for hasChanged`, async () => {
             await wrapper.setProps({ value: true }) // open dialog
             expect(wrapper.vm.hasChanged).to.be.false // no changes to form yet
-            await mockChangingConfig({ wrapper, key: 'rowLimit', value: 1 })
+            await mockChangingConfig({ wrapper, key: 'query_row_limit', value: 1 })
             expect(wrapper.vm.hasChanged).to.be.true
         })
     })

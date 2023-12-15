@@ -19,13 +19,15 @@ const getUserPrefStates = () => ({
     query_pane_pct_height: 60,
     is_fullscreen: false,
     query_row_limit: 10000,
-    query_confirm_flag: 1, //  either 0 or 1
+    query_confirm_flag: true,
     query_history_expired_time: addDaysToNow(30), // Unix time
-    query_show_sys_schemas_flag: 1,
+    query_show_sys_schemas_flag: true,
     tab_moves_focus: false,
     max_statements: 1000,
     identifier_auto_completion: true,
     def_conn_obj_type: 'listeners',
+    interactive_timeout: 28800,
+    wait_timeout: 28800,
 })
 
 function userPrefMutationCreator(states) {

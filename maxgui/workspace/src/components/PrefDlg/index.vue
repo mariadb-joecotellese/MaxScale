@@ -46,9 +46,9 @@
                             <template v-for="(fields, type) in item">
                                 <template v-for="field in fields">
                                     <pref-field
-                                        v-if="!$typy(preferences[field.name]).isNull"
+                                        v-if="!$typy(preferences[field.id]).isNull"
                                         :key="field.id"
-                                        v-model="preferences[field.name]"
+                                        v-model="preferences[field.id]"
                                         :type="type"
                                         :field="field"
                                         @tooltip="tooltip = $event"
@@ -67,7 +67,7 @@
                 :activator="tooltip.activator"
                 max-width="400"
             >
-                <i18n :path="$typy(tooltip, 'i18nPath').safeString" tag="span">
+                <i18n :path="$typy(tooltip, 'iconTooltipTxt').safeString" tag="span">
                     <template v-if="tooltip.shortcut" v-slot:shortcut>
                         <b> {{ tooltip.shortcut }} </b>
                     </template>
@@ -116,6 +116,8 @@ export default {
             max_statements: state => state.prefAndStorage.max_statements,
             identifier_auto_completion: state => state.prefAndStorage.identifier_auto_completion,
             def_conn_obj_type: state => state.prefAndStorage.def_conn_obj_type,
+            interactive_timeout: state => state.prefAndStorage.interactive_timeout,
+            wait_timeout: state => state.prefAndStorage.wait_timeout,
         }),
         isOpened: {
             get() {
@@ -127,49 +129,64 @@ export default {
         },
         persistedPref() {
             return {
-                rowLimit: this.query_row_limit,
-                showQueryConfirm: Boolean(this.query_confirm_flag),
-                queryHistoryRetentionPeriod: this.$helpers.daysDiff(
-                    this.query_history_expired_time
-                ),
-                showSysSchemas: Boolean(this.query_show_sys_schemas_flag),
-                tabMovesFocus: this.tab_moves_focus,
-                maxStatements: this.max_statements,
-                identifierAutoCompletion: this.identifier_auto_completion,
-                defConnObjType: this.def_conn_obj_type,
+                query_row_limit: this.query_row_limit,
+                /**
+                 * Backward compatibility in older versions for query_confirm_flag and  query_show_sys_schemas_flag
+                 * as the values are stored as either 0 or 1.
+                 */
+                query_confirm_flag: Boolean(this.query_confirm_flag),
+                query_show_sys_schemas_flag: Boolean(this.query_show_sys_schemas_flag),
+                // value is converted to number of days
+                query_history_expired_time: this.$helpers.daysDiff(this.query_history_expired_time),
+                tab_moves_focus: this.tab_moves_focus,
+                max_statements: this.max_statements,
+                identifier_auto_completion: this.identifier_auto_completion,
+                def_conn_obj_type: this.def_conn_obj_type,
+                interactive_timeout: this.interactive_timeout,
+                wait_timeout: this.wait_timeout,
             }
         },
         objConnTypes() {
             const { LISTENERS, SERVERS, SERVICES } = this.MXS_OBJ_TYPES
             return [LISTENERS, SERVERS, SERVICES]
         },
+        sysVariablesRefLink() {
+            return 'https://mariadb.com/docs/server/ref/mdb/system-variables/'
+        },
         prefFieldMap() {
             const { QUERY_EDITOR, CONN } = this.PREF_TYPES
             return {
                 [QUERY_EDITOR]: {
-                    number: [
+                    positiveNumber: [
                         {
-                            name: 'rowLimit',
+                            id: 'query_row_limit',
+                            label: this.$mxs_t('rowLimit'),
                             icon: '$vuetify.icons.mxs_statusWarning',
                             iconColor: 'warning',
-                            i18nPath: 'mxs.info.rowLimit',
+                            iconTooltipTxt: 'mxs.info.rowLimit',
                         },
                         {
-                            name: 'maxStatements',
+                            id: 'max_statements',
+                            label: this.$mxs_t('maxStatements'),
                             icon: '$vuetify.icons.mxs_statusWarning',
                             iconColor: 'warning',
-                            i18nPath: 'mxs.info.maxStatements',
+                            iconTooltipTxt: 'mxs.info.maxStatements',
                         },
-                        { name: 'queryHistoryRetentionPeriod', suffix: this.$mxs_t('days') },
+                        {
+                            id: 'query_history_expired_time',
+                            label: this.$mxs_t('queryHistoryRetentionPeriod'),
+                            suffix: this.$mxs_t('days'),
+                        },
                     ],
                     boolean: [
-                        { name: 'showQueryConfirm' },
-                        { name: 'showSysSchemas' },
+                        { id: 'query_confirm_flag', label: this.$mxs_t('showQueryConfirm') },
+                        { id: 'query_show_sys_schemas_flag', label: this.$mxs_t('showSysSchemas') },
                         {
-                            name: 'tabMovesFocus',
+                            id: 'tab_moves_focus',
+                            label: this.$mxs_t('tabMovesFocus'),
                             icon: 'mdi-information-outline',
                             iconColor: 'info',
-                            i18nPath: this.preferences.tabMovesFocus
+                            iconTooltipTxt: this.preferences.tab_moves_focus
                                 ? 'mxs.info.tabMovesFocus'
                                 : 'mxs.info.tabInsetChar',
                             shortcut: `${this.OS_KEY} ${
@@ -177,16 +194,40 @@ export default {
                             } + M`,
                         },
                         {
-                            name: 'identifierAutoCompletion',
+                            id: 'identifier_auto_completion',
+                            label: this.$mxs_t('identifierAutoCompletion'),
                             icon: 'mdi-information-outline',
                             iconColor: 'info',
-                            i18nPath: 'mxs.info.identifierAutoCompletion',
+                            iconTooltipTxt: 'mxs.info.identifierAutoCompletion',
                         },
                     ],
                 },
-                //TODO: Add interactive_timeout,...
                 [CONN]: {
-                    enum: [{ name: 'defConnObjType', enumValues: this.objConnTypes }],
+                    enum: [
+                        {
+                            id: 'def_conn_obj_type',
+                            label: this.$mxs_t('defConnObjType'),
+                            enumValues: this.objConnTypes,
+                        },
+                    ],
+                    positiveNumber: [
+                        {
+                            id: 'interactive_timeout',
+                            label: 'interactive_timeout',
+                            icon: '$vuetify.icons.mxs_questionCircle',
+                            iconColor: 'info',
+                            href: `${this.sysVariablesRefLink}/interactive_timeout/#DETAILS`,
+                            isVariable: true,
+                        },
+                        {
+                            id: 'wait_timeout',
+                            label: 'wait_timeout',
+                            icon: '$vuetify.icons.mxs_questionCircle',
+                            iconColor: 'info',
+                            href: `${this.sysVariablesRefLink}/wait_timeout/#DETAILS`,
+                            isVariable: true,
+                        },
+                    ],
                 },
             }
         },
@@ -212,18 +253,17 @@ export default {
             SET_MAX_STATEMENTS: 'prefAndStorage/SET_MAX_STATEMENTS',
             SET_IDENTIFIER_AUTO_COMPLETION: 'prefAndStorage/SET_IDENTIFIER_AUTO_COMPLETION',
             SET_DEF_CONN_OBJ_TYPE: 'prefAndStorage/SET_DEF_CONN_OBJ_TYPE',
+            SET_INTERACTIVE_TIMEOUT: 'prefAndStorage/SET_INTERACTIVE_TIMEOUT',
+            SET_WAIT_TIMEOUT: 'prefAndStorage/SET_WAIT_TIMEOUT',
         }),
         onSave() {
-            this.SET_QUERY_ROW_LIMIT(this.preferences.rowLimit)
-            this.SET_QUERY_CONFIRM_FLAG(Number(this.preferences.showQueryConfirm))
-            this.SET_QUERY_HISTORY_EXPIRED_TIME(
-                this.$helpers.addDaysToNow(this.preferences.queryHistoryRetentionPeriod)
-            )
-            this.SET_QUERY_SHOW_SYS_SCHEMAS_FLAG(Number(this.preferences.showSysSchemas))
-            this.SET_TAB_MOVES_FOCUS(this.preferences.tabMovesFocus)
-            this.SET_MAX_STATEMENTS(this.preferences.maxStatements)
-            this.SET_IDENTIFIER_AUTO_COMPLETION(this.preferences.identifierAutoCompletion)
-            this.SET_DEF_CONN_OBJ_TYPE(this.preferences.defConnObjType)
+            //TODO: Find the diff and only update changed keys
+            Object.keys(this.preferences).forEach(key => {
+                let value = this.preferences[key]
+                // Convert back to unix timestamp
+                if (key === 'query_history_expired_time') value = this.$helpers.addDaysToNow(value)
+                this[`SET_${key.toUpperCase()}`](value)
+            })
         },
     },
 }
