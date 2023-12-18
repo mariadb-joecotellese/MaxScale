@@ -15,10 +15,6 @@
  * @brief RecordContext is the data stored in Collector, so will be
  *        garbage collected when Collector is destroyed. It is not
  *        changed or copied in updates-only mode.
- *        TODO: It might be a good idea to add a real Context to the Collector,
- *        now it uses the one and only data element in updates only mode,
- *        which is inconveniently destroyed when the Collector is stopped
- *        (not destroyed, just stopped).
  */
 struct RecorderContext
 {

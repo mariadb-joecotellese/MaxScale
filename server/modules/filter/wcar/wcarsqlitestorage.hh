@@ -36,7 +36,7 @@ private:
     void                   sqlite_execute(const std::string& sql);
     void                   sqlite_prepare(const std::string& sql, sqlite3_stmt** ppStmt);
     void                   insert_canonical(int64_t hash, int64_t id, const std::string& canonical);
-    void                   insert_event(int64_t event_id, int64_t can_id);
+    void                   insert_event(const QueryEvent& qevent, int64_t can_id);
     void                   insert_canonical_args(int64_t event_id, const maxsimd::CanonicalArgs& args);
     std::string            select_canonical(int64_t can_id);
     maxsimd::CanonicalArgs select_canonical_args(int64_t event_id);

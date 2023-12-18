@@ -23,6 +23,8 @@ static const char SQL_CREATE_EVENT_TBL[] =
     "create table event ("
     "event_id int primary key"
     ", can_id int references canonical(can_id)"
+    ", start_time int"
+    ", end_time int"
     ")";
 
 static const char SQL_CREATE_ARGUMENT_TBL[] =
@@ -45,7 +47,7 @@ static auto CREATE_TABLES_SQL =
 };
 
 static const char SQL_CANONICAL_INSERT[] = "insert into canonical values(?, ?, ?)";
-static const char SQL_EVENT_INSERT[] = "insert into event values(?, ?)";
+static const char SQL_EVENT_INSERT[] = "insert into event values(?, ?, ?, ?)";
 static const char SQL_CANONICAL_ARGUMENT_INSERT[] = "insert into argument values(?, ?, ?)";
 
 SqliteStorage::SqliteStorage(const fs::path& path, Access access)
@@ -120,11 +122,22 @@ void SqliteStorage::insert_canonical(int64_t hash, int64_t id, const std::string
     sqlite3_reset(m_pCanonical_insert_stmt);
 }
 
-void SqliteStorage::insert_event(int64_t event_id, int64_t can_id)
+void SqliteStorage::insert_event(const QueryEvent& qevent, int64_t can_id)
 {
     int idx = 0;
-    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, event_id);
+    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, qevent.event_id);
     sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, can_id);
+
+    static_assert(sizeof(mxb::Duration) == sizeof(int64_t));
+
+    mxb::Duration start_time_dur = qevent.start_time.time_since_epoch();
+    mxb::Duration end_time_dur = qevent.end_time.time_since_epoch();
+
+    int64_t start_time_64 = *reinterpret_cast<const int64_t*>(&start_time_dur);
+    int64_t end_time_64 = *reinterpret_cast<const int64_t*>(&end_time_dur);
+
+    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, start_time_64);
+    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, end_time_64);
 
     if (sqlite3_step(m_pEvent_insert_stmt) != SQLITE_DONE)
     {
@@ -212,7 +225,7 @@ void SqliteStorage::add_query_event(QueryEvent&& qevent)
         qevent.event_id = next_event_id();
     }
 
-    insert_event(qevent.event_id, can_id);
+    insert_event(qevent, can_id);
 
     if (!qevent.canonical_args.empty())
     {
@@ -240,7 +253,8 @@ Storage::Iterator SqliteStorage::begin()
         m_pEvent_read_stmt = nullptr;
     }
 
-    auto event_query = MAKE_STR("select event_id, can_id from event where event_id > " << m_last_event_read);
+    auto event_query = MAKE_STR("select event_id, can_id, start_time, end_time "
+                                "from event where event_id > " << m_last_event_read);
 
     sqlite_prepare(event_query, &m_pEvent_read_stmt);
 
@@ -333,11 +347,20 @@ QueryEvent SqliteStorage::next_event()
 
     auto event_id = sqlite3_column_int64(m_pEvent_read_stmt, 0);
     auto can_id = sqlite3_column_int64(m_pEvent_read_stmt, 1);
+    auto start_time_64 = sqlite3_column_int64(m_pEvent_read_stmt, 2);
+    auto end_time_64 = sqlite3_column_int64(m_pEvent_read_stmt, 3);
+
+    mxb::TimePoint start_time{mxb::Duration{*(reinterpret_cast<mxb::TimePoint::rep*>(&start_time_64))}};
+    mxb::TimePoint end_time{mxb::Duration{*(reinterpret_cast<mxb::TimePoint::rep*>(&end_time_64))}};
 
     auto canonical = select_canonical(can_id);
     auto can_args = select_canonical_args(event_id);
 
     m_last_event_read = event_id;
 
-    return QueryEvent{make_shared<std::string>(std::move(canonical)), std::move(can_args), event_id};
+    return QueryEvent{make_shared<std::string>(std::move(canonical)),
+                      std::move(can_args),
+                      start_time,
+                      end_time,
+                      event_id};
 }

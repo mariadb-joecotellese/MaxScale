@@ -29,9 +29,10 @@ WcarFilterSession::WcarFilterSession(MXS_SESSION* pSession, SERVICE* pService, c
         auto* pWorker = mxs::RoutingWorker::get_current();
         auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
 
-        QueryEvent event;
-        event.sCanonical = std::make_shared<std::string>("use " + maria_ses.current_db);
-        pShared_data->send_update(event);
+        m_query_event.sCanonical = std::make_shared<std::string>("use " + maria_ses.current_db);
+        m_query_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
+        m_query_event.end_time = m_query_event.start_time;      // Hm...
+        pShared_data->send_update(m_query_event);
     }
 }
 
@@ -42,7 +43,7 @@ WcarFilterSession::~WcarFilterSession()
 bool WcarFilterSession::routeQuery(GWBUF&& buffer)
 {
     m_query_event.canonical_args.clear();
-    m_skip_capture = false;
+    m_capture = true;
 
     if (mariadb::is_com_query_or_prepare(buffer))
     {
@@ -51,10 +52,15 @@ bool WcarFilterSession::routeQuery(GWBUF&& buffer)
     }
     else
     {
-        if (!generate_event_for(buffer, &m_query_event))
+        if (!generate_canonical_for(buffer, &m_query_event))
         {
-            m_skip_capture = true;
+            m_capture = false;
         }
+    }
+
+    if (m_capture)
+    {
+        m_query_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
     }
 
     return mxs::FilterSession::routeQuery(std::move(buffer));
@@ -64,17 +70,18 @@ bool WcarFilterSession::clientReply(GWBUF&& buffer,
                                     const maxscale::ReplyRoute& down,
                                     const maxscale::Reply& reply)
 {
-    if (!m_skip_capture)
+    if (m_capture)
     {
         auto* pWorker = mxs::RoutingWorker::get_current();
         auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
+        m_query_event.end_time = mxb::Clock::now(mxb::NowType::EPollTick);
         pShared_data->send_update(m_query_event);
     }
 
     return mxs::FilterSession::clientReply(std::move(buffer), down, reply);
 }
 
-bool WcarFilterSession::generate_event_for(const GWBUF& buffer, QueryEvent* pQuery_event)
+bool WcarFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* pQuery_event)
 {
     auto cmd = mariadb::get_command(buffer);
 
