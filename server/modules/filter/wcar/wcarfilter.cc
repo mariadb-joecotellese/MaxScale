@@ -21,7 +21,7 @@ namespace
 std::string generate_file_name(StorageType type)
 {
     auto now = wall_time::Clock::now();
-    auto time_str = wall_time::to_string(now, "%F_%T");
+    auto time_str = wall_time::to_string(now, "%F_%H%M%S");
     auto file_name = "capture_"s + time_str;
     switch (type)
     {

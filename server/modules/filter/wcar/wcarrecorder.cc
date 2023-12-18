@@ -28,11 +28,12 @@ void WcarRecorder::finish_for(maxscale::RoutingWorker* pWorker)
     decrease_client_count(pWorker->index());
 }
 
-void WcarRecorder::make_updates(RecorderContext* pContext, std::vector<SharedUpdate::UpdateType>& events)
+void WcarRecorder::make_updates(RecorderContext* pContext,
+                                std::vector<typename SharedUpdate::UpdateType>& queue)
 {
     try
     {
-        pContext->pStorage->add_query_event(events);
+        pContext->pStorage->add_query_event(queue);
     }
     catch (std::exception& ex)
     {

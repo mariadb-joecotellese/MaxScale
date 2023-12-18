@@ -12,9 +12,13 @@
 #include <maxsimd/canonical.hh>
 
 /**
- * @brief RecordContext is the data stored in GCUpdater, so will be
- *        garbage collected when GCUpdater is destroyed. It is not
+ * @brief RecordContext is the data stored in Collector, so will be
+ *        garbage collected when Collector is destroyed. It is not
  *        changed or copied in updates-only mode.
+ *        TODO: It might be a good idea to add a real Context to the Collector,
+ *        now it uses the one and only data element in updates only mode,
+ *        which is inconveniently destroyed when the Collector is stopped
+ *        (not destroyed, just stopped).
  */
 struct RecorderContext
 {
@@ -27,7 +31,8 @@ struct RecorderContext
 
 using SharedUpdate = maxbase::SharedData<RecorderContext, QueryEvent>;
 
-class WcarRecorder final : public maxbase::Collector<SharedUpdate, mxb::CollectorMode::UPDATES_ONLY>
+
+class WcarRecorder final : public mxb::Collector<SharedUpdate, mxb::CollectorMode::UPDATES_ONLY>
                          , private maxscale::RoutingWorker::Data
 {
 public:
