@@ -17,6 +17,7 @@ struct QueryEvent
      */
     std::shared_ptr<std::string> sCanonical;
     maxsimd::CanonicalArgs       canonical_args;
+    int64_t                      session_id;
     mxb::TimePoint               start_time;
     mxb::TimePoint               end_time;
     int64_t                      event_id = -1; // managed by storage

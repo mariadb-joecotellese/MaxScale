@@ -30,6 +30,7 @@ WcarFilterSession::WcarFilterSession(MXS_SESSION* pSession, SERVICE* pService, c
         auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
 
         m_query_event.sCanonical = std::make_shared<std::string>("use " + maria_ses.current_db);
+        m_query_event.session_id = m_pSession->id();
         m_query_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
         m_query_event.end_time = m_query_event.start_time;      // Hm...
         pShared_data->send_update(m_query_event);
@@ -60,6 +61,7 @@ bool WcarFilterSession::routeQuery(GWBUF&& buffer)
 
     if (m_capture)
     {
+        m_query_event.session_id = m_pSession->id();
         m_query_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
     }
 
