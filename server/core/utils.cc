@@ -110,16 +110,18 @@ void AiDeleter::operator()(addrinfo* ai)
     freeaddrinfo(ai);
 }
 
-std::tuple<SAddrInfo, std::string>  getaddrinfo(const char* host)
+namespace  maxscale
+{
+std::tuple<SAddrInfo, std::string>  getaddrinfo(const char* host, int flags)
 {
     std::string errmsg;
     addrinfo hint = {};
     hint.ai_socktype = SOCK_STREAM;
     hint.ai_family = AF_UNSPEC;
-    hint.ai_flags = AI_ALL;
+    hint.ai_flags = AI_ALL | flags;
 
     addrinfo* ai = nullptr;
-    if (int rc = getaddrinfo(host, NULL, &hint, &ai) ; rc == 0)
+    if (int rc = getaddrinfo(host, NULL, &hint, &ai); rc == 0)
     {
         mxb_assert(ai);
     }
@@ -128,6 +130,7 @@ std::tuple<SAddrInfo, std::string>  getaddrinfo(const char* host)
         errmsg = gai_strerror(rc);
     }
     return {SAddrInfo(ai), std::move(errmsg)};
+}
 }
 
 /**
@@ -447,7 +450,7 @@ static int prepare_socket(const addrinfo& ai, int port, sockaddr_storage* addr)
 
 int open_listener_network_socket(const char* host, uint16_t port)
 {
-    auto [sAi, errmsg] = getaddrinfo(host);
+    auto [sAi, errmsg] = mxs::getaddrinfo(host);
     if (!sAi)
     {
         MXB_ERROR("Failed to obtain address for listener host %s: %s", host, errmsg.c_str());
@@ -799,19 +802,8 @@ bool addrinfo_equal(const addrinfo* lhs, const addrinfo* rhs)
 {
     // For now, just check the first address info structure as this is the most common case.
     // TODO: check entire linked list.
-    auto calc_size = [](const addrinfo* ai) {
-        int size = 0;
-        while (ai)
-        {
-            size++;
-            ai = ai->ai_next;
-        }
-        return size;
-    };
-    int size1 = calc_size(lhs);
-    int size2 = calc_size(rhs);
 
-    if (size1 == 1 && size2 == 1)
+    if (lhs && rhs)
     {
         if (lhs->ai_family == rhs->ai_family && lhs->ai_addrlen == rhs->ai_addrlen)
         {
