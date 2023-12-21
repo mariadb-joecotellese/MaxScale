@@ -11,10 +11,10 @@
 
 #include "comparatorconfig.hh"
 
-class UratExporter
+class ComparatorExporter
 {
 public:
-    virtual ~UratExporter() = default;
+    virtual ~ComparatorExporter() = default;
 
     /**
      * Ship a JSON object outside of MaxScale
@@ -24,4 +24,4 @@ public:
     virtual void ship(json_t* pJson) = 0;
 };
 
-std::unique_ptr<UratExporter> build_exporter(const UratConfig& config);
+std::unique_ptr<ComparatorExporter> build_exporter(const ComparatorConfig& config);

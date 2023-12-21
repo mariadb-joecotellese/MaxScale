@@ -29,15 +29,15 @@ enum ReportAction
     REPORT_ON_DISCREPANCY,
 };
 
-class UratRouter;
+class ComparatorRouter;
 
-class UratConfig : public mxs::config::Configuration
+class ComparatorConfig : public mxs::config::Configuration
 {
 public:
-    UratConfig(const UratConfig&) = delete;
-    UratConfig& operator=(const UratConfig&) = delete;
+    ComparatorConfig(const ComparatorConfig&) = delete;
+    ComparatorConfig& operator=(const ComparatorConfig&) = delete;
 
-    UratConfig(const char* zName, UratRouter* pInstance);
+    ComparatorConfig(const char* zName, ComparatorRouter* pInstance);
 
     mxs::Target* pMain;
     ExporterType exporter;
@@ -58,5 +58,5 @@ protected:
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;
 
 private:
-    UratRouter& m_instance;
+    ComparatorRouter& m_instance;
 };

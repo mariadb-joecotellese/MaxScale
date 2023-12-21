@@ -6,4 +6,4 @@
 
 #include "comparatordefs.hh"
 
-void urat_register_commands();
+void comparator_register_commands();

@@ -10,9 +10,9 @@
 
 extern "C" MXS_MODULE* MXS_CREATE_MODULE()
 {
-    urat_register_commands();
+    comparator_register_commands();
 
-    const char* zDesc = "Upgrade Risk Assessment Tool";
+    const char* zDesc = "Compare different servers";
 
     static MXS_MODULE info =
     {
@@ -23,13 +23,13 @@ extern "C" MXS_MODULE* MXS_CREATE_MODULE()
         MXS_ROUTER_VERSION,
         zDesc,
         "V1.0.0",
-        URAT_CAPABILITIES,
-        &mxs::RouterApi<UratRouter>::s_api,
+        COMPARATOR_CAPABILITIES,
+        &mxs::RouterApi<ComparatorRouter>::s_api,
         NULL,
         NULL,
         NULL,
         NULL,
-        UratConfig::specification()
+        ComparatorConfig::specification()
     };
 
     return &info;

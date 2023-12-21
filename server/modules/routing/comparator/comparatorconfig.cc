@@ -36,7 +36,7 @@ protected:
     }
 };
 
-namespace urat
+namespace comparator
 {
 
 Specification specification(MXB_MODULE_NAME, config::Specification::ROUTER);
@@ -75,7 +75,7 @@ config::ParamEnum<ErrorAction> on_error(
     {
         {ErrorAction::ERRACT_IGNORE, "ignore"},
         {ErrorAction::ERRACT_CLOSE, "close"},
-    },
+            },
     ErrorAction::ERRACT_IGNORE, config::Param::AT_RUNTIME);
 
 config::ParamEnum<ReportAction> report(
@@ -83,11 +83,11 @@ config::ParamEnum<ReportAction> report(
     {
         {ReportAction::REPORT_ALWAYS, "always"},
         {ReportAction::REPORT_ON_DISCREPANCY, "on_discrepancy"},
-    },
+            },
     ReportAction::REPORT_ALWAYS, config::Param::AT_RUNTIME);
 
 config::ParamService service(
-    &specification, "service", "The service the Urat service is installed for",
+    &specification, "service", "The service the Comparator service is installed for",
     config::Param::Kind::MANDATORY);
 }
 
@@ -97,24 +97,24 @@ bool Specification::do_post_validate(Params& params) const
 {
     bool ok = true;
 
-    switch (urat::exporter.get(params))
+    switch (comparator::exporter.get(params))
     {
     case ExporterType::EXPORT_LOG:
         break;
 
     case ExporterType::EXPORT_FILE:
-        if (urat::file.get(params).empty())
+        if (comparator::file.get(params).empty())
         {
-            MXB_ERROR("'%s' must be defined when exporter=file is used.", urat::file.name().c_str());
+            MXB_ERROR("'%s' must be defined when exporter=file is used.", comparator::file.name().c_str());
             ok = false;
         }
         break;
 
     case ExporterType::EXPORT_KAFKA:
-        if (urat::kafka_broker.get(params).empty() || urat::kafka_topic.get(params).empty())
+        if (comparator::kafka_broker.get(params).empty() || comparator::kafka_topic.get(params).empty())
         {
             MXB_ERROR("Both '%s' and '%s' must be defined when exporter=kafka is used.",
-                      urat::kafka_broker.name().c_str(), urat::kafka_topic.name().c_str());
+                      comparator::kafka_broker.name().c_str(), comparator::kafka_topic.name().c_str());
             ok = false;
         }
         break;
@@ -125,27 +125,27 @@ bool Specification::do_post_validate(Params& params) const
 }
 
 // static
-mxs::config::Specification* UratConfig::specification()
+mxs::config::Specification* ComparatorConfig::specification()
 {
-    return &urat::specification;
+    return &comparator::specification;
 }
 
-UratConfig::UratConfig(const char* zName, UratRouter* pInstance)
-    : mxs::config::Configuration(zName, &urat::specification)
-    , on_error(this, &urat::on_error)
-    , report(this, &urat::report)
+ComparatorConfig::ComparatorConfig(const char* zName, ComparatorRouter* pInstance)
+    : mxs::config::Configuration(zName, &comparator::specification)
+    , on_error(this, &comparator::on_error)
+    , report(this, &comparator::report)
     , m_instance(*pInstance)
 {
-    add_native(&UratConfig::exporter, &urat::exporter);
-    add_native(&UratConfig::pMain, &urat::main);
-    add_native(&UratConfig::file, &urat::file);
-    add_native(&UratConfig::kafka_broker, &urat::kafka_broker);
-    add_native(&UratConfig::kafka_topic, &urat::kafka_topic);
-    add_native(&UratConfig::pService, &urat::service);
-    add_native(&UratConfig::max_execution_time_difference, &urat::max_execution_time_difference);
+    add_native(&ComparatorConfig::exporter, &comparator::exporter);
+    add_native(&ComparatorConfig::pMain, &comparator::main);
+    add_native(&ComparatorConfig::file, &comparator::file);
+    add_native(&ComparatorConfig::kafka_broker, &comparator::kafka_broker);
+    add_native(&ComparatorConfig::kafka_topic, &comparator::kafka_topic);
+    add_native(&ComparatorConfig::pService, &comparator::service);
+    add_native(&ComparatorConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
 }
 
-bool UratConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)
+bool ComparatorConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)
 {
     return m_instance.post_configure();
 }

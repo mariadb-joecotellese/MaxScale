@@ -32,7 +32,7 @@ void register_status_command();
 void register_stop_command();
 }
 
-void urat_register_commands()
+void comparator_register_commands()
 {
     register_prepare_command();
     register_start_command();
@@ -135,16 +135,16 @@ bool check_prepare_prerequisites(const SERVICE& service,
     return rv;
 }
 
-mxs::Monitor* create_urat_monitor(const string& name,
-                                  const SERVER& primary,
-                                  const SERVER& replica)
+mxs::Monitor* create_comparator_monitor(const string& name,
+                                        const SERVER& primary,
+                                        const SERVER& replica)
 {
-    mxs::Monitor* pUrat_monitor = nullptr;
+    mxs::Monitor* pComparator_monitor = nullptr;
     mxs::Monitor* pPrimary_monitor = MonitorManager::server_is_monitored(&primary);
 
     if (!pPrimary_monitor)
     {
-        MXB_ERROR("Cannot create Urat monitor '%s', the primary server '%s' is not "
+        MXB_ERROR("Cannot create Comparator monitor '%s', the primary server '%s' is not "
                   "monitored and thus there is no monitor to copy settings from.",
                   name.c_str(), primary.name());
     }
@@ -160,22 +160,22 @@ mxs::Monitor* create_urat_monitor(const string& name,
         params.set("password", settings.password);
         params.set("servers", replica.name());
 
-        pUrat_monitor = MonitorManager::create_monitor(name, module, &params);
+        pComparator_monitor = MonitorManager::create_monitor(name, module, &params);
 
-        if (!pUrat_monitor)
+        if (!pComparator_monitor)
         {
-            MXB_ERROR("Could not create Urat monitor '%s', please check earlier errors.", name.c_str());
+            MXB_ERROR("Could not create Comparator monitor '%s', please check earlier errors.", name.c_str());
         }
     }
 
-    return pUrat_monitor;
+    return pComparator_monitor;
 }
 
-mxs::Monitor* create_urat_monitor(const SERVICE& service,
-                                  const SERVER& primary,
-                                  const SERVER& replica)
+mxs::Monitor* create_comparator_monitor(const SERVICE& service,
+                                        const SERVER& primary,
+                                        const SERVER& replica)
 {
-    mxs::Monitor* pUrat_monitor = nullptr;
+    mxs::Monitor* pComparator_monitor = nullptr;
 
     string name { "comparator" };
     name += service.name();
@@ -183,21 +183,21 @@ mxs::Monitor* create_urat_monitor(const SERVICE& service,
 
     if (const char* zType = mxs::Config::get_object_type(name))
     {
-        MXB_ERROR("Cannot create Urat monitor '%s', a %s with that name already exists.",
+        MXB_ERROR("Cannot create Comparator monitor '%s', a %s with that name already exists.",
                   name.c_str(), zType);
     }
     else
     {
-        pUrat_monitor = create_urat_monitor(name, primary, replica);
+        pComparator_monitor = create_comparator_monitor(name, primary, replica);
     }
 
-    return pUrat_monitor;
+    return pComparator_monitor;
 }
 
-Service* create_urat_service(const string& name,
-                             const SERVICE& service,
-                             const SERVER& primary,
-                             const SERVER& replica)
+Service* create_comparator_service(const string& name,
+                                   const SERVICE& service,
+                                   const SERVER& primary,
+                                   const SERVER& replica)
 {
     mxs::ConfigParameters params;
     mxs::ConfigParameters unknown;
@@ -216,37 +216,37 @@ Service* create_urat_service(const string& name,
     params.set("servers", mxb::join(servers, ","));
     params.set("service", service.name());
 
-    Service* pUrat_service = Service::create(name.c_str(), params);
+    Service* pComparator_service = Service::create(name.c_str(), params);
 
-    if (!pUrat_service)
+    if (!pComparator_service)
     {
-        MXB_ERROR("Could not create Urat service '%s', please check earlier errors.", name.c_str());
+        MXB_ERROR("Could not create Comparator service '%s', please check earlier errors.", name.c_str());
     }
 
-    return pUrat_service;
+    return pComparator_service;
 }
 
-Service* create_urat_service(const SERVICE& service,
-                             const SERVER& primary,
-                             const SERVER& replica)
+Service* create_comparator_service(const SERVICE& service,
+                                   const SERVER& primary,
+                                   const SERVER& replica)
 {
-    Service* pUrat_service = nullptr;
+    Service* pComparator_service = nullptr;
 
     string name { "comparator" };
     name += service.name();
 
     if (const char* zType = mxs::Config::get_object_type(name))
     {
-        MXB_ERROR("Cannot create Urat service for the service '%s', a %s "
+        MXB_ERROR("Cannot create Comparator service for the service '%s', a %s "
                   "with the name '%s' exists already.",
                   service.name(), zType, name.c_str());
     }
     else
     {
-        pUrat_service = create_urat_service(name, service, primary, replica);
+        pComparator_service = create_comparator_service(name, service, primary, replica);
     }
 
-    return pUrat_service;
+    return pComparator_service;
 }
 
 bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
@@ -272,21 +272,25 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
             {
                 if (check_prepare_prerequisites(*pService, *pPrimary, *pReplica))
                 {
-                    mxs::Monitor* pUrat_monitor = create_urat_monitor(*pService, *pPrimary, *pReplica);
+                    mxs::Monitor* pComparator_monitor = create_comparator_monitor(*pService,
+                                                                                  *pPrimary,
+                                                                                  *pReplica);
 
-                    if (pUrat_monitor)
+                    if (pComparator_monitor)
                     {
-                        MonitorManager::start_monitor(pUrat_monitor);
+                        MonitorManager::start_monitor(pComparator_monitor);
 
-                        Service* pUrat_service = create_urat_service(*pService, *pPrimary, *pReplica);
+                        Service* pComparator_service = create_comparator_service(*pService,
+                                                                                 *pPrimary,
+                                                                                 *pReplica);
 
-                        if (pUrat_service)
+                        if (pComparator_service)
                         {
                             json_t* pOutput = json_object();
                             auto s = mxb::string_printf("Monitor '%s' and service '%s' created. "
                                                         "Server '%s' ready to be evaluated.",
-                                                        pUrat_monitor->name(),
-                                                        pUrat_service->name(),
+                                                        pComparator_monitor->name(),
+                                                        pComparator_service->name(),
                                                         pReplica->name());
                             json_object_set_new(pOutput, "status", json_string(s.c_str()));
                             *ppOutput = pOutput;
@@ -324,7 +328,7 @@ void register_prepare_command()
                                                   command_prepare,
                                                   MXS_ARRAY_NELEMS(command_prepare_argv),
                                                   command_prepare_argv,
-                                                  "Prepare Urat for Service");
+                                                  "Prepare Comparator for Service");
     mxb_assert(rv);
 }
 
@@ -349,7 +353,7 @@ bool command_start(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     check_args(pArgs, command_start_argv, command_start_argc);
 
     auto* pService = pArgs->argv[0].value.service;
-    auto* pRouter = static_cast<UratRouter*>(pService->router());
+    auto* pRouter = static_cast<ComparatorRouter*>(pService->router());
 
     return pRouter->start(ppOutput);
 };
@@ -364,7 +368,7 @@ void register_start_command()
                                                   command_start,
                                                   MXS_ARRAY_NELEMS(command_start_argv),
                                                   command_start_argv,
-                                                  "Start Urat for Service");
+                                                  "Start Comparator for Service");
     mxb_assert(rv);
 }
 
@@ -389,7 +393,7 @@ bool command_status(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     check_args(pArgs, command_status_argv, command_status_argc);
 
     auto* pService = pArgs->argv[0].value.service;
-    auto* pRouter = static_cast<UratRouter*>(pService->router());
+    auto* pRouter = static_cast<ComparatorRouter*>(pService->router());
 
     return pRouter->status(ppOutput);
 };
@@ -429,7 +433,7 @@ bool command_stop(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     check_args(pArgs, command_stop_argv, command_stop_argc);
 
     auto* pService = pArgs->argv[0].value.service;
-    auto* pRouter = static_cast<UratRouter*>(pService->router());
+    auto* pRouter = static_cast<ComparatorRouter*>(pService->router());
 
     return pRouter->stop(ppOutput);
 };

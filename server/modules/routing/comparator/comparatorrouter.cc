@@ -16,26 +16,26 @@
 using namespace mxs;
 
 
-UratRouter::UratRouter(SERVICE* pService)
+ComparatorRouter::ComparatorRouter(SERVICE* pService)
     : mxb::Worker::Callable(mxs::MainWorker::get())
-    , m_urat_state(UratState::PREPARED)
+    , m_comparator_state(ComparatorState::PREPARED)
     , m_config(pService->name(), this)
     , m_service(*pService)
 {
 }
 
 // static
-const char* UratRouter::to_string(UratState urat_state)
+const char* ComparatorRouter::to_string(ComparatorState comparator_state)
 {
-    switch (urat_state)
+    switch (comparator_state)
     {
-    case UratState::PREPARED:
+    case ComparatorState::PREPARED:
         return "prepared";
 
-    case UratState::SYNCHRONIZING:
+    case ComparatorState::SYNCHRONIZING:
         return "synchronizing";
 
-    case UratState::CAPTURING:
+    case ComparatorState::CAPTURING:
         return "capturing";
     }
 
@@ -43,7 +43,7 @@ const char* UratRouter::to_string(UratState urat_state)
     return "unknown";
 }
 
-const char* UratRouter::to_string(SyncState sync_state)
+const char* ComparatorRouter::to_string(SyncState sync_state)
 {
     switch (sync_state)
     {
@@ -68,12 +68,12 @@ const char* UratRouter::to_string(SyncState sync_state)
 }
 
 // static
-UratRouter* UratRouter::create(SERVICE* pService)
+ComparatorRouter* ComparatorRouter::create(SERVICE* pService)
 {
-    return new UratRouter(pService);
+    return new ComparatorRouter(pService);
 }
 
-RouterSession* UratRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpoints)
+RouterSession* ComparatorRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpoints)
 {
     const auto& children = m_service.get_children();
 
@@ -83,7 +83,7 @@ RouterSession* UratRouter::newSession(MXS_SESSION* pSession, const Endpoints& en
         return nullptr;
     }
 
-    auto [ sMain, backends ] = UratBackend::from_endpoints(*m_config.pMain, endpoints);
+    auto [ sMain, backends ] = comparator::backends_from_endpoints(*m_config.pMain, endpoints);
     bool connected = false;
 
     if (sMain->can_connect() && sMain->connect())
@@ -100,20 +100,20 @@ RouterSession* UratRouter::newSession(MXS_SESSION* pSession, const Endpoints& en
         }
     }
 
-    return connected ? new UratSession(pSession, this, std::move(sMain), std::move(backends)) : NULL;
+    return connected ? new ComparatorSession(pSession, this, std::move(sMain), std::move(backends)) : NULL;
 }
 
-json_t* UratRouter::diagnostics() const
+json_t* ComparatorRouter::diagnostics() const
 {
     return nullptr;
 }
 
-uint64_t UratRouter::getCapabilities() const
+uint64_t ComparatorRouter::getCapabilities() const
 {
-    return URAT_CAPABILITIES;
+    return COMPARATOR_CAPABILITIES;
 }
 
-bool UratRouter::post_configure()
+bool ComparatorRouter::post_configure()
 {
     bool rval = false;
     std::lock_guard<mxb::shared_mutex> guard(m_rw_lock);
@@ -127,18 +127,18 @@ bool UratRouter::post_configure()
     return rval;
 }
 
-bool UratRouter::start(json_t** ppOutput)
+bool ComparatorRouter::start(json_t** ppOutput)
 {
     mxb_assert(MainWorker::is_current());
 
-    if (m_urat_state != UratState::PREPARED)
+    if (m_comparator_state != ComparatorState::PREPARED)
     {
         MXB_ERROR("State of '%s' is '%s'. Can be started only when in state '%s'.",
-                  m_service.name(), to_string(m_urat_state), to_string(UratState::PREPARED));
+                  m_service.name(), to_string(m_comparator_state), to_string(ComparatorState::PREPARED));
         return false;
     }
 
-    m_urat_state = UratState::SYNCHRONIZING;
+    m_comparator_state = ComparatorState::SYNCHRONIZING;
     m_sync_state = SyncState::SUSPENDING;
 
     RoutingWorker::SessionResult sr = suspend_sessions();
@@ -161,7 +161,7 @@ bool UratRouter::start(json_t** ppOutput)
     return true;
 }
 
-bool UratRouter::status(json_t** ppOutput)
+bool ComparatorRouter::status(json_t** ppOutput)
 {
     RoutingWorker::SessionResult sr = suspended_sessions();
 
@@ -170,26 +170,26 @@ bool UratRouter::status(json_t** ppOutput)
     return true;
 }
 
-bool UratRouter::stop(json_t** ppOutput)
+bool ComparatorRouter::stop(json_t** ppOutput)
 {
     bool rv = false;
 
     json_t* pOutput = nullptr;
 
-    switch (m_urat_state)
+    switch (m_comparator_state)
     {
-    case UratState::PREPARED:
+    case ComparatorState::PREPARED:
         MXB_ERROR("The state of '%s' is '%s' and hence it cannot be stopped.",
-                  m_service.name(), to_string(m_urat_state));
+                  m_service.name(), to_string(m_comparator_state));
         break;
 
-    case UratState::SYNCHRONIZING:
+    case ComparatorState::SYNCHRONIZING:
         mxb_assert(false);
         // TODO: Handle stop when synchronizing.
         MXB_ERROR("Not implemented yet.");
         break;
 
-    case UratState::CAPTURING:
+    case ComparatorState::CAPTURING:
         mxb_assert(false);
         // TODO: Handle stop when capturing.
         MXB_ERROR("Not implemented yet.");
@@ -201,31 +201,31 @@ bool UratRouter::stop(json_t** ppOutput)
     return rv;
 }
 
-mxs::RoutingWorker::SessionResult UratRouter::restart_sessions()
+mxs::RoutingWorker::SessionResult ComparatorRouter::restart_sessions()
 {
     return mxs::RoutingWorker::restart_sessions(m_config.pService->name());
 }
 
-mxs::RoutingWorker::SessionResult UratRouter::suspend_sessions()
+mxs::RoutingWorker::SessionResult ComparatorRouter::suspend_sessions()
 {
     return mxs::RoutingWorker::suspend_sessions(m_config.pService->name());
 }
 
-mxs::RoutingWorker::SessionResult UratRouter::resume_sessions()
+mxs::RoutingWorker::SessionResult ComparatorRouter::resume_sessions()
 {
     return mxs::RoutingWorker::resume_sessions(m_config.pService->name());
 }
 
-mxs::RoutingWorker::SessionResult UratRouter::suspended_sessions()
+mxs::RoutingWorker::SessionResult ComparatorRouter::suspended_sessions()
 {
     return mxs::RoutingWorker::suspended_sessions(m_config.pService->name());
 }
 
-void UratRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOutput)
+void ComparatorRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOutput)
 {
     json_t* pOutput = json_object();
-    json_object_set_new(pOutput, "state", json_string(to_string(m_urat_state)));
-    if (m_urat_state == UratState::SYNCHRONIZING)
+    json_object_set_new(pOutput, "state", json_string(to_string(m_comparator_state)));
+    if (m_comparator_state == ComparatorState::SYNCHRONIZING)
     {
         json_object_set_new(pOutput, "sync_state", json_string(to_string(m_sync_state)));
     }
@@ -237,7 +237,7 @@ void UratRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOut
     *ppOutput = pOutput;
 }
 
-bool UratRouter::rewire_service()
+bool ComparatorRouter::rewire_service()
 {
     bool rv = false;
 
@@ -254,7 +254,7 @@ bool UratRouter::rewire_service()
 
         if (!rv)
         {
-            MXB_ERROR("Could not link urat service '%s' to service '%s'. Now restoring situation.",
+            MXB_ERROR("Could not link comparator service '%s' to service '%s'. Now restoring situation.",
                       m_service.name(), pService->name());
 
             targets.clear();
@@ -276,7 +276,7 @@ bool UratRouter::rewire_service()
     return rv;
 }
 
-bool UratRouter::stop_replication(const SERVER& server)
+bool ComparatorRouter::stop_replication(const SERVER& server)
 {
     bool rv = false;
 
@@ -309,9 +309,9 @@ bool UratRouter::stop_replication(const SERVER& server)
     return rv;
 }
 
-bool UratRouter::synchronize()
+bool ComparatorRouter::synchronize()
 {
-    mxb_assert(m_urat_state == UratState::SYNCHRONIZING);
+    mxb_assert(m_comparator_state == ComparatorState::SYNCHRONIZING);
 
     bool rv = true;
 
@@ -338,7 +338,7 @@ bool UratRouter::synchronize()
         break;
     };
 
-    if (m_urat_state == UratState::SYNCHRONIZING)
+    if (m_comparator_state == ComparatorState::SYNCHRONIZING)
     {
         mxb_assert(m_sync_state != SyncState::IDLE);
 
@@ -356,7 +356,7 @@ bool UratRouter::synchronize()
     return rv;
 }
 
-void UratRouter::sync_suspend()
+void ComparatorRouter::sync_suspend()
 {
     mxb_assert(m_sync_state == SyncState::SUSPENDING);
 
@@ -369,7 +369,7 @@ void UratRouter::sync_suspend()
     }
 }
 
-void UratRouter::sync_rewire()
+void ComparatorRouter::sync_rewire()
 {
     mxb_assert(m_sync_state == SyncState::REWIRING);
 
@@ -381,11 +381,11 @@ void UratRouter::sync_rewire()
     else
     {
         m_sync_state = SyncState::IDLE;
-        m_urat_state = UratState::PREPARED;
+        m_comparator_state = ComparatorState::PREPARED;
     }
 }
 
-void UratRouter::sync_stop_replication()
+void ComparatorRouter::sync_stop_replication()
 {
     mxb_assert(m_sync_state == SyncState::STOPPING_REPLICATION);
 
@@ -463,11 +463,11 @@ void UratRouter::sync_stop_replication()
     if (!ok)
     {
         m_sync_state = SyncState::IDLE;
-        m_urat_state = UratState::PREPARED;
+        m_comparator_state = ComparatorState::PREPARED;
     }
 }
 
-void UratRouter::sync_restart_and_resume()
+void ComparatorRouter::sync_restart_and_resume()
 {
     RoutingWorker::SessionResult sr = restart_sessions();
 
@@ -487,10 +487,10 @@ void UratRouter::sync_restart_and_resume()
     }
 
     m_sync_state = SyncState::IDLE;
-    m_urat_state = UratState::CAPTURING;
+    m_comparator_state = ComparatorState::CAPTURING;
 }
 
-void UratRouter::start_synchronize_dcall()
+void ComparatorRouter::start_synchronize_dcall()
 {
     mxb_assert(m_dcstart == 0);
 
@@ -499,7 +499,7 @@ void UratRouter::start_synchronize_dcall()
         });
 }
 
-void UratRouter::ship(json_t* pJson)
+void ComparatorRouter::ship(json_t* pJson)
 {
     {
         std::shared_lock<mxb::shared_mutex> guard(m_rw_lock);

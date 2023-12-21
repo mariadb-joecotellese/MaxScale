@@ -10,16 +10,16 @@
 #include "comparatorresult.hh"
 
 /**
- * @class UratRound
+ * @class ComparatorRound
  *
  * The results of executing one particular statement on different backends.
  */
-class UratRound final
+class ComparatorRound final
 {
 public:
-    using Results = std::map<const UratBackend*, UratResult>;
+    using Results = std::map<const ComparatorBackend*, ComparatorResult>;
 
-    UratRound(const std::string& query, uint8_t command, const UratBackend* pBackend)
+    ComparatorRound(const std::string& query, uint8_t command, const ComparatorBackend* pBackend)
         : m_query(query)
         , m_command(command)
     {
@@ -41,14 +41,14 @@ public:
         return rv;
     }
 
-    void add_backend(const UratBackend* pBackend)
+    void add_backend(const ComparatorBackend* pBackend)
     {
         mxb_assert(m_results.find(pBackend) == m_results.end());
 
-        m_results.emplace(pBackend, UratResult {});
+        m_results.emplace(pBackend, ComparatorResult {});
     }
 
-    void remove_backend(const UratBackend* pBackend)
+    void remove_backend(const ComparatorBackend* pBackend)
     {
         auto it = m_results.find(pBackend);
         mxb_assert(it != m_results.end());
@@ -81,20 +81,20 @@ public:
         return m_results;
     }
 
-    const UratResult* get_result(const UratBackend* pBackend) const
+    const ComparatorResult* get_result(const ComparatorBackend* pBackend) const
     {
         auto it = m_results.find(pBackend);
 
         return it != m_results.end() ? &it->second : nullptr;
     }
 
-    void set_result(const UratBackend* pBackend, const UratResult& result)
+    void set_result(const ComparatorBackend* pBackend, const ComparatorResult& result)
     {
         m_results[pBackend] = result;
     }
 
 private:
-    std::string                              m_query;
-    uint8_t                                  m_command { 0 };
-    std::map<const UratBackend*, UratResult> m_results;
+    std::string                                          m_query;
+    uint8_t                                              m_command { 0 };
+    std::map<const ComparatorBackend*, ComparatorResult> m_results;
 };

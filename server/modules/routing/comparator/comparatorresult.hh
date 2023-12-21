@@ -9,19 +9,19 @@
 #include <maxbase/checksum.hh>
 #include <maxscale/target.hh>
 
-class UratBackend;
+class ComparatorBackend;
 
 /**
- * @class UratResult
+ * @class ComparatorResult
  *
  * The result of executing one particular statement.
  */
-class UratResult final
+class ComparatorResult final
 {
 public:
     using Clock = std::chrono::steady_clock;
 
-    UratResult()
+    ComparatorResult()
         : m_start(Clock::now())
         , m_end(Clock::time_point::max())
     {

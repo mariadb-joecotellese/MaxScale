@@ -14,7 +14,7 @@
 #include <librdkafka/rdkafkacpp.h>
 
 // Exports to maxscale.log on info level
-class LogExporter : public UratExporter
+class LogExporter : public ComparatorExporter
 {
 public:
     void ship(json_t* pJson) override final
@@ -24,7 +24,7 @@ public:
 };
 
 // Exports to a file
-class FileExporter : public UratExporter
+class FileExporter : public ComparatorExporter
 {
 public:
     FileExporter(int fd)
@@ -48,7 +48,7 @@ private:
 };
 
 // Exports to a Kafka topic
-class KafkaExporter : public UratExporter
+class KafkaExporter : public ComparatorExporter
 {
 public:
     KafkaExporter(RdKafka::Producer* pProducer, const std::string& topic)
@@ -79,9 +79,9 @@ private:
     std::string                        m_topic;
 };
 
-std::unique_ptr<UratExporter> build_exporter(const UratConfig& config)
+std::unique_ptr<ComparatorExporter> build_exporter(const ComparatorConfig& config)
 {
-    std::unique_ptr<UratExporter> rval;
+    std::unique_ptr<ComparatorExporter> rval;
 
     switch (config.exporter)
     {

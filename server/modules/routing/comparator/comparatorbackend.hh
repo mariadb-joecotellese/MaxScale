@@ -14,24 +14,21 @@
 #include <maxbase/checksum.hh>
 #include "comparatorresult.hh"
 
-class UratMainBackend;
-class UratOtherBackend;
-using SUratMainBackend = std::unique_ptr<UratMainBackend>;
-using SUratOtherBackend = std::unique_ptr<UratOtherBackend>;
-using SUratOtherBackends = std::vector<SUratOtherBackend>;
+class ComparatorMainBackend;
+class ComparatorOtherBackend;
+using SComparatorMainBackend = std::unique_ptr<ComparatorMainBackend>;
+using SComparatorOtherBackend = std::unique_ptr<ComparatorOtherBackend>;
+using SComparatorOtherBackends = std::vector<SComparatorOtherBackend>;
 
-class UratResult;
+class ComparatorResult;
 
-class UratBackend : public mxs::Backend
+class ComparatorBackend : public mxs::Backend
 {
 public:
-    static std::pair<SUratMainBackend, SUratOtherBackends>
-    from_endpoints(const mxs::Target& main_target, const mxs::Endpoints& endpoints);
-
     bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override;
 
     void process_result(const GWBUF& buffer);
-    UratResult finish_result(const mxs::Reply& reply);
+    ComparatorResult finish_result(const mxs::Reply& reply);
 
     int32_t nBacklog() const
     {
@@ -42,24 +39,32 @@ protected:
     using mxs::Backend::Backend;
 
 private:
-    std::deque<UratResult> m_results;
+    std::deque<ComparatorResult> m_results;
 };
 
-class UratMainBackend : public UratBackend
+class ComparatorMainBackend : public ComparatorBackend
 {
 public:
-    using UratBackend::UratBackend;
+    using ComparatorBackend::ComparatorBackend;
 };
 
-class UratOtherBackend : public UratBackend
+class ComparatorOtherBackend : public ComparatorBackend
 {
 public:
-    UratOtherBackend(mxs::Endpoint* pEndpoint, UratMainBackend* pMain)
-        : UratBackend(pEndpoint)
+    ComparatorOtherBackend(mxs::Endpoint* pEndpoint, ComparatorMainBackend* pMain)
+        : ComparatorBackend(pEndpoint)
         , m_main(*pMain)
     {
     }
 
 private:
-    UratMainBackend& m_main;
+    ComparatorMainBackend& m_main;
 };
+
+namespace comparator
+{
+
+std::pair<SComparatorMainBackend, SComparatorOtherBackends>
+backends_from_endpoints(const mxs::Target& main_target, const mxs::Endpoints& endpoints);
+
+}

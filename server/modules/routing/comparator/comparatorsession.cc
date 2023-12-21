@@ -14,13 +14,13 @@ using namespace maxscale;
 namespace
 {
 
-bool is_checksum_discrepancy(const UratResult& result, const std::string& main_checksum)
+bool is_checksum_discrepancy(const ComparatorResult& result, const std::string& main_checksum)
 {
     return result.checksum().hex() != main_checksum;
 }
 
 // TODO: milliseconds is too coarse.
-bool is_execution_time_discrepancy(const UratResult& result,
+bool is_execution_time_discrepancy(const ComparatorResult& result,
                                    const std::chrono::milliseconds& min,
                                    const std::chrono::milliseconds& max)
 {
@@ -31,10 +31,10 @@ bool is_execution_time_discrepancy(const UratResult& result,
 
 }
 
-UratSession::UratSession(MXS_SESSION* pSession,
-                         UratRouter* pRouter,
-                         SUratMainBackend sMain,
-                         SUratOtherBackends others)
+ComparatorSession::ComparatorSession(MXS_SESSION* pSession,
+                                     ComparatorRouter* pRouter,
+                                     SComparatorMainBackend sMain,
+                                     SComparatorOtherBackends others)
     : RouterSession(pSession)
     , m_sMain(std::move(sMain))
     , m_others(std::move(others))
@@ -42,7 +42,7 @@ UratSession::UratSession(MXS_SESSION* pSession,
 {
 }
 
-bool UratSession::routeQuery(GWBUF&& packet)
+bool ComparatorSession::routeQuery(GWBUF&& packet)
 {
     bool expecting_response = protocol_data().will_respond(packet);
     mxs::Backend::response_type type = expecting_response
@@ -55,7 +55,7 @@ bool UratSession::routeQuery(GWBUF&& packet)
         auto* pMain = m_sMain.get();
         m_rounds.emplace_back(get_sql_string(packet), mxs_mysql_get_command(packet), pMain);
 
-        UratRound& round = m_rounds.back();
+        ComparatorRound& round = m_rounds.back();
 
         if (type == mxs::Backend::EXPECT_RESPONSE)
         {
@@ -76,15 +76,15 @@ bool UratSession::routeQuery(GWBUF&& packet)
     return rv;
 }
 
-bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mxs::Reply& reply)
+bool ComparatorSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mxs::Reply& reply)
 {
-    auto* pBackend = static_cast<UratBackend*>(down.endpoint()->get_userdata());
+    auto* pBackend = static_cast<ComparatorBackend*>(down.endpoint()->get_userdata());
 
     pBackend->process_result(packet);
 
     if (reply.is_complete())
     {
-        UratResult result = pBackend->finish_result(reply);
+        ComparatorResult result = pBackend->finish_result(reply);
 
         int32_t nBacklog = pBackend->nBacklog();
         mxb_assert(nBacklog < (int)m_rounds.size());
@@ -92,7 +92,7 @@ bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const
         int32_t index = m_rounds.size() - 1 - nBacklog;
         mxb_assert(index >= 0 && index < (int)m_rounds.size());
 
-        UratRound& round = m_rounds[index];
+        ComparatorRound& round = m_rounds[index];
 
         round.set_result(pBackend, result);
         pBackend->ack_write();
@@ -117,14 +117,14 @@ bool UratSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const
     return rv;
 }
 
-bool UratSession::handleError(mxs::ErrorType type,
-                              const std::string& message,
-                              mxs::Endpoint* pProblem,
-                              const mxs::Reply& reply)
+bool ComparatorSession::handleError(mxs::ErrorType type,
+                                    const std::string& message,
+                                    mxs::Endpoint* pProblem,
+                                    const mxs::Reply& reply)
 {
-    auto* pBackend = static_cast<UratBackend*>(pProblem->get_userdata());
+    auto* pBackend = static_cast<ComparatorBackend*>(pProblem->get_userdata());
 
-    for (UratRound& round : m_rounds)
+    for (ComparatorRound& round : m_rounds)
     {
         round.remove_backend(pBackend);
     }
@@ -138,14 +138,14 @@ bool UratSession::handleError(mxs::ErrorType type,
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
-void UratSession::check_if_round_is_ready()
+void ComparatorSession::check_if_round_is_ready()
 {
     // Rounds will become ready from the front and in order. If the
     // first round is not ready, then any subsequent one cannot be.
 
     while (!m_rounds.empty() && m_rounds.front().ready())
     {
-        const UratRound& round = m_rounds.front();
+        const ComparatorRound& round = m_rounds.front();
 
         if (should_report(round))
         {
@@ -156,7 +156,7 @@ void UratSession::check_if_round_is_ready()
     }
 }
 
-bool UratSession::should_report(const UratRound& round) const
+bool ComparatorSession::should_report(const ComparatorRound& round) const
 {
     auto& config = m_router.config();
     auto report = config.report.get();
@@ -167,7 +167,7 @@ bool UratSession::should_report(const UratRound& round) const
     {
         if (m_sMain->in_use())
         {
-            const UratResult* pMain_result = round.get_result(m_sMain.get());
+            const ComparatorResult* pMain_result = round.get_result(m_sMain.get());
             mxb_assert(pMain_result);
 
             std::string main_checksum = pMain_result->checksum().hex();
@@ -184,7 +184,7 @@ bool UratSession::should_report(const UratRound& round) const
                     continue;
                 }
 
-                const UratResult& result = kv.second;
+                const ComparatorResult& result = kv.second;
 
                 if (is_checksum_discrepancy(result, main_checksum))
                 {
@@ -204,7 +204,7 @@ bool UratSession::should_report(const UratRound& round) const
     return rv;
 }
 
-void UratSession::generate_report(const UratRound& round)
+void ComparatorSession::generate_report(const ComparatorRound& round)
 {
     json_t* pJson = json_object();
     json_object_set_new(pJson, "query", json_string(round.query().c_str()));
@@ -216,8 +216,8 @@ void UratSession::generate_report(const UratRound& round)
 
     for (const auto& kv : round.results())
     {
-        const UratBackend* pBackend = kv.first;
-        const UratResult& result = kv.second;
+        const ComparatorBackend* pBackend = kv.first;
+        const ComparatorResult& result = kv.second;
 
         json_array_append_new(pArr, generate_report(pBackend, result));
     }
@@ -227,7 +227,7 @@ void UratSession::generate_report(const UratRound& round)
     m_router.ship(pJson);
 }
 
-json_t* UratSession::generate_report(const UratBackend* pBackend, const UratResult& result)
+json_t* ComparatorSession::generate_report(const ComparatorBackend* pBackend, const ComparatorResult& result)
 {
     const char* type = result.reply().error() ?
         "error" : (result.reply().is_resultset() ? "resultset" : "ok");

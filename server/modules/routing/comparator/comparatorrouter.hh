@@ -17,13 +17,13 @@
 #include "comparatorconfig.hh"
 #include "comparatorexporter.hh"
 
-class UratSession;
+class ComparatorSession;
 
-class UratRouter : public mxs::Router
-                 , private mxb::Worker::Callable
+class ComparatorRouter : public mxs::Router
+                       , private mxb::Worker::Callable
 {
 public:
-    enum class UratState
+    enum class ComparatorState
     {
         PREPARED,      // Setup for action.
         SYNCHRONIZING, // Started, suspending sessions, stopping replication, etc.
@@ -39,14 +39,14 @@ public:
         RESTARTING_AND_RESUMING // Sessions are being restarted and resumed.
     };
 
-    static const char* to_string(UratState urat_state);
+    static const char* to_string(ComparatorState comparator_state);
     static const char* to_string(SyncState sync_state);
 
-    UratRouter(const UratRouter&) = delete;
-    UratRouter& operator=(const UratRouter&) = delete;
+    ComparatorRouter(const ComparatorRouter&) = delete;
+    ComparatorRouter& operator=(const ComparatorRouter&) = delete;
 
-    ~UratRouter() = default;
-    static UratRouter*  create(SERVICE* pService);
+    ~ComparatorRouter() = default;
+    static ComparatorRouter*  create(SERVICE* pService);
     mxs::RouterSession* newSession(MXS_SESSION* pSession, const mxs::Endpoints& endpoints) override;
     json_t*             diagnostics() const override;
     uint64_t            getCapabilities() const override;
@@ -68,7 +68,7 @@ public:
         return {MXS_MARIADB_PROTOCOL_NAME};
     }
 
-    const UratConfig& config() const
+    const ComparatorConfig& config() const
     {
         return m_config;
     }
@@ -103,13 +103,13 @@ private:
 
     void start_synchronize_dcall();
 
-    UratRouter(SERVICE* pService);
+    ComparatorRouter(SERVICE* pService);
 
-    UratState                     m_urat_state { UratState::PREPARED };
-    SyncState                     m_sync_state { SyncState::IDLE };
-    UratConfig                    m_config;
-    std::unique_ptr<UratExporter> m_sExporter;
-    mxb::shared_mutex             m_rw_lock;
-    SERVICE&                      m_service;
-    mxb::Worker::DCId             m_dcstart { mxb::Worker::NO_CALL };
+    ComparatorState                     m_comparator_state { ComparatorState::PREPARED };
+    SyncState                           m_sync_state { SyncState::IDLE };
+    ComparatorConfig                    m_config;
+    std::unique_ptr<ComparatorExporter> m_sExporter;
+    mxb::shared_mutex                   m_rw_lock;
+    SERVICE&                            m_service;
+    mxb::Worker::DCId                   m_dcstart { mxb::Worker::NO_CALL };
 };

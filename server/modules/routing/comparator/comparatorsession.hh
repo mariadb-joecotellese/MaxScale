@@ -14,18 +14,18 @@
 #include "comparatorrouter.hh"
 #include "comparatorresult.hh"
 
-class UratRouter;
+class ComparatorRouter;
 
-class UratSession : public mxs::RouterSession
+class ComparatorSession : public mxs::RouterSession
 {
 public:
-    UratSession(const UratSession&) = delete;
-    UratSession& operator=(const UratSession&) = delete;
+    ComparatorSession(const ComparatorSession&) = delete;
+    ComparatorSession& operator=(const ComparatorSession&) = delete;
 
-    UratSession(MXS_SESSION* pSession,
-                UratRouter* pRouter,
-                SUratMainBackend sMain,
-                SUratOtherBackends backends);
+    ComparatorSession(MXS_SESSION* pSession,
+                      ComparatorRouter* pRouter,
+                      SComparatorMainBackend sMain,
+                      SComparatorOtherBackends backends);
 
     bool routeQuery(GWBUF&& packet) override;
 
@@ -35,15 +35,15 @@ public:
                      mxs::Endpoint* pProblem, const mxs::Reply& reply) override final;
 
 private:
-    SUratMainBackend      m_sMain;
-    SUratOtherBackends    m_others;
-    int                   m_responses = 0;
-    UratRouter&           m_router;
-    uint64_t              m_num_queries = 0;
-    std::deque<UratRound> m_rounds;
+    SComparatorMainBackend      m_sMain;
+    SComparatorOtherBackends    m_others;
+    int                         m_responses = 0;
+    ComparatorRouter&           m_router;
+    uint64_t                    m_num_queries = 0;
+    std::deque<ComparatorRound> m_rounds;
 
     void check_if_round_is_ready();
-    bool should_report(const UratRound& round) const;
-    void generate_report(const UratRound& round);
-    json_t* generate_report(const UratBackend* pBackend, const UratResult& result);
+    bool should_report(const ComparatorRound& round) const;
+    void generate_report(const ComparatorRound& round);
+    json_t* generate_report(const ComparatorBackend* pBackend, const ComparatorResult& result);
 };
