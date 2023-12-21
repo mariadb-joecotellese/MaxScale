@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#define MXB_MODULE_NAME "urat"
+#define MXB_MODULE_NAME "comparator"
 
 #include <maxscale/ccdefs.hh>
 #include <maxscale/log.hh>

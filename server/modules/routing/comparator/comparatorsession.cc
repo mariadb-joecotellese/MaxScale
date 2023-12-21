@@ -3,9 +3,9 @@
  *
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
-#include "uratsession.hh"
-#include "uratresult.hh"
-#include "uratrouter.hh"
+#include "comparatorsession.hh"
+#include "comparatorresult.hh"
+#include "comparatorrouter.hh"
 
 #include <maxscale/protocol/mariadb/mysql.hh>
 

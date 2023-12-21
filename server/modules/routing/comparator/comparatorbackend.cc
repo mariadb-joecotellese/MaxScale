@@ -4,8 +4,8 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "uratbackend.hh"
-#include "uratresult.hh"
+#include "comparatorbackend.hh"
+#include "comparatorresult.hh"
 
 // static
 std::pair<SUratMainBackend,SUratOtherBackends>

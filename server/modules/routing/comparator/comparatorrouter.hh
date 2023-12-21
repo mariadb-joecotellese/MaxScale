@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "uratdefs.hh"
+#include "comparatordefs.hh"
 
 #include <maxbase/shared_mutex.hh>
 #include <maxbase/worker.hh>
@@ -14,8 +14,8 @@
 #include <maxscale/protocol/mariadb/module_names.hh>
 #include <maxscale/service.hh>
 
-#include "uratconfig.hh"
-#include "uratexporter.hh"
+#include "comparatorconfig.hh"
+#include "comparatorexporter.hh"
 
 class UratSession;
 

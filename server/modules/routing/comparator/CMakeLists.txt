@@ -4,17 +4,17 @@ if (NOT RDKAFKA_FOUND)
   include_directories(${RDKAFKA_INCLUDE_DIR})
 endif()
 
-add_library(urat SHARED
-  urat.cc
-  uratbackend.cc
-  uratcommands.cc
-  uratconfig.cc
-  uratexporter.cc
-  uratrouter.cc
-  uratsession.cc
+add_library(comparator SHARED
+  comparator.cc
+  comparatorbackend.cc
+  comparatorcommands.cc
+  comparatorconfig.cc
+  comparatorexporter.cc
+  comparatorrouter.cc
+  comparatorsession.cc
   )
 
-target_link_libraries(urat maxscale-common ${RDKAFKA_LIBRARIES})
-add_dependencies(urat librdkafka)
-set_target_properties(urat PROPERTIES VERSION "1.0.0"  LINK_FLAGS -Wl,-z,defs)
-install_module(urat core)
+target_link_libraries(comparator maxscale-common ${RDKAFKA_LIBRARIES})
+add_dependencies(comparator librdkafka)
+set_target_properties(comparator PROPERTIES VERSION "1.0.0"  LINK_FLAGS -Wl,-z,defs)
+install_module(comparator core)

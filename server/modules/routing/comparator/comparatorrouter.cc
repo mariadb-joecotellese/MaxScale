@@ -4,12 +4,12 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "uratrouter.hh"
+#include "comparatorrouter.hh"
 #include <maxbase/format.hh>
 #include <maxscale/mainworker.hh>
 #include <maxscale/routingworker.hh>
 #include <maxsql/mariadb_connector.hh>
-#include "uratsession.hh"
+#include "comparatorsession.hh"
 #include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/service.hh"
 

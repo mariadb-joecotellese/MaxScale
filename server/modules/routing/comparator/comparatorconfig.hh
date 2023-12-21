@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "uratdefs.hh"
+#include "comparatordefs.hh"
 
 #include <maxscale/ccdefs.hh>
 #include <maxscale/config2.hh>

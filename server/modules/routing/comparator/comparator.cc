@@ -4,8 +4,8 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "uratrouter.hh"
-#include "uratcommands.hh"
+#include "comparatorrouter.hh"
+#include "comparatorcommands.hh"
 
 
 extern "C" MXS_MODULE* MXS_CREATE_MODULE()
@@ -17,7 +17,7 @@ extern "C" MXS_MODULE* MXS_CREATE_MODULE()
     static MXS_MODULE info =
     {
         mxs::MODULE_INFO_VERSION,
-        "urat",
+        "comparator",
         mxs::ModuleType::ROUTER,
         mxs::ModuleStatus::ALPHA,
         MXS_ROUTER_VERSION,

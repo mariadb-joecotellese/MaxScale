@@ -4,7 +4,7 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "uratcommands.hh"
+#include "comparatorcommands.hh"
 #include <set>
 #include <vector>
 #include <maxbase/format.hh>
@@ -17,7 +17,7 @@
 #include <maxscale/protocol/mariadb/maxscale.hh>
 #include "../../../core/internal/monitormanager.hh"
 #include "../../../core/internal/service.hh"
-#include "uratrouter.hh"
+#include "comparatorrouter.hh"
 
 using namespace mxq;
 using namespace std;
@@ -177,7 +177,7 @@ mxs::Monitor* create_urat_monitor(const SERVICE& service,
 {
     mxs::Monitor* pUrat_monitor = nullptr;
 
-    string name { "Urat" };
+    string name { "comparator" };
     name += service.name();
     name += "Monitor";
 
@@ -209,10 +209,10 @@ Service* create_urat_service(const string& name,
     // TODO: 'exporter' and parameters dependent on its value, must be provided somehow.
     params.set("user", sValues->user);
     params.set("password", sValues->password);
-    params.set("router", "urat");
+    params.set("router", "comparator");
     params.set("main", primary.name());
     params.set("exporter", "file");
-    params.set("file", "urat.txt");
+    params.set("file", "comparator.txt");
     params.set("servers", mxb::join(servers, ","));
     params.set("service", service.name());
 
@@ -232,7 +232,7 @@ Service* create_urat_service(const SERVICE& service,
 {
     Service* pUrat_service = nullptr;
 
-    string name { "Urat" };
+    string name { "comparator" };
     name += service.name();
 
     if (const char* zType = mxs::Config::get_object_type(name))
@@ -404,7 +404,7 @@ void register_status_command()
                                                   command_status,
                                                   MXS_ARRAY_NELEMS(command_status_argv),
                                                   command_status_argv,
-                                                  "Urat service status");
+                                                  "comparator service status");
     mxb_assert(rv);
 }
 
@@ -444,7 +444,7 @@ void register_stop_command()
                                                   command_stop,
                                                   MXS_ARRAY_NELEMS(command_stop_argv),
                                                   command_stop_argv,
-                                                  "Urat service stop");
+                                                  "comparator service stop");
     mxb_assert(rv);
 }
 

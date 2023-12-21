@@ -4,6 +4,6 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "uratdefs.hh"
+#include "comparatordefs.hh"
 
 void urat_register_commands();

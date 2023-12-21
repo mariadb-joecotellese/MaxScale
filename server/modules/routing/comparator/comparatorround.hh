@@ -5,9 +5,9 @@
  */
 #pragma once
 
-#include "uratdefs.hh"
+#include "comparatordefs.hh"
 #include <map>
-#include "uratresult.hh"
+#include "comparatorresult.hh"
 
 /**
  * @class UratRound

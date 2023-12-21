@@ -5,14 +5,14 @@
  */
 #pragma once
 
-#include "uratdefs.hh"
+#include "comparatordefs.hh"
 #include <deque>
 #include <vector>
 #include <memory>
 #include <maxscale/backend.hh>
 #include <maxscale/router.hh>
 #include <maxbase/checksum.hh>
-#include "uratresult.hh"
+#include "comparatorresult.hh"
 
 class UratMainBackend;
 class UratOtherBackend;

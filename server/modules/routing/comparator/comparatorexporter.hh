@@ -5,11 +5,11 @@
  */
 #pragma once
 
-#include "uratdefs.hh"
+#include "comparatordefs.hh"
 
 #include <maxbase/jansson.hh>
 
-#include "uratconfig.hh"
+#include "comparatorconfig.hh"
 
 class UratExporter
 {
