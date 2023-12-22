@@ -7,40 +7,46 @@
 #include "comparatorbackend.hh"
 #include "comparatorresult.hh"
 
-bool ComparatorBackend::write(GWBUF&& buffer, response_type type)
+
+/**
+ * ComparatorMainBackend
+ */
+
+ComparatorMainBackend::SResult ComparatorMainBackend::prepare(const std::string& sql, uint8_t command)
 {
-    if (type != NO_RESPONSE)
+    auto sMain_result = std::make_shared<ComparatorMainResult>(this, sql, command);
+
+    m_results.emplace_back(std::move(sMain_result));
+
+    return m_results.back();
+}
+
+/**
+ * ComparatorOtherBackend
+ */
+
+void ComparatorOtherBackend::prepare(const ComparatorMainBackend::SResult& sMain_result)
+{
+    auto sOther_result = std::make_shared<ComparatorOtherResult>(this, sMain_result);
+
+    m_results.emplace_back(std::move(sOther_result));
+}
+
+void ComparatorOtherBackend::ready(const ComparatorOtherResult& other_result)
+{
+    if (m_pResult_handler)
     {
-        m_results.emplace_back(ComparatorResult {});
+        m_pResult_handler->ready(other_result);
     }
-
-    return Backend::write(std::move(buffer), type);
 }
 
-void ComparatorBackend::process_result(const GWBUF& buffer)
-{
-    mxb_assert(!m_results.empty());
-
-    m_results.front().update_checksum(buffer);
-}
-
-ComparatorResult ComparatorBackend::finish_result(const mxs::Reply& reply)
-{
-    mxb_assert(reply.is_complete());
-    mxb_assert(!m_results.empty());
-
-    ComparatorResult result = std::move(m_results.front());
-    m_results.pop_front();
-
-    result.close(reply);
-
-    return result;
-}
+/**
+ * namespace comparator
+ */
 
 namespace comparator
 {
 
-// static
 std::pair<SComparatorMainBackend,SComparatorOtherBackends>
 backends_from_endpoints(const mxs::Target& main_target, const mxs::Endpoints& endpoints)
 {
@@ -64,7 +70,7 @@ backends_from_endpoints(const mxs::Target& main_target, const mxs::Endpoints& en
     {
         if (pEndpoint->target() != &main_target)
         {
-            others.emplace_back(new ComparatorOtherBackend(pEndpoint, sMain.get()));
+            others.emplace_back(new ComparatorOtherBackend(pEndpoint));
         }
     }
 

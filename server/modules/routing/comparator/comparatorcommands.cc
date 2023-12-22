@@ -177,9 +177,8 @@ mxs::Monitor* create_comparator_monitor(const SERVICE& service,
 {
     mxs::Monitor* pComparator_monitor = nullptr;
 
-    string name { "comparator" };
+    string name { "Monitor_for_Comparator" };
     name += service.name();
-    name += "Monitor";
 
     if (const char* zType = mxs::Config::get_object_type(name))
     {
@@ -232,7 +231,7 @@ Service* create_comparator_service(const SERVICE& service,
 {
     Service* pComparator_service = nullptr;
 
-    string name { "comparator" };
+    string name { "Comparator" };
     name += service.name();
 
     if (const char* zType = mxs::Config::get_object_type(name))

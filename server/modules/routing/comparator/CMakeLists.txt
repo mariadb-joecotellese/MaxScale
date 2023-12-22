@@ -10,6 +10,7 @@ add_library(comparator SHARED
   comparatorcommands.cc
   comparatorconfig.cc
   comparatorexporter.cc
+  comparatorresult.cc
   comparatorrouter.cc
   comparatorsession.cc
   )

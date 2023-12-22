@@ -62,12 +62,12 @@ config::ParamTarget main(
     &specification, "main", "Server from which responses are returned",
     config::Param::Kind::MANDATORY, config::Param::AT_RUNTIME);
 
-config::ParamCount max_execution_time_difference(
+config::ParamPercent max_execution_time_difference(
     &specification, "max_execution_time_difference", "Maximum allowed execution time difference, "
     "specified in percent, between the main and an other server before the result is logged.",
+    10, // Default
     0, // Min
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max
-    10, // Default
     config::Param::AT_RUNTIME);
 
 config::ParamEnum<ErrorAction> on_error(
