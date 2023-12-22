@@ -1,6 +1,9 @@
+#include(${CMAKE_SOURCE_DIR}/cmake/BuildBoost.cmake)
+
 add_library(wcar-core
   wcarinmemorystorage.cc
   wcarsqlitestorage.cc
+  wcarbooststorage.cc
 )
 
 add_library(wcar SHARED
@@ -12,7 +15,7 @@ add_library(wcar SHARED
 )
 
 target_link_libraries(wcar-core maxscale-common)
-target_link_libraries(wcar wcar-core maxscale-common)
+target_link_libraries(wcar wcar-core maxscale-common boost_serialization)
 set_target_properties(wcar PROPERTIES VERSION "1.0.0" LINK_FLAGS -Wl,-z,defs)
 install_module(wcar core)
 
