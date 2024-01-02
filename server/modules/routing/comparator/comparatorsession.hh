@@ -43,10 +43,11 @@ private:
     void generate_report(const ComparatorOtherResult& result);
     json_t* generate_json(const ComparatorResult& result);
 
-    SComparatorMainBackend      m_sMain;
-    SComparatorOtherBackends    m_others;
-    int                         m_responses = 0;
-    ComparatorRouter&           m_router;
-    uint64_t                    m_num_queries = 0;
+    SComparatorMainBackend   m_sMain;
+    SComparatorOtherBackends m_others;
+    int                      m_responses = 0;
+    ComparatorRouter&        m_router;
+    uint64_t                 m_num_queries = 0;
+    bool                     m_large_payload { false };
 
 };

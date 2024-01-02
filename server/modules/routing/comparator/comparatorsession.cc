@@ -48,14 +48,14 @@ ComparatorSession::ComparatorSession(MXS_SESSION* pSession,
 
 bool ComparatorSession::routeQuery(GWBUF&& packet)
 {
-    bool expecting_response = protocol_data().will_respond(packet);
-    mxs::Backend::response_type type = expecting_response
-        ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::NO_RESPONSE;
-
     bool rv = false;
 
     if (m_sMain->in_use())
     {
+        bool expecting_response = m_large_payload ? false : protocol_data().will_respond(packet);
+        mxs::Backend::response_type type = expecting_response
+            ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::NO_RESPONSE;
+
         std::shared_ptr<ComparatorMainResult> sMain_result;
 
         if (type != mxs::Backend::NO_RESPONSE)
@@ -83,6 +83,8 @@ bool ComparatorSession::routeQuery(GWBUF&& packet)
                     sOther->write(packet.shallow_clone(), type);
                 }
             }
+
+            m_large_payload = (packet.length() == MYSQL_PACKET_LENGTH_MAX);
 
             rv = true;
         }
