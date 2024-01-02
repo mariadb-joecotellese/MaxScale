@@ -56,6 +56,9 @@
                                 </template>
                             </template>
                         </div>
+                        <div v-if="type === PREF_TYPES.CONN" class="pl-4 pt-2">
+                            <small>{{ $mxs_t('info.timeoutVariables') }}</small>
+                        </div>
                     </v-tab-item>
                 </v-tabs-items>
             </v-tabs>
@@ -92,6 +95,9 @@
  */
 import { mapMutations, mapState } from 'vuex'
 import PrefField from '@wsComps/PrefDlg/PrefField'
+import QueryConn from '@wsModels/QueryConn'
+import Worksheet from '@wsModels/Worksheet'
+
 export default {
     name: 'pref-dlg',
     components: { PrefField },
@@ -218,6 +224,7 @@ export default {
                             iconColor: 'info',
                             href: `${this.sysVariablesRefLink}/interactive_timeout/#DETAILS`,
                             isVariable: true,
+                            suffix: 'seconds',
                         },
                         {
                             id: 'wait_timeout',
@@ -226,6 +233,7 @@ export default {
                             iconColor: 'info',
                             href: `${this.sysVariablesRefLink}/wait_timeout/#DETAILS`,
                             isVariable: true,
+                            suffix: 'seconds',
                         },
                     ],
                 },
@@ -233,6 +241,9 @@ export default {
         },
         hasChanged() {
             return !this.$helpers.lodash.isEqual(this.persistedPref, this.preferences)
+        },
+        activeQueryEditorConnId() {
+            return this.$typy(QueryConn.getters('activeQueryEditorConn'), 'id').safeString
         },
     },
     watch: {
@@ -256,14 +267,30 @@ export default {
             SET_INTERACTIVE_TIMEOUT: 'prefAndStorage/SET_INTERACTIVE_TIMEOUT',
             SET_WAIT_TIMEOUT: 'prefAndStorage/SET_WAIT_TIMEOUT',
         }),
-        onSave() {
-            //TODO: Find the diff and only update changed keys
-            Object.keys(this.preferences).forEach(key => {
-                let value = this.preferences[key]
-                // Convert back to unix timestamp
-                if (key === 'query_history_expired_time') value = this.$helpers.addDaysToNow(value)
+        async onSave() {
+            const diffs = this.$helpers.deepDiff(this.persistedPref, this.preferences)
+            let systemVariables = []
+            for (const diff of diffs) {
+                const key = this.$typy(diff, 'path[0]').safeString
+                let value = diff.rhs
+                switch (key) {
+                    case 'query_history_expired_time':
+                        // Convert back to unix timestamp
+                        value = this.$helpers.addDaysToNow(value)
+                        break
+                    case 'interactive_timeout':
+                    case 'wait_timeout':
+                        systemVariables.push(key)
+                        break
+                }
                 this[`SET_${key.toUpperCase()}`](value)
-            })
+            }
+            if (this.activeQueryEditorConnId && systemVariables.length)
+                await QueryConn.dispatch('setVariables', {
+                    connId: this.activeQueryEditorConnId,
+                    config: Worksheet.getters('activeRequestConfig'),
+                    variables: systemVariables,
+                })
         },
     },
 }

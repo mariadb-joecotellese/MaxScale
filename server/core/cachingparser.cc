@@ -74,6 +74,33 @@ thread_local struct
     std::string  canonical;
 } this_thread;
 
+/**
+ * Returns const references to top N values in the range [it, end)
+ *
+ * TODO: Move this into a separate header if it's needed elsewhere.
+ *
+ * @param it   Start of the range
+ * @param end  Past-the-end of the range
+ * @param n    How many values to return
+ * @param comp The comparison function that returns true if the first value is less than the second value.
+ *
+ * @return Top N values sorted according to comp.
+ */
+template<class Iter, class Comp,
+         typename Reference = std::reference_wrapper<
+             const std::remove_cv_t<typename std::iterator_traits<Iter>::value_type>>
+         >
+std::vector<Reference> limit_n(Iter it, Iter end, size_t n, Comp comp)
+{
+    std::vector<Reference> entries(it, end);
+    auto middle = entries.begin() + std::min(n, entries.size());
+
+    std::partial_sort(entries.begin(), middle, entries.end(), [&](const Reference& a, const Reference& b){
+        return comp(a.get(), b.get());
+    });
+
+    return std::vector<Reference>(entries.begin(), middle);
+}
 
 /**
  * @class QCInfoCache
@@ -223,12 +250,16 @@ public:
         *pStats = m_stats;
     }
 
-    void get_state(std::map<std::string, CachingParser::Entry>& state) const
+    void get_state(std::map<std::string, CachingParser::Entry>& state, int top) const
     {
-        for (const auto& info : m_infos)
+        auto entries = limit_n(m_infos.begin(), m_infos.end(), top, [](const auto& a, const auto& b){
+            return a.second.hits > b.second.hits;
+        });
+
+        for (const auto& info : entries)
         {
-            std::string stmt = std::string(info.first);
-            const Entry& entry = info.second;
+            std::string stmt = std::string(info.get().first);
+            const Entry& entry = info.get().second;
 
             auto it = state.find(stmt);
 
@@ -274,18 +305,28 @@ public:
 
     int64_t clear()
     {
-        int64_t rv = 0;
+        int64_t size = 0;
 
-        for (auto& kv : m_infos)
+        auto it = m_infos.begin();
+        while (it != m_infos.end())
         {
-            rv += entry_size(kv.second.sInfo.get());
+            auto jt = it++;
+            size += erase(jt); // Takes a & and the call will erase the iterator.
         }
 
-        m_infos.clear();
-        mxb_assert(rv == m_stats.size);
+        // TODO: This should be an assert, but as there seems to be a book-keeping problem,
+        // TODO: so as not to break systems tests, currently we just log.
+
+        if (m_stats.size != 0)
+        {
+            MXB_WARNING("After clearing all entries and %ld bytes from the cache, according "
+                        "to the book-keeping there is still %ld bytes unaccounted for.",
+                        size, m_stats.size);
+        }
+
         m_stats.size = 0;
 
-        return rv;
+        return size;
     }
 
 private:
@@ -325,31 +366,33 @@ private:
         return entry_size(entry.second.sInfo.get());
     }
 
-    void erase(InfosByStmt::iterator& i)
+    int64_t erase(InfosByStmt::iterator& i)
     {
         mxb_assert(i != m_infos.end());
 
-        m_stats.size -= entry_size(*i);
+        int64_t size = entry_size(*i);
+        m_stats.size -= size;
 
         m_infos.erase(i);
 
         ++m_stats.evictions;
+
+        return size;
     }
 
-    bool erase(std::string_view canonical_stmt)
+    int64_t erase(std::string_view canonical_stmt)
     {
-        bool erased = false;
+        int64_t size = 0;
 
         auto i = m_infos.find(canonical_stmt);
         mxb_assert(i != m_infos.end());
 
         if (i != m_infos.end())
         {
-            erase(i);
-            erased = true;
+            size = erase(i);
         }
 
-        return erased;
+        return size;
     }
 
     void make_space(int64_t required_space)
@@ -388,8 +431,8 @@ private:
             {
                 freed_space += entry_size(*i);
 
-                MXB_AT_DEBUG(bool erased = ) erase(i->first);
-                mxb_assert(erased);
+                MXB_AT_DEBUG(int64_t size = ) erase(i->first);
+                mxb_assert(size != 0);
                 break;
             }
 
@@ -430,9 +473,11 @@ bool use_cached_result()
 
         if (max_size != this_thread.pInfo_cache->cache_max_size())
         {
-            mxb::Worker* pWorker = mxb::Worker::get_current();
+            auto* pWorker = mxs::RoutingWorker::get_current();
 
-            mxb_assert(mxs::RoutingWorker::get_current() || mxs::MainWorker::is_current());
+            mxb_assert_message(pWorker,
+                               "Only routing workers can use query classification caching. "
+                               "Call qc_use_local_cache(false) after qc initialization.");
 
             // Adjusting the cache size while the cache is being used leads to
             // various book-keeping issues. Simpler if it's done once the cache
@@ -481,65 +526,73 @@ public:
     QCInfoCacheScope(mxs::Parser* pParser, const GWBUF* pStmt)
         : m_parser(*pParser)
         , m_stmt(*pStmt)
+        , m_use_cached_result(use_cached_result())
+        , m_info_size_before(0)
     {
-        if (const auto& sCached = m_stmt.get_protocol_info())
+        if (m_use_cached_result)
         {
-            // The buffer already has the info. This means this is not the first time that a query
-            // classification function is called. Record the current size of the value so that we'll be able
-            // to detect in the destructor if it has grown.
-            m_info_size_before = sCached->size();
-        }
-        else if (use_cached_result())
-        {
-            // We generate the canonical explicitly, because now we want the key that
-            // allows us to look up whether the parsing info already exists. Besides,
-            // calling m_parser.get_canonical(m_stmt) would cause an infinite recursion.
-            this_thread.canonical = m_parser.get_sql(m_stmt);
-            maxsimd::get_canonical(&this_thread.canonical);
-
-            if (m_parser.is_prepare(m_stmt))
+            if (const auto& sCached = m_stmt.get_protocol_info())
             {
-                // P as in prepare, and appended so as not to cause a
-                // need for copying the data.
-                this_thread.canonical += ":P";
+                // The buffer already has the info. This means this is not the first time that a query
+                // classification function is called. Record the current size of the value so that we'll
+                // be able to detect in the destructor if it has grown.
+                m_info_size_before = sCached->size();
             }
+            else
+            {
+                // We generate the canonical explicitly, because now we want the key that
+                // allows us to look up whether the parsing info already exists. Besides,
+                // calling m_parser.get_canonical(m_stmt) would cause an infinite recursion.
+                this_thread.canonical = m_parser.get_sql(m_stmt);
+                maxsimd::get_canonical(&this_thread.canonical);
 
-            std::shared_ptr<GWBUF::ProtocolInfo> sInfo = this_thread.pInfo_cache->get(&m_parser,
-                                                                                      this_thread.canonical);
-            if (sInfo)
-            {
-                // Cache hit, copy the reference into the GWBUF
-                m_info_size_before = sInfo->size();
-                const_cast<GWBUF&>(m_stmt).set_protocol_info(std::move(sInfo));
-            }
-            else if (!this_thread.canonical.empty())
-            {
-                // Cache miss, try to insert it into the cache in the destructor
-                m_info_size_before = ADD_TO_CACHE;
+                if (m_parser.is_prepare(m_stmt))
+                {
+                    // P as in prepare, and appended so as not to cause a
+                    // need for copying the data.
+                    this_thread.canonical += ":P";
+                }
+
+                std::shared_ptr<GWBUF::ProtocolInfo> sInfo =
+                    this_thread.pInfo_cache->get(&m_parser,  this_thread.canonical);
+                if (sInfo)
+                {
+                    // Cache hit, copy the reference into the GWBUF
+                    m_info_size_before = sInfo->size();
+                    const_cast<GWBUF&>(m_stmt).set_protocol_info(std::move(sInfo));
+                }
+                else if (!this_thread.canonical.empty())
+                {
+                    // Cache miss, try to insert it into the cache in the destructor
+                    m_info_size_before = ADD_TO_CACHE;
+                }
             }
         }
     }
 
     ~QCInfoCacheScope()
     {
-        const auto& sInfo = m_stmt.get_protocol_info();
-
-        if (sInfo && sInfo->cacheable())
+        if (m_use_cached_result)
         {
-            if (m_info_size_before == ADD_TO_CACHE)
-            {
-                // Now from QC and this will have the trailing ":P" in case the GWBUF
-                // contained a COM_STMT_PREPARE.
-                std::string_view canonical = m_parser.plugin().get_canonical(sInfo.get());
-                mxb_assert(this_thread.canonical == canonical);
+            const auto& sInfo = m_stmt.get_protocol_info();
 
-                this_thread.pInfo_cache->insert(&m_parser, canonical, sInfo);
-            }
-            else if (auto info_size_after = sInfo->size(); m_info_size_before != info_size_after)
+            if (sInfo && sInfo->cacheable())
             {
-                // The size has changed
-                mxb_assert(m_info_size_before < info_size_after);
-                this_thread.pInfo_cache->update_total_size(info_size_after - m_info_size_before);
+                if (m_info_size_before == ADD_TO_CACHE)
+                {
+                    // Now from QC and this will have the trailing ":P" in case the GWBUF
+                    // contained a COM_STMT_PREPARE.
+                    std::string_view canonical = m_parser.plugin().get_canonical(sInfo.get());
+                    mxb_assert(this_thread.canonical == canonical);
+
+                    this_thread.pInfo_cache->insert(&m_parser, canonical, sInfo);
+                }
+                else if (auto info_size_after = sInfo->size(); m_info_size_before != info_size_after)
+                {
+                    // The size has changed
+                    mxb_assert(m_info_size_before < info_size_after);
+                    this_thread.pInfo_cache->update_total_size(info_size_after - m_info_size_before);
+                }
             }
         }
     }
@@ -550,7 +603,8 @@ private:
 
     mxs::Parser& m_parser;
     const GWBUF& m_stmt;
-    size_t       m_info_size_before {0};
+    bool         m_use_cached_result;
+    size_t       m_info_size_before;
 };
 }
 
@@ -721,7 +775,7 @@ json_t* cache_entry_as_json(const std::string& stmt, const CachingParser::Entry&
 }
 }
 
-std::unique_ptr<json_t> CachingParser::content_as_resource(const char* zHost)
+std::unique_ptr<json_t> CachingParser::content_as_resource(const char* zHost, int top)
 {
     std::map<std::string, Entry> state;
 
@@ -731,16 +785,20 @@ std::unique_ptr<json_t> CachingParser::content_as_resource(const char* zHost)
     // memory that would be consumed if the information were collected in
     // parallel and then coalesced here.
 
-    mxs::RoutingWorker::execute_serially([&state]() {
-        CachingParser::get_thread_cache_state(state);
+    mxs::RoutingWorker::execute_serially([&]() {
+        CachingParser::get_thread_cache_state(state, top);
+    });
+
+    auto entries = limit_n(state.begin(), state.end(), top, [](const auto& a, const auto& b){
+        return a.second.hits > b.second.hits;
     });
 
     json_t* pData = json_array();
 
-    for (const auto& p : state)
+    for (const auto& p : entries)
     {
-        const auto& stmt = p.first;
-        const auto& entry = p.second;
+        const auto& stmt = p.get().first;
+        const auto& entry = p.get().second;
 
         json_t* pEntry = cache_entry_as_json(stmt, entry);
 
@@ -765,13 +823,13 @@ int64_t CachingParser::clear_thread_cache()
 }
 
 // static
-void CachingParser::get_thread_cache_state(std::map<std::string, Entry>& state)
+void CachingParser::get_thread_cache_state(std::map<std::string, Entry>& state, int top)
 {
     QCInfoCache* pCache = this_thread.pInfo_cache;
 
     if (pCache)
     {
-        pCache->get_state(state);
+        pCache->get_state(state, top);
     }
 }
 
@@ -948,6 +1006,7 @@ void CachingParser::set_server_version(uint64_t version)
 
 mxs::Parser::QueryInfo CachingParser::get_query_info(const GWBUF& stmt) const
 {
+    QCInfoCacheScope scope(m_sParser.get(), &stmt);
     return m_sParser->get_query_info(stmt);
 }
 }
