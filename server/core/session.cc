@@ -689,22 +689,37 @@ void MXS_SESSION::delay_routing(mxs::Routable* down, GWBUF&& buffer, std::chrono
             // epoll_wait() call. In this case we still proceed with the function call as it makes sure it's
             // delivered in all cases where the Routable in question is still alive.
             mxb_assert(state() == MXS_SESSION::State::STARTED || state() == MXS_SESSION::State::STOPPING);
+            bool reacquire = false;
 
-            if (!fn(std::move(*sbuf)))
+            try
             {
-                // Routing the query failed. Let parent component deal with it in handleError. This must
-                // currently be treated as a permanent error, otherwise it could result in an infinite
-                // retrying loop.
-                ref->endpoint().parent()->handleError(
-                    mxs::ErrorType::PERMANENT, "Failed to route query",
-                    const_cast<mxs::Endpoint*>(&ref->endpoint()), mxs::Reply {});
+                if (!fn(std::move(*sbuf)))
+                {
+                    // Routing the query failed. Let parent component deal with it in handleError. This must
+                    // currently be treated as a permanent error, otherwise it could result in an infinite
+                    // retrying loop.
+                    ref->endpoint().parent()->handleError(mxs::ErrorType::PERMANENT, "Failed to route query",
+                                                          const_cast<mxs::Endpoint*>(&ref->endpoint()),
+                                                          mxs::Reply {});
+                    reacquire = true;
+                }
+            }
+            catch (const mxb::Exception& e)
+            {
+                ref->endpoint().parent()->handleError(mxs::ErrorType::PERMANENT, e.what(),
+                                                      const_cast<mxs::Endpoint*>(&ref->endpoint()),
+                                                      mxs::Reply {});
+                reacquire = true;
+            }
 
+            if (reacquire)
+            {
                 // The reference must be freed and then acquired again to detect the case where the
                 // handleError closed this Routable.
                 ref.reset();
                 ref = weak_ref.lock();
             }
-
+            
             if (ref && !response.buffer.empty())
             {
                 // Something interrupted the routing and queued a response
@@ -1243,8 +1258,9 @@ bool Session::start()
 {
     bool rval = false;
 
-    if (m_down->connect())
+    try
     {
+        m_down->connect();
         rval = true;
         m_state = MXS_SESSION::State::STARTED;
 
@@ -1253,6 +1269,10 @@ bool Session::start()
                  !m_user.empty() ? m_user.c_str() : "<no user>",
                  m_client_conn->dcb()->remote().c_str(),
                  worker()->name());
+    }
+    catch (const mxb::Exception& e)
+    {
+        MXB_ERROR("%s", e.what());
     }
 
     return rval;
@@ -1407,12 +1427,16 @@ void Session::do_restart()
     }
     else
     {
-        auto down = static_cast<Service&>(*this->service).get_connection(this, this);
-
-        if (down->connect())
+        try
         {
+            auto down = static_cast<Service&>(*this->service).get_connection(this, this);
+            down->connect();
             m_down->close();
             m_down = std::move(down);
+        }
+        catch (const mxb::Exception& e)
+        {
+            MXB_ERROR("Failed to restart session: %s", e.what());
         }
     }
 
