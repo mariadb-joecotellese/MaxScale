@@ -93,7 +93,6 @@ MXS_SESSION::MXS_SESSION(const std::string& host, SERVICE* service)
     , m_host(host)
     , m_capabilities(service->capabilities() | RCAP_TYPE_REQUEST_TRACKING)
     , client_dcb(nullptr)
-    , stats{time(0)}
     , service(service)
     , refcount(1)
     , response{}
@@ -447,7 +446,8 @@ json_t* Session::as_json_resource(const char* host, bool rdns) const
     json_object_set_new(attr, "remote", json_string(result_address.c_str()));
     json_object_set_new(attr, "port", json_integer(client_dcb->port()));
 
-    json_object_set_new(attr, "connected", json_string(http_to_date(stats.connect).c_str()));
+    json_object_set_new(attr, "connected", json_string(http_to_date(m_connected).c_str()));
+    json_object_set_new(attr, "seconds_alive", json_real(mxb::to_secs(mxb::Clock::now() - m_started)));
 
     if (client_dcb->state() == DCB::State::POLLING)
     {
@@ -674,6 +674,9 @@ uint32_t session_get_session_trace()
 void MXS_SESSION::delay_routing(mxs::Routable* down, GWBUF&& buffer, std::chrono::milliseconds delay,
                                 std::function<bool(GWBUF &&)>&& fn)
 {
+    mxb_assert_message(down->endpoint().parent(),
+                       "delay_routing() must only be called from a non-root Component");
+
     auto sbuf = std::make_shared<GWBUF>(std::move(buffer));
     auto ref = down->endpoint().shared_from_this();
     auto cb = [this, fn, sbuf = std::move(sbuf), ref = std::move(ref)](mxb::Worker::Callable::Action action){
@@ -684,11 +687,14 @@ void MXS_SESSION::delay_routing(mxs::Routable* down, GWBUF&& buffer, std::chrono
 
             if (!fn(std::move(*sbuf)))
             {
-                // Routing failed, send a hangup to the client.
-                client_connection()->dcb()->trigger_hangup_event();
+                // Routing the query failed. Let parent component deal with it in handleError. This must
+                // currently be treated as a permanent error, otherwise it could result in an infinite
+                // retrying loop.
+                ref->parent()->handleError(mxs::ErrorType::PERMANENT, "Failed to route query",
+                                           const_cast<mxs::Endpoint*>(ref.get()), mxs::Reply {});
             }
 
-            if (!response.buffer.empty())
+            if (ref->is_open() && !response.buffer.empty())
             {
                 // Something interrupted the routing and queued a response
                 deliver_response();
@@ -737,10 +743,12 @@ const char* session_get_close_reason(const MXS_SESSION* session)
 }
 
 Session::Session(std::shared_ptr<const ListenerData> listener_data,
-                 std::shared_ptr<const ConnectionMetadata> metadata,
+                 std::shared_ptr<const mxs::ConnectionMetadata> metadata,
                  SERVICE* service, const std::string& host)
     : MXS_SESSION(host, service)
     , m_down(static_cast<Service&>(*service).get_connection(this, this))
+    , m_connected(time(0))
+    , m_started(mxb::Clock::now())
     , m_routable(this)
     , m_head(&m_routable)
     , m_tail(&m_routable)
@@ -791,6 +799,8 @@ Session::~Session()
             }
         }
     }
+
+    service->track_session_duration(mxb::Clock::now() - m_started);
 
     // dump_statements() above needs the client connection, which is owned by
     // the DCB, so delete the DCB as the last thing.

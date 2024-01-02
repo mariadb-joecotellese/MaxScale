@@ -132,15 +132,11 @@ set(MAXSCALE_CMAKE_FLAGS "$ENV{cmake_flags}")
 set(MAXSCALE_JENKINS_BUILD_TAG "$ENV{BUILD_TAG}")
 
 # Options enabled only in debug builds (a literal multi-line string)
-set(SERVICE_FILE_DEBUG_OPTIONS $<$<CONFIG:DEBUG>:LimitCORE=infinity>)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(SERVICE_FILE_DEBUG_OPTIONS "LimitCORE=infinity")
+endif()
 
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/server/include)
-configure_file(${CMAKE_SOURCE_DIR}/server/test/maxscale_test.h.in ${CMAKE_BINARY_DIR}/include/maxscale/maxscale_test.h @ONLY)
-configure_file(${CMAKE_SOURCE_DIR}/etc/postinst.in ${CMAKE_BINARY_DIR}/postinst @ONLY)
-configure_file(${CMAKE_SOURCE_DIR}/etc/prerm.in ${CMAKE_BINARY_DIR}/prerm @ONLY)
-configure_file(${CMAKE_SOURCE_DIR}/test/maxscale_test.cnf ${CMAKE_BINARY_DIR}/maxscale.cnf @ONLY)
-configure_file(${CMAKE_SOURCE_DIR}/etc/maxscale.conf.in ${CMAKE_BINARY_DIR}/maxscale.conf @ONLY)
-configure_file(${CMAKE_SOURCE_DIR}/etc/maxscale.service.in ${CMAKE_BINARY_DIR}/maxscale.service @ONLY)
 
 add_compile_options(-fno-omit-frame-pointer -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Wno-unused-variable -Wno-unused-function -Wno-unused-result -Wno-unused-but-set-variable -Werror=format-security -Werror -fPIC)
 
@@ -268,6 +264,14 @@ if(PACKAGE)
   include(CPack)
 endif()
 
+# Configure files that use CMake variables. Do this as the last step so that all modifications to the variables are done.
+configure_file(${CMAKE_SOURCE_DIR}/server/test/maxscale_test.h.in ${CMAKE_BINARY_DIR}/include/maxscale/maxscale_test.h @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/etc/postinst.in ${CMAKE_BINARY_DIR}/postinst @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/etc/prerm.in ${CMAKE_BINARY_DIR}/prerm @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/test/maxscale_test.cnf ${CMAKE_BINARY_DIR}/maxscale.cnf @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/etc/maxscale.conf.in ${CMAKE_BINARY_DIR}/maxscale.conf @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/etc/maxscale.service.in ${CMAKE_BINARY_DIR}/maxscale.service @ONLY)
+
 #
 # Custom targets for MaxScale
 #
@@ -281,13 +285,3 @@ configure_file(
 
 add_custom_target(uninstall
     COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
-
-# NOTE: If you make changes here, ensure they are compatible with the
-#       situation in paths.h.in.
-if (NOT PACKAGE)
-  install(DIRECTORY DESTINATION var/cache/maxscale)
-  install(DIRECTORY DESTINATION var/log/maxscale)
-  install(DIRECTORY DESTINATION var/run/maxscale)
-  install(DIRECTORY DESTINATION var/lib/maxscale)
-  install(DIRECTORY DESTINATION ${DEFAULT_MODULE_CONFIG_SUBPATH})
-endif()

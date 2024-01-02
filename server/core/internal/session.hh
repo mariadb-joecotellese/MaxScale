@@ -130,7 +130,7 @@ public:
     using FilterList = std::vector<SessionFilter>;
 
     Session(std::shared_ptr<const mxs::ListenerData> listener_data,
-            std::shared_ptr<const ConnectionMetadata> metadata,
+            std::shared_ptr<const mxs::ConnectionMetadata> metadata,
             SERVICE* service, const std::string& host);
     ~Session();
 
@@ -354,7 +354,7 @@ public:
 
     size_t varying_size() const override final;
 
-    const ConnectionMetadata& connection_metadata() const override final
+    const mxs::ConnectionMetadata& connection_metadata() const override final
     {
         mxb_assert(m_metadata);
         return *m_metadata;
@@ -363,6 +363,11 @@ public:
     bool is_enabled() const
     {
         return m_enabled;
+    }
+
+    mxs::Component* parent() const override
+    {
+        return nullptr;
     }
 
 protected:
@@ -424,6 +429,9 @@ private:
 
     MXB_AT_DEBUG(bool m_routing {false});
 
+    const time_t                 m_connected;   // System time when the session was started
+    const mxb::Clock::time_point m_started;     // Steady clock time for measuring durations
+
     FilterList        m_filters;
     SessionVarsByName m_variables;
     QueryInfos        m_last_queries;           /*< The N last queries by the client */
@@ -467,7 +475,7 @@ private:
     // Various listener-specific data the session needs. Ownership shared with the listener that
     // created this session.
     std::shared_ptr<const mxs::ListenerData>  m_listener_data;
-    std::shared_ptr<const ConnectionMetadata> m_metadata;
+    std::shared_ptr<const mxs::ConnectionMetadata> m_metadata;
 
     static const int N_LOAD = 30;   // Last 30 seconds.
 

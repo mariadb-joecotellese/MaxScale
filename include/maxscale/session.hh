@@ -20,6 +20,7 @@
 #include <maxbase/json.hh>
 #include <maxscale/dcb.hh>
 #include <maxscale/buffer.hh>
+#include <maxscale/connection_metadata.hh>
 #include <maxscale/routing.hh>
 #include <maxscale/registry.hh>
 
@@ -38,14 +39,6 @@ typedef enum
     SESSION_DUMP_STATEMENTS_ON_CLOSE,
     SESSION_DUMP_STATEMENTS_ON_ERROR,
 } session_dump_statements_t;
-
-/**
- * The session statistics structure
- */
-typedef struct
-{
-    time_t connect;         /**< Time when the session was started */
-} MXS_SESSION_STATS;
 
 /**
  * The downstream element in the filter chain. This may refer to
@@ -217,7 +210,6 @@ public:
     };
 
     using BackendConnectionVector = std::vector<mxs::BackendConnection*>;
-    using ConnectionMetadata = std::map<std::string, std::string>;
 
     // RAII class for managing the currently active session
     class Scope
@@ -555,7 +547,7 @@ public:
         return static_size() + varying_size();
     }
 
-    virtual const ConnectionMetadata& connection_metadata() const = 0;
+    virtual const mxs::ConnectionMetadata& connection_metadata() const = 0;
 
 protected:
     State                    m_state;   /**< Current descriptor state */
@@ -571,10 +563,8 @@ protected:
 public:
 
     ClientDCB* client_dcb;      /*< The client connection */
-
-    MXS_SESSION_STATS stats;                    /*< Session statistics */
-    SERVICE*          service;                  /*< The service this session is using */
-    int               refcount;                 /*< Reference count on the session */
+    SERVICE*   service;         /*< The service this session is using */
+    int        refcount;        /*< Reference count on the session */
 
     struct
     {

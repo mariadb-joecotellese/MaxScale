@@ -53,7 +53,7 @@ config::ParamEnum<failure_mode> s_master_failure_mode(
         {RW_FAIL_INSTANTLY, "fail_instantly"},
         {RW_FAIL_ON_WRITE, "fail_on_write"},
         {RW_ERROR_ON_WRITE, "error_on_write"}
-    }, RW_FAIL_INSTANTLY, config::Param::AT_RUNTIME);
+    }, RW_FAIL_ON_WRITE, config::Param::AT_RUNTIME);
 
 config::ParamEnum<CausalReads> s_causal_reads(
     &s_spec, "causal_reads", "Causal reads mode",
@@ -105,7 +105,7 @@ config::ParamBool s_strict_sp_calls(
 
 config::ParamBool s_strict_tmp_tables(
     &s_spec, "strict_tmp_tables", "Prevent reconnections if temporary tables exist",
-    false, config::Param::AT_RUNTIME);
+    true, config::Param::AT_RUNTIME);
 
 config::ParamBool s_master_accept_reads(
     &s_spec, "master_accept_reads", "Use master for reads",
@@ -117,7 +117,7 @@ config::ParamSeconds s_causal_reads_timeout(
 
 config::ParamBool s_master_reconnection(
     &s_spec, "master_reconnection", "Reconnect to master",
-    false, config::Param::AT_RUNTIME);
+    true, config::Param::AT_RUNTIME);
 
 config::ParamBool s_delayed_retry(
     &s_spec, "delayed_retry", "Retry failed writes outside of transactions",
@@ -137,7 +137,7 @@ config::ParamSize s_transaction_replay_max_size(
 
 config::ParamSeconds s_transaction_replay_timeout(
     &s_spec, "transaction_replay_timeout", "Timeout for transaction replay",
-    0s, config::Param::AT_RUNTIME);
+    30s, config::Param::AT_RUNTIME);
 
 config::ParamCount s_transaction_replay_attempts(
     &s_spec, "transaction_replay_attempts", "Maximum number of times to retry a transaction",
@@ -421,21 +421,17 @@ bool RWSConfig::post_configure(const std::map<std::string, mxs::ConfigParameters
         m_v.master_failure_mode = RW_FAIL_ON_WRITE;
     }
 
-    bool rval = true;
-
     if (m_v.master_reconnection && m_service->config()->disable_sescmd_history)
     {
-        MXB_ERROR("Both 'master_reconnection' and 'disable_sescmd_history' are enabled: "
-                  "Primary reconnection cannot be done without session command history.");
-        rval = false;
-    }
-    else
-    {
-        // Configuration is OK, assign it to the shared value
-        m_values.assign(m_v);
+        MXB_WARNING("Disabling 'master_reconnection' because 'disable_sescmd_history' is enabled: "
+                    "Primary reconnection cannot be done without session command history.");
+        m_v.master_reconnection = false;
     }
 
-    return rval;
+    // Configuration is OK, assign it to the shared value
+    m_values.assign(m_v);
+
+    return true;
 }
 
 /**

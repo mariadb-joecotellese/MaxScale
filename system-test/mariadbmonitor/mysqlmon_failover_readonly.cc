@@ -110,7 +110,7 @@ void test_main(TestConnections& test)
     {
         // Some of the following tests depend on manipulating backends during the same monitor tick or
         // between ticks. Slow down the monitor to make this more likely. Not fool-proof in the slightest.
-        test.check_maxctrl("alter monitor MariaDB-Monitor monitor_interval 4000ms");
+        test.check_maxctrl("alter monitor MariaDB-Monitor monitor_interval=4000ms");
 
         test.tprintf("Step 5: Master crashes but comes back during the next loop,"
                      " slave 1 should be promoted, old master rejoined.");
@@ -164,5 +164,6 @@ void test_main(TestConnections& test)
         repl.backend(i)->admin_connection()->cmd(drop_query);
     }
     test.maxctrl("call command mariadbmon reset-replication MariaDB-Monitor server1");
+    mon_wait(1);
     mxs.check_print_servers_status({master, slave, slave});
 }

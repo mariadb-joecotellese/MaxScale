@@ -8,8 +8,9 @@
 #
 # Test run customization:
 #
-# NUMCPU:        The number of parallel build jobs to use.
-# SKIP_SHUTDOWN: If set, leaves the docker-compose setup up.
+# NUMCPU:                  The number of parallel build jobs to use.
+# SKIP_SHUTDOWN:           If set, leaves the docker-compose setup up.
+# MXS_EXTRA_CMAKE_OPTIONS: Extra CMake options passed to the configuration step
 #
 if [ $# -lt 3 ]
 then
@@ -76,25 +77,16 @@ export UBSAN_OPTIONS=abort_on_error=1:print_stacktrace=1
 # Configure and install MaxScale
 cd $maxscaledir
 cmake $srcdir -DCMAKE_BUILD_TYPE=Debug \
-      -DCMAKE_INSTALL_PREFIX=$maxscaledir \
-      -DBUILD_TESTS=N \
       -DWITH_ASAN=Y \
       -DWITH_UBSAN=Y \
+      -DCMAKE_INSTALL_PREFIX=$maxscaledir \
+      -DDEFAULT_CONFIGSUBDIR=$maxscaledir \
+      -DDEFAULT_SYSTEMD_CONFIGDIR=$maxscaledir \
+      -DDEFAULT_MODULE_CONFIGDIR=$maxscaledir \
       -DMAXSCALE_VARDIR=$maxscaledir \
       -DWITH_SCRIPTS=N \
       -DWITH_MAXSCALE_CNF=N \
-      -DBUILD_KAFKACDC=N \
-      -DBUILD_KAFKAIMPORTER=N \
-      -DBUILD_MIRROR=N \
-      -DBUILD_STORAGE_MEMCACHED=N \
-      -DBUILD_STORAGE_REDIS=N \
-      -DBUILD_GUI=N \
-      -DBUILD_BINLOG=N \
-      -DBUILD_GSSAPI=N \
-      -DBUILD_TOOLS=N \
-      -DBUILD_NOSQL=N \
-      -DBUILD_MAXCTRL=N \
-      -DBUILD_CDC=N || exit 1
+      $MXS_EXTRA_CMAKE_OPTIONS || exit 1
 
 make -j $NUMCPU install || exit 1
 
@@ -102,6 +94,7 @@ make -j $NUMCPU install || exit 1
 mkdir -p -m 0755 $maxscaledir/{lib,lib64,share,log,cache,run}/maxscale
 mkdir -p -m 0755 $maxscaledir/bin
 mkdir -p -m 0755 $maxscaledir/share/doc/MaxScale/maxscale
+mkdir -p -m 0755 $maxscaledir/etc/{maxscale.cnf.d,maxscale.modules.d}
 
 # This variable is used to start and stop MaxScale before each test
 export MAXSCALE_DIR=$maxscaledir
