@@ -27,16 +27,21 @@ ComparatorMainBackend::SResult ComparatorMainBackend::prepare(const std::string&
 
 void ComparatorOtherBackend::prepare(const ComparatorMainBackend::SResult& sMain_result)
 {
-    auto sOther_result = std::make_shared<ComparatorOtherResult>(this, sMain_result);
+    // std::make_shared can't be used, because the private ComparatorOtherResult::Handler base is inaccessible.
+    auto sOther_result = std::shared_ptr<ComparatorOtherResult>(new ComparatorOtherResult(this, this, sMain_result));
 
     m_results.emplace_back(std::move(sOther_result));
 }
 
 void ComparatorOtherBackend::ready(const ComparatorOtherResult& other_result)
 {
-    if (m_pResult_handler)
+    Action action = CONTINUE;
+
+    if (m_pHandler)
     {
-        m_pResult_handler->ready(other_result);
+        action = m_pHandler->ready(other_result);
+
+        mxb_assert_message(action != EXPLAIN, "There is some explaining to do.");
     }
 }
 

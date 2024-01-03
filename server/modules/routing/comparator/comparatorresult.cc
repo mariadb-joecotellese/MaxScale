@@ -52,8 +52,10 @@ void ComparatorMainResult::close(const mxs::Reply& reply)
  */
 
 ComparatorOtherResult::ComparatorOtherResult(ComparatorOtherBackend* pBackend,
+                                             Handler* pHandler,
                                              std::shared_ptr<ComparatorMainResult> sMain_result)
     : ComparatorResult(pBackend)
+    , m_handler(*pHandler)
     , m_sMain_result(sMain_result)
 {
     m_sMain_result->add_dependent(this);
@@ -71,7 +73,7 @@ void ComparatorOtherResult::close(const mxs::Reply& reply)
 
     if (m_sMain_result->closed())
     {
-        static_cast<ComparatorOtherBackend&>(backend()).ready(*this);
+        m_handler.ready(*this);
     }
 }
 
@@ -79,6 +81,6 @@ void ComparatorOtherResult::main_was_closed()
 {
     if (closed())
     {
-        static_cast<ComparatorOtherBackend&>(backend()).ready(*this);
+        m_handler.ready(*this);
     }
 }

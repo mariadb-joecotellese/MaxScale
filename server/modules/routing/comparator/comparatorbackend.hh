@@ -95,26 +95,40 @@ private:
 };
 
 class ComparatorOtherBackend final : public ConcreteComparatorBackend<ComparatorOtherResult>
-                                   , public ComparatorOtherResult::Handler
+                                   , private ComparatorOtherResult::Handler
 
 {
 public:
+    enum Action
+    {
+        CONTINUE,
+        EXPLAIN
+    };
+
+    class Handler
+    {
+    public:
+        virtual Action ready(const ComparatorOtherResult& other_result) = 0;
+    };
+
     ComparatorOtherBackend(mxs::Endpoint* pEndpoint)
         : ConcreteComparatorBackend<ComparatorOtherResult>(pEndpoint)
     {
     }
 
-    void set_result_handler(ComparatorOtherResult::Handler* pResult_handler)
+    void set_result_handler(Handler* pHandler)
     {
-        m_pResult_handler = pResult_handler;
+        m_pHandler = pHandler;
     }
 
     void prepare(const ComparatorMainBackend::SResult& sMain_result);
 
+private:
+    // ComparatorOtherResult::Handler
     void ready(const ComparatorOtherResult& other_result) override;
 
 private:
-    ComparatorOtherResult::Handler* m_pResult_handler { nullptr };
+    Handler* m_pHandler { nullptr };
 };
 
 namespace comparator

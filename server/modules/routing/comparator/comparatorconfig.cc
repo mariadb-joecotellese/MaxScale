@@ -41,6 +41,16 @@ namespace comparator
 
 Specification specification(MXB_MODULE_NAME, config::Specification::ROUTER);
 
+config::ParamPercent explain_difference(
+    &specification,
+    "explain_difference",
+    "Execution time difference, specified in percent, between the main and an other server "
+    "that triggers an EXPLAIN on the statement on the other.",
+    0, // Default
+    0, // Min
+    std::numeric_limits<config::ParamCount::value_type>::max(), // Max
+    config::Param::AT_RUNTIME);
+
 config::ParamEnum<ExporterType> exporter(
     &specification, "exporter", "Exporter to use",
     {
@@ -142,7 +152,9 @@ ComparatorConfig::ComparatorConfig(const char* zName, ComparatorRouter* pInstanc
     add_native(&ComparatorConfig::kafka_broker, &comparator::kafka_broker);
     add_native(&ComparatorConfig::kafka_topic, &comparator::kafka_topic);
     add_native(&ComparatorConfig::pService, &comparator::service);
+
     add_native(&ComparatorConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
+    add_native(&ComparatorConfig::explain_difference, &comparator::explain_difference);
 }
 
 bool ComparatorConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)

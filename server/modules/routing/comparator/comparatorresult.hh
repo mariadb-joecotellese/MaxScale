@@ -144,6 +144,7 @@ public:
     };
 
     ComparatorOtherResult(ComparatorOtherBackend* pBackend,
+                          Handler* pHandler,
                           std::shared_ptr<ComparatorMainResult> sMain_result);
 
     ~ComparatorOtherResult();
@@ -162,5 +163,6 @@ private:
     void main_was_closed();
 
 private:
+    Handler&                              m_handler;
     std::shared_ptr<ComparatorMainResult> m_sMain_result;
 };

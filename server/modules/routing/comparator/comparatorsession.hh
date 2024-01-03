@@ -16,7 +16,7 @@
 class ComparatorRouter;
 
 class ComparatorSession final : public mxs::RouterSession
-                              , private ComparatorOtherResult::Handler
+                              , private ComparatorOtherBackend::Handler
 {
 public:
     ComparatorSession(const ComparatorSession&) = delete;
@@ -35,11 +35,10 @@ public:
                      mxs::Endpoint* pProblem, const mxs::Reply& reply) override;
 
 private:
-    // ComparatorOtherResult::Handler
-    void ready(const ComparatorOtherResult& other_result) override;
+    // ComparatorOtherBackend::Handler
+    ComparatorOtherBackend::Action ready(const ComparatorOtherResult& other_result) override;
 
 private:
-    bool should_report(const ComparatorOtherResult& other_result) const;
     void generate_report(const ComparatorOtherResult& result);
     json_t* generate_json(const ComparatorResult& result);
 

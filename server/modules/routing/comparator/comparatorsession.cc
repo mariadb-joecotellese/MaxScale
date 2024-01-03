@@ -20,12 +20,10 @@ bool is_checksum_discrepancy(const ComparatorResult& result, const std::string& 
 }
 
 // TODO: milliseconds is too coarse.
-bool is_execution_time_discrepancy(const ComparatorResult& result,
+bool is_execution_time_discrepancy(const std::chrono::milliseconds& duration,
                                    const std::chrono::milliseconds& min,
                                    const std::chrono::milliseconds& max)
 {
-    auto duration = result.duration();
-
     return duration < min || duration > max;
 }
 
@@ -131,38 +129,48 @@ bool ComparatorSession::handleError(mxs::ErrorType type,
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
-void ComparatorSession::ready(const ComparatorOtherResult& other_result)
-{
-    if (should_report(other_result))
-    {
-        generate_report(other_result);
-    }
-}
-
-bool ComparatorSession::should_report(const ComparatorOtherResult& other_result) const
+ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherResult& other_result)
 {
     auto& config = m_router.config();
+
+    const auto& main_result = other_result.main_result();
+    std::chrono::milliseconds main_duration = main_result.duration();
+    std::chrono::milliseconds delta = (main_duration * config.max_execution_time_difference) / 100;
+    std::chrono::milliseconds other_duration = other_result.duration();
+
     auto report = config.report.get();
 
-    bool rv = (report == ReportAction::REPORT_ALWAYS);
-
-    if (!rv)
+    if (report != ReportAction::REPORT_ALWAYS)
     {
-        const auto& main_result = other_result.main_result();
         std::string main_checksum = main_result.checksum().hex();
 
-        std::chrono::milliseconds main_duration = main_result.duration();
-        std::chrono::milliseconds delta = (main_duration * config.max_execution_time_difference) / 100;
         std::chrono::milliseconds min_duration = main_duration - delta;
         std::chrono::milliseconds max_duration = main_duration + delta;
 
         if (is_checksum_discrepancy(other_result, main_checksum))
         {
-            rv = true;
+            report = ReportAction::REPORT_ALWAYS;
         }
-        else if (is_execution_time_discrepancy(other_result, min_duration, max_duration))
+        else if (is_execution_time_discrepancy(other_duration, min_duration, max_duration))
         {
-            rv = true;
+            report = ReportAction::REPORT_ALWAYS;
+        }
+    }
+
+    if (report == ReportAction::REPORT_ALWAYS)
+    {
+        generate_report(other_result);
+    }
+
+    ComparatorOtherBackend::Action rv = ComparatorOtherBackend::CONTINUE;
+
+    if (config.explain_difference != 0)
+    {
+        delta = (main_duration * config.max_execution_time_difference) / 100;
+
+        if (other_duration > main_duration + delta)
+        {
+            rv = ComparatorOtherBackend::EXPLAIN;
         }
     }
 
