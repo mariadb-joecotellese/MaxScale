@@ -9,9 +9,10 @@
 #include <deque>
 #include <vector>
 #include <memory>
-#include <maxscale/backend.hh>
-#include <maxscale/router.hh>
 #include <maxbase/checksum.hh>
+#include <maxscale/backend.hh>
+#include <maxscale/parser.hh>
+#include <maxscale/router.hh>
 #include "comparatorresult.hh"
 
 class ComparatorMainBackend;
@@ -25,18 +26,24 @@ class ComparatorBackend : public mxs::Backend
 public:
     using mxs::Backend::Backend;
 
+    void set_parser_helper(const mxs::Parser::Helper* pHelper)
+    {
+        m_pParser_helper = pHelper;
+    }
+
     bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override;
 
-    bool large_payload_in_process() const
+    bool multi_part_in_process() const
     {
-        return m_large_payload_in_process;
+        return m_multi_part_in_process;
     }
 
     virtual void process_result(const GWBUF& buffer) = 0;
     virtual void finish_result(const mxs::Reply& reply) = 0;
 
 private:
-    bool m_large_payload_in_process { false };
+    const mxs::Parser::Helper* m_pParser_helper { nullptr };
+    bool                       m_multi_part_in_process { false };
 };
 
 template<typename R>
@@ -87,7 +94,7 @@ class ComparatorMainBackend final : public ConcreteComparatorBackend<ComparatorM
 public:
     using ConcreteComparatorBackend<ComparatorMainResult>::ConcreteComparatorBackend;
 
-    SResult prepare(const std::string& sql, uint8_t command);
+    SResult prepare(std::string_view sql, uint8_t command);
 
     const std::string& sql() const
     {
@@ -121,10 +128,7 @@ public:
         virtual Action ready(const ComparatorOtherResult& other_result) = 0;
     };
 
-    ComparatorOtherBackend(mxs::Endpoint* pEndpoint)
-        : ConcreteComparatorBackend<ComparatorOtherResult>(pEndpoint)
-    {
-    }
+    using ConcreteComparatorBackend<ComparatorOtherResult>::ConcreteComparatorBackend;
 
     void set_result_handler(Handler* pHandler)
     {

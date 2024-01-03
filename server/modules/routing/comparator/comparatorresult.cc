@@ -26,7 +26,7 @@ void ComparatorResult::close(const mxs::Reply& reply)
  * ComparatorMainResult
  */
 ComparatorMainResult::ComparatorMainResult(ComparatorMainBackend* pBackend,
-                                           const std::string& sql,
+                                           std::string_view sql,
                                            uint8_t command)
     : ComparatorResult(pBackend)
     , m_sql(sql)

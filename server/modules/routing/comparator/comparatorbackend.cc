@@ -14,13 +14,15 @@
  */
 bool ComparatorBackend::write(GWBUF&& buffer, response_type type)
 {
-    bool large_payload = (buffer.length() == MYSQL_PACKET_LENGTH_MAX);
+    mxb_assert(m_pParser_helper);
+
+    bool multi_part = m_pParser_helper->is_multi_part_packet(buffer);
 
     bool rv = Backend::write(std::move(buffer), type);
 
     if (rv)
     {
-        m_large_payload_in_process = large_payload;
+        m_multi_part_in_process = multi_part;
     }
 
     return rv;
@@ -31,7 +33,7 @@ bool ComparatorBackend::write(GWBUF&& buffer, response_type type)
  * ComparatorMainBackend
  */
 
-ComparatorMainBackend::SResult ComparatorMainBackend::prepare(const std::string& sql, uint8_t command)
+ComparatorMainBackend::SResult ComparatorMainBackend::prepare(std::string_view sql, uint8_t command)
 {
     auto sMain_result = std::make_shared<ComparatorMainResult>(this, sql, command);
 

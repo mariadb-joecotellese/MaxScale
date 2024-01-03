@@ -37,8 +37,13 @@ ComparatorSession::ComparatorSession(MXS_SESSION* pSession,
     , m_others(std::move(others))
     , m_router(*pRouter)
 {
+    const auto& ph = parser().helper();
+
+    m_sMain->set_parser_helper(&ph);
+
     for (auto& sOther : m_others)
     {
+        sOther->set_parser_helper(&ph);
         sOther->set_result_handler(this);
     }
 }
@@ -49,7 +54,7 @@ bool ComparatorSession::routeQuery(GWBUF&& packet)
 
     if (m_sMain->in_use())
     {
-        bool expecting_response = m_sMain->large_payload_in_process() ? false : protocol_data().will_respond(packet);
+        bool expecting_response = m_sMain->multi_part_in_process() ? false : protocol_data().will_respond(packet);
         mxs::Backend::response_type type = expecting_response
             ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::NO_RESPONSE;
 
@@ -57,7 +62,8 @@ bool ComparatorSession::routeQuery(GWBUF&& packet)
 
         if (type != mxs::Backend::NO_RESPONSE)
         {
-            sMain_result = m_sMain->prepare(get_sql_string(packet), mxs_mysql_get_command(packet));
+            auto& ph = parser().helper();
+            sMain_result = m_sMain->prepare(ph.get_sql(packet), ph.get_command(packet));
         }
 
         if (m_sMain->write(packet.shallow_clone(), type))

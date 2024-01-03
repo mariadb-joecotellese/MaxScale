@@ -94,7 +94,7 @@ class ComparatorOtherResult;
 class ComparatorMainResult final : public ComparatorResult
 {
 public:
-    ComparatorMainResult(ComparatorMainBackend* pBackend, const std::string& sql, uint8_t command);
+    ComparatorMainResult(ComparatorMainBackend* pBackend, std::string_view sql, uint8_t command);
 
     ~ComparatorMainResult() override = default;
 
