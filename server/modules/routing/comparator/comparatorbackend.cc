@@ -5,7 +5,26 @@
  */
 
 #include "comparatorbackend.hh"
+#include <maxscale/protocol/mariadb/mysql.hh>
 #include "comparatorresult.hh"
+
+
+/**
+ * ComparatorBackend
+ */
+bool ComparatorBackend::write(GWBUF&& buffer, response_type type)
+{
+    bool large_payload = (buffer.length() == MYSQL_PACKET_LENGTH_MAX);
+
+    bool rv = Backend::write(std::move(buffer), type);
+
+    if (rv)
+    {
+        m_large_payload_in_process = large_payload;
+    }
+
+    return rv;
+}
 
 
 /**

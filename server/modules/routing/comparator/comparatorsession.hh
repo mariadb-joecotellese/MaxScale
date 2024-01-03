@@ -47,6 +47,4 @@ private:
     int                      m_responses = 0;
     ComparatorRouter&        m_router;
     uint64_t                 m_num_queries = 0;
-    bool                     m_large_payload { false };
-
 };
