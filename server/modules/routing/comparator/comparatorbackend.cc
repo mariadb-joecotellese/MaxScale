@@ -37,9 +37,9 @@ ComparatorMainBackend::SResult ComparatorMainBackend::prepare(std::string_view s
 {
     auto sMain_result = std::make_shared<ComparatorMainResult>(this, sql, command);
 
-    m_results.emplace_back(std::move(sMain_result));
+    m_results.push_back(sMain_result);
 
-    return m_results.back();
+    return sMain_result;
 }
 
 /**

@@ -26,6 +26,9 @@ class ComparatorBackend : public mxs::Backend
 public:
     using mxs::Backend::Backend;
 
+    using Result = ComparatorResult;
+    using SResult = std::shared_ptr<Result>;
+
     void set_parser_helper(const mxs::Parser::Helper* pHelper)
     {
         m_pParser_helper = pHelper;
@@ -38,34 +41,19 @@ public:
         return m_multi_part_in_process;
     }
 
-    virtual void process_result(const GWBUF& buffer) = 0;
-    virtual void finish_result(const mxs::Reply& reply) = 0;
-
-private:
-    const mxs::Parser::Helper* m_pParser_helper { nullptr };
-    bool                       m_multi_part_in_process { false };
-};
-
-template<typename R>
-class ConcreteComparatorBackend : public ComparatorBackend
-{
-public:
-    using Result = R;
-    using SResult = std::shared_ptr<Result>;
-
-    void process_result(const GWBUF& buffer) override
+    void process_result(const GWBUF& buffer)
     {
         mxb_assert(!m_results.empty());
 
         m_results.front()->update_checksum(buffer);
     }
 
-    void finish_result(const mxs::Reply& reply) override
+    void finish_result(const mxs::Reply& reply)
     {
         mxb_assert(reply.is_complete());
         mxb_assert(!m_results.empty());
 
-        SResult sResult = std::move(m_results.front());
+        auto sResult = std::move(m_results.front());
         m_results.pop_front();
 
         sResult->close(reply);
@@ -84,15 +72,18 @@ public:
     }
 
 protected:
-    using ComparatorBackend::ComparatorBackend;
-
-    std::deque<SResult> m_results;
+    const mxs::Parser::Helper* m_pParser_helper { nullptr };
+    bool                       m_multi_part_in_process { false };
+    std::deque<SResult>        m_results;
 };
 
-class ComparatorMainBackend final : public ConcreteComparatorBackend<ComparatorMainResult>
+class ComparatorMainBackend final : public ComparatorBackend
 {
 public:
-    using ConcreteComparatorBackend<ComparatorMainResult>::ConcreteComparatorBackend;
+    using ComparatorBackend::ComparatorBackend;
+
+    using Result = ComparatorMainResult;
+    using SResult = std::shared_ptr<Result>;
 
     SResult prepare(std::string_view sql, uint8_t command);
 
@@ -111,7 +102,7 @@ private:
     uint8_t     m_command;
 };
 
-class ComparatorOtherBackend final : public ConcreteComparatorBackend<ComparatorOtherResult>
+class ComparatorOtherBackend final : public ComparatorBackend
                                    , private ComparatorOtherResult::Handler
 
 {
@@ -128,7 +119,10 @@ public:
         virtual Action ready(const ComparatorOtherResult& other_result) = 0;
     };
 
-    using ConcreteComparatorBackend<ComparatorOtherResult>::ConcreteComparatorBackend;
+    using ComparatorBackend::ComparatorBackend;
+
+    using Result = ComparatorOtherResult;
+    using SResult = std::shared_ptr<Result>;
 
     void set_result_handler(Handler* pHandler)
     {
