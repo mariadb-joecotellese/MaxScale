@@ -6,6 +6,7 @@
 #pragma once
 
 #include "comparatordefs.hh"
+#include <memory>
 #include <maxbase/checksum.hh>
 #include <maxscale/target.hh>
 
@@ -89,6 +90,7 @@ private:
     mxs::Reply         m_reply;
 };
 
+
 class ComparatorOtherResult;
 
 class ComparatorMainResult final : public ComparatorResult
@@ -134,7 +136,9 @@ private:
     std::set<ComparatorOtherResult*> m_dependents;
 };
 
+
 class ComparatorOtherResult final : public ComparatorResult
+                                  , public std::enable_shared_from_this<ComparatorOtherResult>
 {
 public:
     class Handler
@@ -165,4 +169,30 @@ private:
 private:
     Handler&                              m_handler;
     std::shared_ptr<ComparatorMainResult> m_sMain_result;
+};
+
+
+class ComparatorExplainResult final : public ComparatorResult
+{
+public:
+    class Handler
+    {
+    public:
+        virtual void ready(const ComparatorExplainResult& explain_result) = 0;
+    };
+
+    ComparatorExplainResult(Handler* pHandler,
+                            std::shared_ptr<const ComparatorOtherResult> sOther_result);
+
+    const ComparatorOtherResult& other_result() const
+    {
+        mxb_assert(m_sOther_result);
+        return *m_sOther_result.get();
+    }
+
+    void close(const mxs::Reply& reply) override;
+
+private:
+    Handler&                                     m_handler;
+    std::shared_ptr<const ComparatorOtherResult> m_sOther_result;
 };

@@ -84,3 +84,23 @@ void ComparatorOtherResult::main_was_closed()
         m_handler.ready(*this);
     }
 }
+
+
+/**
+ * ComparatorExplainResult
+ */
+
+ComparatorExplainResult::ComparatorExplainResult(Handler* pHandler,
+                                                 std::shared_ptr<const ComparatorOtherResult> sOther_result)
+    : ComparatorResult(&sOther_result->backend())
+    , m_handler(*pHandler)
+    , m_sOther_result(sOther_result)
+{
+}
+
+void ComparatorExplainResult::close(const mxs::Reply& reply)
+{
+    ComparatorResult::close(reply);
+
+    m_handler.ready(*this);
+}

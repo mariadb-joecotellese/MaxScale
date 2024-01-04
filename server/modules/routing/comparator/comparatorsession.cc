@@ -54,7 +54,8 @@ bool ComparatorSession::routeQuery(GWBUF&& packet)
 
     if (m_sMain->in_use())
     {
-        bool expecting_response = m_sMain->multi_part_in_process() ? false : protocol_data().will_respond(packet);
+        bool expecting_response = m_sMain->multi_part_in_process()
+            ? false : protocol_data().will_respond(packet);
         mxs::Backend::response_type type = expecting_response
             ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::NO_RESPONSE;
 
@@ -165,9 +166,10 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
         generate_report(other_result);
     }
 
-    ComparatorOtherBackend::Action rv = ComparatorOtherBackend::CONTINUE;
+    ComparatorOtherBackend::Action rv = report == ReportAction::REPORT_ALWAYS
+        ? ComparatorOtherBackend::EXPLAIN : ComparatorOtherBackend::CONTINUE;
 
-    if (config.explain_difference != 0)
+    if (rv == ComparatorOtherBackend::CONTINUE && config.explain_difference != 0)
     {
         delta = (main_duration * config.max_execution_time_difference) / 100;
 
@@ -178,6 +180,12 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
     }
 
     return rv;
+}
+
+void ComparatorSession::ready(const ComparatorExplainResult& explain_result)
+{
+    MXB_NOTICE("EXPLAIN");
+    // TODO: Log EXPLAIN result.
 }
 
 void ComparatorSession::generate_report(const ComparatorOtherResult& other_result)

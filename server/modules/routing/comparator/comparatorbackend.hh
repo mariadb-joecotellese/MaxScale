@@ -72,6 +72,13 @@ public:
     }
 
 protected:
+    const mxs::Parser::Helper& ph() const
+    {
+        mxb_assert(m_pParser_helper);
+        return *m_pParser_helper;
+    }
+
+protected:
     const mxs::Parser::Helper* m_pParser_helper { nullptr };
     bool                       m_multi_part_in_process { false };
     std::deque<SResult>        m_results;
@@ -104,6 +111,7 @@ private:
 
 class ComparatorOtherBackend final : public ComparatorBackend
                                    , private ComparatorOtherResult::Handler
+                                   , private ComparatorExplainResult::Handler
 
 {
 public:
@@ -117,6 +125,7 @@ public:
     {
     public:
         virtual Action ready(const ComparatorOtherResult& other_result) = 0;
+        virtual void ready(const ComparatorExplainResult& explain_result) = 0;
     };
 
     using ComparatorBackend::ComparatorBackend;
@@ -134,6 +143,9 @@ public:
 private:
     // ComparatorOtherResult::Handler
     void ready(const ComparatorOtherResult& other_result) override;
+
+    // ComparatorExplainResult::Handler
+    void ready(const ComparatorExplainResult& other_result) override;
 
 private:
     Handler* m_pHandler { nullptr };
