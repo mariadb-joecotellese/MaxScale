@@ -5,6 +5,7 @@
  */
 
 #include "comparatorresult.hh"
+#include <vector>
 #include "comparatorbackend.hh"
 
 /**
@@ -12,6 +13,12 @@
  */
 ComparatorResult::~ComparatorResult()
 {
+}
+
+void ComparatorResult::process(const GWBUF& buffer)
+{
+    mxb_assert(!closed());
+    m_checksum.update(buffer);
 }
 
 void ComparatorResult::close(const mxs::Reply& reply)
@@ -102,5 +109,27 @@ void ComparatorExplainResult::close(const mxs::Reply& reply)
 {
     ComparatorResult::close(reply);
 
-    m_handler.ready(*this);
+    const auto& e = reply.error();
+
+    std::string error;
+    std::string_view json;
+
+    if (e)
+    {
+        error = e.message();
+    }
+    else
+    {
+        if (!reply.row_data().empty())
+        {
+            mxb_assert(reply.row_data().size() == 1);
+            mxb_assert(reply.row_data().front().size() == 1);
+
+            json = reply.row_data().front().front();
+        }
+
+        mxb_assert(reply.is_complete());
+    }
+
+    m_handler.ready(*this, error, json);
 }

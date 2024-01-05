@@ -182,10 +182,22 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
     return rv;
 }
 
-void ComparatorSession::ready(const ComparatorExplainResult& explain_result)
+void ComparatorSession::ready(const ComparatorExplainResult& explain_result,
+                              const std::string& error,
+                              std::string_view json)
 {
-    MXB_NOTICE("EXPLAIN");
-    // TODO: Log EXPLAIN result.
+    // TODO: Log information.
+
+    if (!error.empty())
+    {
+        auto& main_result = explain_result.other_result().main_result();
+
+        MXB_WARNING("EXPLAIN of '%s' failed: %s", main_result.sql().c_str(), error.c_str());
+    }
+    else
+    {
+        MXB_NOTICE("EXPLAIN: %.*s", (int)json.size(), json.data());
+    }
 }
 
 void ComparatorSession::generate_report(const ComparatorOtherResult& other_result)

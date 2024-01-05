@@ -61,29 +61,35 @@ void ComparatorOtherBackend::ready(const ComparatorOtherResult& other_result)
 
     if (action == EXPLAIN)
     {
-        auto sOther = other_result.shared_from_this();
+        if (other_result.main_result().is_explainable())
+        {
+            auto sOther = other_result.shared_from_this();
 
-        auto* pExplain_result = new ComparatorExplainResult(this, sOther);
-        auto sExplain_result = std::shared_ptr<ComparatorExplainResult>(pExplain_result);
+            auto* pExplain_result = new ComparatorExplainResult(this, sOther);
+            auto sExplain_result = std::shared_ptr<ComparatorExplainResult>(pExplain_result);
 
-        mxb_assert(!m_multi_part_in_process); // TODO: Deal with this.
+            mxb_assert(!m_multi_part_in_process); // TODO: Deal with this.
 
-        m_results.emplace_back(std::move(sExplain_result));
+            m_results.emplace_back(std::move(sExplain_result));
 
-        std::string sql { "EXPLAIN "};
-        sql += other_result.main_result().sql();
+            std::string sql { "EXPLAIN FORMAT=JSON "};
+            sql += other_result.main_result().sql();
 
-        GWBUF packet = ph().create_packet(sql);
+            GWBUF packet = ph().create_packet(sql);
+            packet.set_type(GWBUF::TYPE_COLLECT_ROWS);
 
-        write(std::move(packet), mxs::Backend::EXPECT_RESPONSE);
+            write(std::move(packet), mxs::Backend::EXPECT_RESPONSE);
+        }
     }
 }
 
-void ComparatorOtherBackend::ready(const ComparatorExplainResult& explain_result)
+void ComparatorOtherBackend::ready(const ComparatorExplainResult& explain_result,
+                                   const std::string& error,
+                                   std::string_view json)
 {
     mxb_assert(m_pHandler);
 
-    m_pHandler->ready(explain_result);
+    m_pHandler->ready(explain_result, error, json);
 }
 
 /**

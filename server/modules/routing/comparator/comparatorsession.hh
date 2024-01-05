@@ -37,7 +37,9 @@ public:
 private:
     // ComparatorOtherBackend::Handler
     ComparatorOtherBackend::Action ready(const ComparatorOtherResult& other_result) override;
-    void ready(const ComparatorExplainResult& explain_result) override;
+    void ready(const ComparatorExplainResult& explain_result,
+               const std::string& error,
+               std::string_view json) override;
 
 private:
     void generate_report(const ComparatorOtherResult& result);

@@ -45,7 +45,7 @@ public:
     {
         mxb_assert(!m_results.empty());
 
-        m_results.front()->update_checksum(buffer);
+        m_results.front()->process(buffer);
     }
 
     void finish_result(const mxs::Reply& reply)
@@ -125,7 +125,9 @@ public:
     {
     public:
         virtual Action ready(const ComparatorOtherResult& other_result) = 0;
-        virtual void ready(const ComparatorExplainResult& explain_result) = 0;
+        virtual void ready(const ComparatorExplainResult& explain_result,
+                           const std::string& error,
+                           std::string_view json) = 0;
     };
 
     using ComparatorBackend::ComparatorBackend;
@@ -145,7 +147,9 @@ private:
     void ready(const ComparatorOtherResult& other_result) override;
 
     // ComparatorExplainResult::Handler
-    void ready(const ComparatorExplainResult& other_result) override;
+    void ready(const ComparatorExplainResult& other_result,
+               const std::string& error,
+               std::string_view json) override;
 
 private:
     Handler* m_pHandler { nullptr };

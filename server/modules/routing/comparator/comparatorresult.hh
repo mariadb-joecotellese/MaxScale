@@ -34,11 +34,7 @@ public:
         return m_end != Clock::time_point::max();
     }
 
-    void update_checksum(const GWBUF& buffer)
-    {
-        mxb_assert(!closed());
-        m_checksum.update(buffer);
-    }
+    virtual void process(const GWBUF& buffer);
 
     virtual void close(const mxs::Reply& reply);
 
@@ -110,6 +106,11 @@ public:
         return m_command;
     }
 
+    bool is_explainable() const
+    {
+        return !m_sql.empty();
+    }
+
     void close(const mxs::Reply& reply) override;
 
 private:
@@ -178,7 +179,9 @@ public:
     class Handler
     {
     public:
-        virtual void ready(const ComparatorExplainResult& explain_result) = 0;
+        virtual void ready(const ComparatorExplainResult& explain_result,
+                           const std::string& error,
+                           std::string_view json) = 0;
     };
 
     ComparatorExplainResult(Handler* pHandler,
