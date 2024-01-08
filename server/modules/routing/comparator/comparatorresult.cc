@@ -21,11 +21,13 @@ void ComparatorResult::process(const GWBUF& buffer)
     m_checksum.update(buffer);
 }
 
-void ComparatorResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds ComparatorResult::close(const mxs::Reply& reply)
 {
     mxb_assert(!closed());
     m_reply = reply;
     m_end = Clock::now();
+
+    return duration();
 }
 
 
@@ -41,9 +43,9 @@ ComparatorMainResult::ComparatorMainResult(ComparatorMainBackend* pBackend,
 {
 }
 
-void ComparatorMainResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds ComparatorMainResult::close(const mxs::Reply& reply)
 {
-    ComparatorResult::close(reply);
+    auto rv = ComparatorResult::close(reply);
 
     // A dependent may end up removing itself.
     auto dependents = m_dependents;
@@ -52,6 +54,8 @@ void ComparatorMainResult::close(const mxs::Reply& reply)
     {
         pDependent->main_was_closed();
     }
+
+    return rv;
 }
 
 /**
@@ -74,14 +78,16 @@ ComparatorOtherResult::~ComparatorOtherResult()
 }
 
 
-void ComparatorOtherResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds ComparatorOtherResult::close(const mxs::Reply& reply)
 {
-    ComparatorResult::close(reply);
+    auto rv = ComparatorResult::close(reply);
 
     if (m_sMain_result->closed())
     {
         m_handler.ready(*this);
     }
+
+    return rv;
 }
 
 void ComparatorOtherResult::main_was_closed()
@@ -105,9 +111,9 @@ ComparatorExplainResult::ComparatorExplainResult(Handler* pHandler,
 {
 }
 
-void ComparatorExplainResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds ComparatorExplainResult::close(const mxs::Reply& reply)
 {
-    ComparatorResult::close(reply);
+    auto rv = ComparatorResult::close(reply);
 
     const auto& e = reply.error();
 
@@ -132,4 +138,6 @@ void ComparatorExplainResult::close(const mxs::Reply& reply)
     }
 
     m_handler.ready(*this, error, json);
+
+    return rv;
 }

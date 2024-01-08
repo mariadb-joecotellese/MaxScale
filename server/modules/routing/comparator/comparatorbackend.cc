@@ -16,12 +16,17 @@ bool ComparatorBackend::write(GWBUF&& buffer, response_type type)
 {
     bool multi_part = ph().is_multi_part_packet(buffer);
 
+    // TODO: Write should return void, since there is nothing that can be done if the writing fails.
     bool rv = Backend::write(std::move(buffer), type);
 
-    if (rv)
+    ++m_stats.nRequest_packets;
+
+    if (!m_multi_part_in_process)
     {
-        m_multi_part_in_process = multi_part;
+        ++m_stats.nRequests;
     }
+
+    m_multi_part_in_process = multi_part;
 
     return rv;
 }

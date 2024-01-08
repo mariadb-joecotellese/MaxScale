@@ -24,6 +24,14 @@ using SComparatorOtherBackends = std::vector<SComparatorOtherBackend>;
 class ComparatorBackend : public mxs::Backend
 {
 public:
+    struct Stats
+    {
+        std::chrono::nanoseconds total_duration;
+        int64_t                  nRequest_packets { 0 };
+        int64_t                  nRequests { 0 };
+        int64_t                  nResponses { 0 };
+    };
+
     using mxs::Backend::Backend;
 
     using Result = ComparatorResult;
@@ -35,6 +43,11 @@ public:
     }
 
     bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override;
+
+    Stats stats() const
+    {
+        return m_stats;
+    }
 
     bool multi_part_in_process() const
     {
@@ -56,7 +69,8 @@ public:
         auto sResult = std::move(m_results.front());
         m_results.pop_front();
 
-        sResult->close(reply);
+        ++m_stats.nResponses;
+        m_stats.total_duration += sResult->close(reply);
     }
 
     void close(close_type type = CLOSE_NORMAL) override
@@ -82,6 +96,7 @@ protected:
     const mxs::Parser::Helper* m_pParser_helper { nullptr };
     bool                       m_multi_part_in_process { false };
     std::deque<SResult>        m_results;
+    Stats                      m_stats;
 };
 
 class ComparatorMainBackend final : public ComparatorBackend
@@ -106,7 +121,7 @@ public:
 
 private:
     std::string m_sql;
-    uint8_t     m_command;
+    uint8_t     m_command { 0 };
 };
 
 class ComparatorOtherBackend final : public ComparatorBackend

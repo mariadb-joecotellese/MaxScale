@@ -36,7 +36,7 @@ public:
 
     virtual void process(const GWBUF& buffer);
 
-    virtual void close(const mxs::Reply& reply);
+    virtual std::chrono::nanoseconds close(const mxs::Reply& reply);
 
     void reset()
     {
@@ -111,7 +111,7 @@ public:
         return !m_sql.empty();
     }
 
-    void close(const mxs::Reply& reply) override;
+    std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
     friend class ComparatorOtherResult;
@@ -160,7 +160,7 @@ public:
         return *m_sMain_result.get();
     }
 
-    void close(const mxs::Reply& reply) override;
+    std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
     friend ComparatorMainResult;
@@ -193,7 +193,7 @@ public:
         return *m_sOther_result.get();
     }
 
-    void close(const mxs::Reply& reply) override;
+    std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
     Handler&                                     m_handler;
