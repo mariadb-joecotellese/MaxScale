@@ -92,7 +92,7 @@ public:
     using Result = ComparatorMainResult;
     using SResult = std::shared_ptr<Result>;
 
-    SResult prepare(std::string_view sql, uint8_t command);
+    SResult prepare(const GWBUF& packet);
 
     const std::string& sql() const
     {

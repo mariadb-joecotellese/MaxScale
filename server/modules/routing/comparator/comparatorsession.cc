@@ -63,8 +63,7 @@ bool ComparatorSession::routeQuery(GWBUF&& packet)
 
         if (type != mxs::Backend::NO_RESPONSE)
         {
-            auto& ph = parser().helper();
-            sMain_result = m_sMain->prepare(ph.get_sql(packet), ph.get_command(packet));
+            sMain_result = m_sMain->prepare(packet);
         }
 
         if (m_sMain->write(packet.shallow_clone(), type))

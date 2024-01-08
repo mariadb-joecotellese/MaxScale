@@ -31,8 +31,11 @@ bool ComparatorBackend::write(GWBUF&& buffer, response_type type)
  * ComparatorMainBackend
  */
 
-ComparatorMainBackend::SResult ComparatorMainBackend::prepare(std::string_view sql, uint8_t command)
+ComparatorMainBackend::SResult ComparatorMainBackend::prepare(const GWBUF& packet)
 {
+    std::string_view sql = ph().get_sql(packet);
+    uint8_t command = ph().get_command(packet);
+
     auto sMain_result = std::make_shared<ComparatorMainResult>(this, sql, command);
 
     m_results.push_back(sMain_result);
