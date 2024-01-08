@@ -63,6 +63,7 @@ public:
     };
 
     Storage() = default;
+    virtual ~Storage() = default;
     void move_values_from(Storage& other);
 
     virtual void add_query_event(QueryEvent&& qevent) = 0;
