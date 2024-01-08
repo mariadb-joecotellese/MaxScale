@@ -18,21 +18,11 @@ namespace fs = std::filesystem;
 namespace
 {
 
-std::string generate_file_name(StorageType type)
+std::string generate_file_base_name()
 {
     auto now = wall_time::Clock::now();
     auto time_str = wall_time::to_string(now, "%F_%H%M%S");
     auto file_name = "capture_"s + time_str;
-    switch (type)
-    {
-    case StorageType::SQLITE:
-        file_name += ".sqlite3";
-        break;
-
-    case StorageType::BINARY:
-        file_name += ".wcar";
-        break;
-    }
 
     return file_name;
 }
@@ -47,14 +37,13 @@ WcarFilter::WcarFilter(const std::string& name)
 bool WcarFilter::post_configure()
 {
     bool ok = true;
+    auto base_path = m_config.capture_dir;
+    base_path += '/' + generate_file_base_name();
+
     switch (m_config.storage_type)
     {
     case StorageType::SQLITE:
-        {
-            auto path = m_config.capture_dir;
-            path += '/' + generate_file_name(StorageType::SQLITE);
-            m_sStorage = std::make_unique<SqliteStorage>(path);
-        }
+        m_sStorage = std::make_unique<SqliteStorage>(base_path);
         break;
 
     case StorageType::BINARY:

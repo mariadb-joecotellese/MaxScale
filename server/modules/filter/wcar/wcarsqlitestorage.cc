@@ -51,10 +51,17 @@ static const char SQL_CANONICAL_INSERT[] = "insert into canonical values(?, ?, ?
 static const char SQL_EVENT_INSERT[] = "insert into event values(?, ?, ?, ?, ?)";
 static const char SQL_CANONICAL_ARGUMENT_INSERT[] = "insert into argument values(?, ?, ?)";
 
+static const fs::path FILE_EXTENSION = "sqlite";
+
 SqliteStorage::SqliteStorage(const fs::path& path, Access access)
     : m_access(access)
     , m_path(path)
 {
+    if (m_path.extension() != FILE_EXTENSION)
+    {
+        m_path.replace_extension(FILE_EXTENSION);
+    }
+
     if (access == Access::READ_WRITE && fs::exists(m_path))
     {
         MXB_THROW(WcarError, "sqlite3 database '"
