@@ -205,13 +205,10 @@ Service* create_comparator_service(const string& name,
 
     vector<string> servers { primary.name(), replica.name() };
 
-    // TODO: 'exporter' and parameters dependent on its value, must be provided somehow.
     params.set("user", sValues->user);
     params.set("password", sValues->password);
     params.set("router", "comparator");
     params.set("main", primary.name());
-    params.set("exporter", "file");
-    params.set("file", "comparator.txt");
     params.set("servers", mxb::join(servers, ","));
     params.set("service", service.name());
 

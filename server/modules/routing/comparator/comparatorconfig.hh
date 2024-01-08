@@ -10,13 +10,6 @@
 #include <maxscale/ccdefs.hh>
 #include <maxscale/config2.hh>
 
-enum ExporterType
-{
-    EXPORT_LOG,
-    EXPORT_FILE,
-    EXPORT_KAFKA,
-};
-
 enum ErrorAction
 {
     ERRACT_IGNORE,
@@ -40,10 +33,6 @@ public:
     ComparatorConfig(const char* zName, ComparatorRouter* pInstance);
 
     mxs::Target* pMain;
-    ExporterType exporter;
-    std::string  file;
-    std::string  kafka_broker;
-    std::string  kafka_topic;
 
     mxs::config::Enum<ErrorAction>  on_error;
     mxs::config::Enum<ReportAction> report;

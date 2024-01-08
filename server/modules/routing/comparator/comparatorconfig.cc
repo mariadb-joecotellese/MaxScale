@@ -51,23 +51,6 @@ config::ParamPercent explain_difference(
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max
     config::Param::AT_RUNTIME);
 
-config::ParamEnum<ExporterType> exporter(
-    &specification, "exporter", "Exporter to use",
-    {
-        {ExporterType::EXPORT_FILE, "file"},
-        {ExporterType::EXPORT_KAFKA, "kafka"},
-        {ExporterType::EXPORT_LOG, "log"}
-    }, config::Param::AT_RUNTIME);
-
-config::ParamString file(
-    &specification, "file", "File where data is exported", "", config::Param::AT_RUNTIME);
-
-config::ParamString kafka_broker(
-    &specification, "kafka_broker", "Kafka broker to use", "", config::Param::AT_RUNTIME);
-
-config::ParamString kafka_topic(
-    &specification, "kafka_topic", "Kafka topic where data is exported", "", config::Param::AT_RUNTIME);
-
 config::ParamTarget main(
     &specification, "main", "Server from which responses are returned",
     config::Param::Kind::MANDATORY, config::Param::AT_RUNTIME);
@@ -105,32 +88,7 @@ config::ParamService service(
 template<class Params>
 bool Specification::do_post_validate(Params& params) const
 {
-    bool ok = true;
-
-    switch (comparator::exporter.get(params))
-    {
-    case ExporterType::EXPORT_LOG:
-        break;
-
-    case ExporterType::EXPORT_FILE:
-        if (comparator::file.get(params).empty())
-        {
-            MXB_ERROR("'%s' must be defined when exporter=file is used.", comparator::file.name().c_str());
-            ok = false;
-        }
-        break;
-
-    case ExporterType::EXPORT_KAFKA:
-        if (comparator::kafka_broker.get(params).empty() || comparator::kafka_topic.get(params).empty())
-        {
-            MXB_ERROR("Both '%s' and '%s' must be defined when exporter=kafka is used.",
-                      comparator::kafka_broker.name().c_str(), comparator::kafka_topic.name().c_str());
-            ok = false;
-        }
-        break;
-    }
-
-    return ok;
+    return true;
 }
 }
 
@@ -146,11 +104,7 @@ ComparatorConfig::ComparatorConfig(const char* zName, ComparatorRouter* pInstanc
     , report(this, &comparator::report)
     , m_instance(*pInstance)
 {
-    add_native(&ComparatorConfig::exporter, &comparator::exporter);
     add_native(&ComparatorConfig::pMain, &comparator::main);
-    add_native(&ComparatorConfig::file, &comparator::file);
-    add_native(&ComparatorConfig::kafka_broker, &comparator::kafka_broker);
-    add_native(&ComparatorConfig::kafka_topic, &comparator::kafka_topic);
     add_native(&ComparatorConfig::pService, &comparator::service);
 
     add_native(&ComparatorConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
