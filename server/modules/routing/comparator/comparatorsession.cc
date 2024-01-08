@@ -18,10 +18,9 @@ bool is_checksum_discrepancy(const ComparatorResult& result, const std::string& 
     return result.checksum().hex() != main_checksum;
 }
 
-// TODO: milliseconds is too coarse.
-bool is_execution_time_discrepancy(const std::chrono::milliseconds& duration,
-                                   const std::chrono::milliseconds& min,
-                                   const std::chrono::milliseconds& max)
+bool is_execution_time_discrepancy(const std::chrono::nanoseconds& duration,
+                                   const std::chrono::nanoseconds& min,
+                                   const std::chrono::nanoseconds& max)
 {
     return duration < min || duration > max;
 }
@@ -137,9 +136,9 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
     auto& config = m_router.config();
 
     const auto& main_result = other_result.main_result();
-    std::chrono::milliseconds main_duration = main_result.duration();
-    std::chrono::milliseconds delta = (main_duration * config.max_execution_time_difference) / 100;
-    std::chrono::milliseconds other_duration = other_result.duration();
+    std::chrono::nanoseconds main_duration = main_result.duration();
+    std::chrono::nanoseconds delta = (main_duration * config.max_execution_time_difference) / 100;
+    std::chrono::nanoseconds other_duration = other_result.duration();
 
     auto report = config.report.get();
 
@@ -147,8 +146,8 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
     {
         std::string main_checksum = main_result.checksum().hex();
 
-        std::chrono::milliseconds min_duration = main_duration - delta;
-        std::chrono::milliseconds max_duration = main_duration + delta;
+        std::chrono::nanoseconds min_duration = main_duration - delta;
+        std::chrono::nanoseconds max_duration = main_duration + delta;
 
         if (is_checksum_discrepancy(other_result, main_checksum))
         {

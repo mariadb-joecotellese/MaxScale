@@ -63,10 +63,10 @@ public:
         return m_reply;
     }
 
-    std::chrono::milliseconds duration() const
+    std::chrono::nanoseconds duration() const
     {
         mxb_assert(closed());
-        return std::chrono::duration_cast<std::chrono::milliseconds>(m_end - m_start);
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(m_end - m_start);
     }
 
 protected:
