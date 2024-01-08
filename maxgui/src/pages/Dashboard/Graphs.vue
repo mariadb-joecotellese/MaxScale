@@ -1,57 +1,50 @@
 <template>
     <v-row class="mx-n2">
-        <v-col cols="4" class="px-2">
-            <outlined-overview-card :tile="false">
-                <template v-slot:title>
-                    {{ $mxs_tc('sessions', 2) }}
-                </template>
-                <template v-slot:card-body>
-                    <mxs-line-chart-stream
-                        v-if="sessions_datasets.length"
-                        ref="sessionsChart"
-                        class="relative pl-1"
-                        :height="64"
-                        :chartData="{ datasets: sessions_datasets }"
-                        :refreshRate="refreshRate"
-                    />
-                </template>
-            </outlined-overview-card>
+        <v-col v-for="(graph, i) in graphs" :key="i" cols="4" class="px-2">
+            <v-hover v-slot="{ hover }">
+                <outlined-overview-card :tile="false" :height="graphCardHeight">
+                    <template v-slot:title>
+                        <div class="d-flex align-center">
+                            <span> {{ graph.title }} </span>
+                            <mxs-tooltip-btn
+                                v-if="hover"
+                                btnClass="setting-btn ml-1"
+                                icon
+                                x-small
+                                color="primary"
+                                @click="isDlgOpened = !isDlgOpened"
+                            >
+                                <template v-slot:btn-content>
+                                    <v-icon size="14">$vuetify.icons.mxs_settings</v-icon>
+                                </template>
+                                {{ $mxs_tc('settings', 2) }}
+                            </mxs-tooltip-btn>
+                            <v-spacer />
+                            <v-btn
+                                v-if="i === graphs.length - 1"
+                                class="expand-toggle-btn mxs-color-helper text-anchor text-capitalize"
+                                text
+                                x-small
+                                @click="isExpanded = !isExpanded"
+                            >
+                                {{ isExpanded ? $mxs_t('collapse') : $mxs_t('expand') }}
+                            </v-btn>
+                        </div>
+                    </template>
+                    <template v-slot:card-body>
+                        <mxs-line-chart-stream
+                            v-if="graph.datasets.length"
+                            :ref="graph.ref"
+                            :style="chartStyle"
+                            :chartData="{ datasets: graph.datasets }"
+                            :refreshRate="refreshRate"
+                            :opts="graph.opts"
+                        />
+                    </template>
+                </outlined-overview-card>
+            </v-hover>
         </v-col>
-        <v-col cols="4" class="px-2">
-            <outlined-overview-card :tile="false">
-                <template v-slot:title>
-                    {{ $mxs_tc('connections', 2) }}
-                </template>
-                <template v-if="all_servers.length" v-slot:card-body>
-                    <mxs-line-chart-stream
-                        v-if="server_connections_datasets.length"
-                        ref="connsChart"
-                        class="relative pl-1"
-                        :height="64"
-                        :chartData="{ datasets: server_connections_datasets }"
-                        :refreshRate="refreshRate"
-                    />
-                </template>
-            </outlined-overview-card>
-        </v-col>
-        <v-col cols="4" class="px-2">
-            <outlined-overview-card :tile="false">
-                <template v-slot:title>
-                    {{ $mxs_t('load') }}
-                </template>
-                <template v-slot:card-body>
-                    <mxs-line-chart-stream
-                        v-if="threads_datasets.length"
-                        ref="threadsChart"
-                        class="relative pl-1"
-                        :height="64"
-                        :chartData="{ datasets: threads_datasets }"
-                        :opts="{ scales: { y: { max: 100, min: 0 } } }"
-                        :refreshRate="refreshRate"
-                    />
-                </template>
-            </outlined-overview-card>
-        </v-col>
+        <!-- TODO: Add annotation dialog component -->
     </v-row>
 </template>
 
@@ -76,6 +69,12 @@ export default {
     props: {
         refreshRate: { type: Number, required: true },
     },
+    data() {
+        return {
+            isExpanded: false,
+            isDlgOpened: false,
+        }
+    },
     computed: {
         ...mapState({
             all_servers: state => state.server.all_servers,
@@ -87,6 +86,53 @@ export default {
         ...mapGetters({
             getTotalSessions: 'session/getTotalSessions',
         }),
+        graphCardHeight() {
+            if (this.isExpanded) return 75 * 4
+            return 75
+        },
+        chartStyle() {
+            return {
+                height: `${this.graphCardHeight}px`,
+            }
+        },
+        graphOpts() {
+            return {
+                layout: {
+                    padding: { top: 15, left: 4, bottom: -4 },
+                },
+                scales: {
+                    y: {
+                        ticks: { maxTicksLimit: this.isExpanded ? 6 : 3 },
+                    },
+                },
+            }
+        },
+        graphs() {
+            //TODO: Add annotation line config in opts
+            return [
+                {
+                    title: this.$mxs_tc('sessions', 2),
+                    datasets: this.sessions_datasets,
+                    ref: 'sessionsChart',
+                    opts: this.graphOpts,
+                },
+                {
+                    title: this.$mxs_tc('connections', 2),
+                    datasets: this.server_connections_datasets,
+                    ref: 'connsChart',
+                    opts: this.graphOpts,
+                },
+                {
+                    title: this.$mxs_t('load'),
+                    datasets: this.threads_datasets,
+                    ref: 'threadsChart',
+                    opts: this.$helpers.lodash.merge(
+                        { scales: { y: { max: 100, min: 0 } } },
+                        this.graphOpts
+                    ),
+                },
+            ]
+        },
     },
     methods: {
         updateSessionsGraph(chart, timestamp) {
@@ -156,9 +202,10 @@ export default {
          */
         async updateChart() {
             const timestamp = Date.now()
-            const sessionsChart = this.$typy(this.$refs, 'sessionsChart.chartInstance').safeObject
-            const connsChart = this.$typy(this.$refs, 'connsChart.chartInstance').safeObject
-            const threadsChart = this.$typy(this.$refs, 'threadsChart.chartInstance').safeObject
+            const sessionsChart = this.$typy(this.$refs, 'sessionsChart[0].chartInstance')
+                .safeObject
+            const connsChart = this.$typy(this.$refs, 'connsChart[0].chartInstance').safeObject
+            const threadsChart = this.$typy(this.$refs, 'threadsChart[0].chartInstance').safeObject
 
             if (sessionsChart && connsChart && threadsChart) {
                 await Promise.all([
@@ -171,3 +218,9 @@ export default {
     },
 }
 </script>
+
+<style lang="scss" scoped>
+.expand-toggle-btn {
+    font-size: 0.875rem;
+}
+</style>
