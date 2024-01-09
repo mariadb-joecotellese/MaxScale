@@ -6,14 +6,12 @@
 #pragma once
 
 #include "comparatordefs.hh"
-
-#include <maxbase/shared_mutex.hh>
+#include <shared_mutex>
 #include <maxbase/worker.hh>
 #include <maxscale/router.hh>
 #include <maxscale/backend.hh>
 #include <maxscale/protocol/mariadb/module_names.hh>
 #include <maxscale/service.hh>
-
 #include "comparatorconfig.hh"
 #include "comparatorexporter.hh"
 
@@ -110,7 +108,7 @@ private:
     ComparatorState                         m_comparator_state { ComparatorState::PREPARED };
     SyncState                               m_sync_state { SyncState::IDLE };
     ComparatorConfig                        m_config;
-    mutable mxb::shared_mutex               m_rw_lock;
+    mutable std::shared_mutex               m_rw_lock;
     SERVICE&                                m_service;
     mxb::Worker::DCId                       m_dcstart { mxb::Worker::NO_CALL };
     std::map<const mxs::Target*, SExporter> m_exporters;

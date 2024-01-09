@@ -105,7 +105,7 @@ RouterSession* ComparatorRouter::newSession(MXS_SESSION* pSession, const Endpoin
 
 std::shared_ptr<ComparatorExporter> ComparatorRouter::exporter_for(const mxs::Target* pTarget) const
 {
-    std::lock_guard<mxb::shared_mutex> guard(m_rw_lock);
+    std::shared_lock<std::shared_mutex> guard(m_rw_lock);
 
     auto it = m_exporters.find(pTarget);
     mxb_assert(it != m_exporters.end());
@@ -127,7 +127,7 @@ bool ComparatorRouter::post_configure()
 {
     bool rval = true;
 
-    std::lock_guard<mxb::shared_mutex> shared_guard(m_rw_lock);
+    std::shared_lock<std::shared_mutex> shared_guard(m_rw_lock);
 
     std::map<const mxs::Target*, SExporter> exporters;
 
@@ -160,6 +160,10 @@ bool ComparatorRouter::post_configure()
 
     if (rval)
     {
+        shared_guard.unlock();
+
+        std::lock_guard<std::shared_mutex> guard(m_rw_lock);
+
         m_exporters = std::move(exporters);
     }
 
