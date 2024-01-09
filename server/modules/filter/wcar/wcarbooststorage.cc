@@ -112,7 +112,22 @@ int64_t BoostStorage::num_unread() const
 
 QueryEvent BoostStorage::next_event()
 {
-    return QueryEvent{};
+
+    if (m_events.empty())
+    {
+        preload_more_events();
+    }
+
+    if (!m_events.empty())
+    {
+        QueryEvent ret = std::move(m_events.front());
+        m_events.pop_front();
+        return ret;
+    }
+    else
+    {
+        return QueryEvent{};
+    }
 }
 
 void BoostStorage::save_canonical(int64_t can_id, const std::string& canonical)
