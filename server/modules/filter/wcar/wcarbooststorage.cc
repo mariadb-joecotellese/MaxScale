@@ -67,10 +67,31 @@ std::fstream BoostStorage::open_file(const fs::path& path)
 
 void BoostStorage::add_query_event(QueryEvent&& qevent)
 {
+    int64_t hash{static_cast<int64_t>(std::hash<std::string> {}(*qevent.sCanonical))};
+    auto canon_ite = m_canonicals.find(hash);
+    auto can_id = next_can_id();
+
+    if (canon_ite != std::end(m_canonicals))
+    {
+        can_id = canon_ite->second.can_id;
+        qevent.sCanonical = canon_ite->second.sCanonical;
+    }
+    else
+    {
+        save_canonical(can_id, *qevent.sCanonical);
+        m_canonicals.emplace(hash, CanonicalEntry {can_id, qevent.sCanonical});
+    }
+
+    qevent.event_id = next_event_id();
+    save_event(can_id, qevent);
 }
 
 void BoostStorage::add_query_event(std::vector<QueryEvent>& qevents)
 {
+    for (auto& event : qevents)
+    {
+        add_query_event(std::move(event));
+    }
 }
 
 Storage::Iterator BoostStorage::begin()
@@ -95,10 +116,28 @@ QueryEvent BoostStorage::next_event()
 
 void BoostStorage::save_canonical(int64_t can_id, const std::string& canonical)
 {
+    (*m_sCanonical_oa) & can_id;
+    (*m_sCanonical_oa) & canonical;
 }
 
 void BoostStorage::save_event(int64_t can_id, const QueryEvent& qevent)
 {
+    (*m_sEvent_oa) & can_id;
+    (*m_sEvent_oa) & qevent.event_id;
+
+    int nargs = qevent.canonical_args.size();
+    (*m_sEvent_oa) & nargs;
+    for (const auto& a : qevent.canonical_args)
+    {
+        (*m_sEvent_oa) & a.pos;
+        (*m_sEvent_oa) & a.value;
+    }
+    (*m_sEvent_oa) & qevent.session_id;
+
+    mxb::Duration start_time_dur = qevent.start_time.time_since_epoch();
+    mxb::Duration end_time_dur = qevent.end_time.time_since_epoch();
+    (*m_sEvent_oa) & *reinterpret_cast<const int64_t*>(&start_time_dur);
+    (*m_sEvent_oa) & *reinterpret_cast<const int64_t*>(&end_time_dur);
 }
 
 void BoostStorage::read_canonicals()
