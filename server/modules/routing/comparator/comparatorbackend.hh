@@ -61,7 +61,7 @@ public:
 
     void close(close_type type = CLOSE_NORMAL) override
     {
-        ComparatorBackend::close(type);
+        mxs::Backend::close(type);
 
         m_results.clear();
     }
