@@ -7,6 +7,7 @@
 #include "comparatorbackend.hh"
 #include <maxscale/protocol/mariadb/mysql.hh>
 #include "comparatorresult.hh"
+#include "comparatorrouter.hh"
 
 
 /**
@@ -108,7 +109,9 @@ namespace comparator
 {
 
 std::pair<SComparatorMainBackend,SComparatorOtherBackends>
-backends_from_endpoints(const mxs::Target& main_target, const mxs::Endpoints& endpoints)
+backends_from_endpoints(const mxs::Target& main_target,
+                        const mxs::Endpoints& endpoints,
+                        const ComparatorRouter& router)
 {
     mxb_assert(endpoints.size() > 1);
 
@@ -128,9 +131,11 @@ backends_from_endpoints(const mxs::Target& main_target, const mxs::Endpoints& en
 
     for (auto* pEndpoint : endpoints)
     {
-        if (pEndpoint->target() != &main_target)
+        auto* pTarget = pEndpoint->target();
+
+        if (pTarget != &main_target)
         {
-            others.emplace_back(new ComparatorOtherBackend(pEndpoint));
+            others.emplace_back(new ComparatorOtherBackend(pEndpoint, router.exporter_for(pTarget)));
         }
     }
 

@@ -6,9 +6,8 @@
 #pragma once
 
 #include "comparatordefs.hh"
-
 #include <maxbase/jansson.hh>
-
+#include <maxscale/target.hh>
 #include "comparatorconfig.hh"
 
 class ComparatorExporter
@@ -24,4 +23,5 @@ public:
     virtual void ship(json_t* pJson) = 0;
 };
 
-std::unique_ptr<ComparatorExporter> build_exporter(const ComparatorConfig& config);
+std::unique_ptr<ComparatorExporter> build_exporter(const ComparatorConfig& config,
+                                                   const mxs::Target& target);

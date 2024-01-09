@@ -83,7 +83,7 @@ RouterSession* ComparatorRouter::newSession(MXS_SESSION* pSession, const Endpoin
         return nullptr;
     }
 
-    auto [ sMain, backends ] = comparator::backends_from_endpoints(*m_config.pMain, endpoints);
+    auto [ sMain, backends ] = comparator::backends_from_endpoints(*m_config.pMain, endpoints, *this);
     bool connected = false;
 
     if (sMain->can_connect() && sMain->connect())
@@ -103,6 +103,16 @@ RouterSession* ComparatorRouter::newSession(MXS_SESSION* pSession, const Endpoin
     return connected ? new ComparatorSession(pSession, this, std::move(sMain), std::move(backends)) : NULL;
 }
 
+std::shared_ptr<ComparatorExporter> ComparatorRouter::exporter_for(const mxs::Target* pTarget) const
+{
+    std::lock_guard<mxb::shared_mutex> guard(m_rw_lock);
+
+    auto it = m_exporters.find(pTarget);
+    mxb_assert(it != m_exporters.end());
+
+    return it->second;
+}
+
 json_t* ComparatorRouter::diagnostics() const
 {
     return nullptr;
@@ -115,13 +125,42 @@ uint64_t ComparatorRouter::getCapabilities() const
 
 bool ComparatorRouter::post_configure()
 {
-    bool rval = false;
-    std::lock_guard<mxb::shared_mutex> guard(m_rw_lock);
+    bool rval = true;
 
-    if (auto sExporter = build_exporter(m_config))
+    std::lock_guard<mxb::shared_mutex> shared_guard(m_rw_lock);
+
+    std::map<const mxs::Target*, SExporter> exporters;
+
+    for (const mxs::Target* pTarget : m_service.get_children())
     {
-        m_sExporter = std::move(sExporter);
-        rval = true;
+        if (pTarget != m_config.pMain)
+        {
+            auto it = m_exporters.find(pTarget);
+
+            if (it != m_exporters.end())
+            {
+                exporters.insert(*it);
+            }
+            else
+            {
+                SExporter sExporter = build_exporter(m_config, *pTarget);
+
+                if (sExporter)
+                {
+                    exporters.insert(std::make_pair(pTarget, sExporter));
+                }
+                else
+                {
+                    rval = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (rval)
+    {
+        m_exporters = std::move(exporters);
     }
 
     return rval;
@@ -497,14 +536,4 @@ void ComparatorRouter::start_synchronize_dcall()
     m_dcstart = dcall(std::chrono::milliseconds { 1000 }, [this]() {
             return synchronize();
         });
-}
-
-void ComparatorRouter::ship(json_t* pJson)
-{
-    {
-        std::shared_lock<mxb::shared_mutex> guard(m_rw_lock);
-        m_sExporter->ship(pJson);
-    }
-
-    json_decref(pJson);
 }

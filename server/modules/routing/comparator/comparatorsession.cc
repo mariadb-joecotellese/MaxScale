@@ -215,7 +215,7 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
 
     json_object_set_new(pJson, "results", pArr);
 
-    m_router.ship(pJson);
+    static_cast<ComparatorOtherBackend&>(other_result.backend()).exporter().ship(pJson);
 }
 
 json_t* ComparatorSession::generate_json(const ComparatorResult& result)

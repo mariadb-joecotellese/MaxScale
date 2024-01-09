@@ -51,7 +51,7 @@ public:
     json_t*             diagnostics() const override;
     uint64_t            getCapabilities() const override;
 
-    void ship(json_t* obj);
+    std::shared_ptr<ComparatorExporter> exporter_for(const mxs::Target* pTarget) const;
 
     mxs::Target* get_main() const
     {
@@ -105,11 +105,13 @@ private:
 
     ComparatorRouter(SERVICE* pService);
 
-    ComparatorState                     m_comparator_state { ComparatorState::PREPARED };
-    SyncState                           m_sync_state { SyncState::IDLE };
-    ComparatorConfig                    m_config;
-    std::unique_ptr<ComparatorExporter> m_sExporter;
-    mxb::shared_mutex                   m_rw_lock;
-    SERVICE&                            m_service;
-    mxb::Worker::DCId                   m_dcstart { mxb::Worker::NO_CALL };
+    using SExporter = std::shared_ptr<ComparatorExporter>;
+
+    ComparatorState                         m_comparator_state { ComparatorState::PREPARED };
+    SyncState                               m_sync_state { SyncState::IDLE };
+    ComparatorConfig                        m_config;
+    mutable mxb::shared_mutex               m_rw_lock;
+    SERVICE&                                m_service;
+    mxb::Worker::DCId                       m_dcstart { mxb::Worker::NO_CALL };
+    std::map<const mxs::Target*, SExporter> m_exporters;
 };

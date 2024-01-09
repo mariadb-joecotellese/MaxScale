@@ -21,6 +21,9 @@ using SComparatorMainBackend = std::unique_ptr<ComparatorMainBackend>;
 using SComparatorOtherBackend = std::unique_ptr<ComparatorOtherBackend>;
 using SComparatorOtherBackends = std::vector<SComparatorOtherBackend>;
 
+class ComparatorExporter;
+class ComparatorRouter;
+
 class ComparatorBackend : public mxs::Backend
 {
 public:
@@ -145,14 +148,24 @@ public:
                            std::string_view json) = 0;
     };
 
-    using ComparatorBackend::ComparatorBackend;
-
     using Result = ComparatorOtherResult;
     using SResult = std::shared_ptr<Result>;
+
+    ComparatorOtherBackend(mxs::Endpoint* pEndpoint,
+                           std::shared_ptr<ComparatorExporter> sExporter)
+        : ComparatorBackend(pEndpoint)
+        , m_sExporter(std::move(sExporter))
+    {
+    }
 
     void set_result_handler(Handler* pHandler)
     {
         m_pHandler = pHandler;
+    }
+
+    ComparatorExporter& exporter() const
+    {
+        return *m_sExporter.get();
     }
 
     void prepare(const ComparatorMainBackend::SResult& sMain_result);
@@ -167,13 +180,16 @@ private:
                std::string_view json) override;
 
 private:
-    Handler* m_pHandler { nullptr };
+    std::shared_ptr<ComparatorExporter> m_sExporter;
+    Handler*                            m_pHandler { nullptr };
 };
 
 namespace comparator
 {
 
 std::pair<SComparatorMainBackend, SComparatorOtherBackends>
-backends_from_endpoints(const mxs::Target& main_target, const mxs::Endpoints& endpoints);
+backends_from_endpoints(const mxs::Target& main_target,
+                        const mxs::Endpoints& endpoints,
+                        const ComparatorRouter& router);
 
 }
