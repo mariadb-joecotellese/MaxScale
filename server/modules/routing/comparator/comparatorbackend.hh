@@ -30,18 +30,10 @@ class ComparatorBackend : public mxs::Backend
 public:
     using Result = ComparatorResult;
     using SResult = std::shared_ptr<Result>;
-    using Stats = ComparatorStats;
 
     void set_parser_helper(const mxs::Parser::Helper* pHelper)
     {
         m_pParser_helper = pHelper;
-    }
-
-    bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override;
-
-    virtual const Stats& stats() const
-    {
-        return *m_sStats.get();
     }
 
     bool multi_part_in_process() const
@@ -56,17 +48,7 @@ public:
         m_results.front()->process(buffer);
     }
 
-    void finish_result(const mxs::Reply& reply)
-    {
-        mxb_assert(reply.is_complete());
-        mxb_assert(!m_results.empty());
-
-        auto sResult = std::move(m_results.front());
-        m_results.pop_front();
-
-        ++m_sStats->nResponses;
-        m_sStats->total_duration += sResult->close(reply);
-    }
+    virtual void finish_result(const mxs::Reply& reply) = 0;
 
     void close(close_type type = CLOSE_NORMAL) override
     {
@@ -81,9 +63,8 @@ public:
     }
 
 protected:
-    ComparatorBackend(mxs::Endpoint* pEndpoint, std::unique_ptr<Stats> sStats)
+    ComparatorBackend(mxs::Endpoint* pEndpoint)
         : mxs::Backend(pEndpoint)
-        , m_sStats(std::move(sStats))
     {
     }
 
@@ -97,24 +78,69 @@ protected:
     const mxs::Parser::Helper* m_pParser_helper { nullptr };
     bool                       m_multi_part_in_process { false };
     std::deque<SResult>        m_results;
-    std::unique_ptr<Stats>     m_sStats;
 };
 
-class ComparatorMainBackend final : public ComparatorBackend
+template<class Stats>
+class ComparatorBackendWithStats : public ComparatorBackend
 {
 public:
-    using MainStats = ComparatorMainStats;
+    const Stats& stats() const
+    {
+        return m_stats;
+    }
+
+    bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override
+    {
+        bool multi_part = ph().is_multi_part_packet(buffer);
+
+        // TODO: Write should return void, since there is nothing that can be done if the writing fails.
+        bool rv = Backend::write(std::move(buffer), type);
+
+        ++m_stats.nRequest_packets;
+
+        if (!m_multi_part_in_process)
+        {
+            ++m_stats.nRequests;
+        }
+
+        m_multi_part_in_process = multi_part;
+
+        return rv;
+    }
+
+    void finish_result(const mxs::Reply& reply) override
+    {
+        mxb_assert(reply.is_complete());
+        mxb_assert(!m_results.empty());
+
+        auto sResult = std::move(m_results.front());
+        m_results.pop_front();
+
+        ++m_stats.nResponses;
+        m_stats.total_duration += sResult->close(reply);
+    }
+
+protected:
+    ComparatorBackendWithStats(mxs::Endpoint* pEndpoint)
+        : ComparatorBackend(pEndpoint)
+    {
+    }
+
+protected:
+    Stats m_stats;
+};
+
+
+class ComparatorMainBackend final : public ComparatorBackendWithStats<ComparatorMainStats>
+{
+public:
+    using Base = ComparatorBackendWithStats<ComparatorMainStats>;
     using Result = ComparatorMainResult;
     using SResult = std::shared_ptr<Result>;
 
     ComparatorMainBackend(mxs::Endpoint* pEndpoint)
-        : ComparatorBackend(pEndpoint, std::make_unique<MainStats>())
+        : Base(pEndpoint)
     {
-    }
-
-    const MainStats& stats() const override
-    {
-        return static_cast<const MainStats&>(ComparatorBackend::stats());
     }
 
     SResult prepare(const GWBUF& packet);
@@ -134,12 +160,17 @@ private:
     uint8_t     m_command { 0 };
 };
 
-class ComparatorOtherBackend final : public ComparatorBackend
+
+class ComparatorOtherBackend final : public ComparatorBackendWithStats<ComparatorOtherStats>
                                    , private ComparatorOtherResult::Handler
                                    , private ComparatorExplainResult::Handler
 
 {
 public:
+    using Base = ComparatorBackendWithStats<ComparatorOtherStats>;
+    using Result = ComparatorOtherResult;
+    using SResult = std::shared_ptr<Result>;
+
     enum Action
     {
         CONTINUE,
@@ -155,13 +186,9 @@ public:
                            std::string_view json) = 0;
     };
 
-    using OtherStats = ComparatorOtherStats;
-    using Result = ComparatorOtherResult;
-    using SResult = std::shared_ptr<Result>;
-
     ComparatorOtherBackend(mxs::Endpoint* pEndpoint,
                            std::shared_ptr<ComparatorExporter> sExporter)
-        : ComparatorBackend(pEndpoint, std::make_unique<OtherStats>())
+        : Base(pEndpoint)
         , m_sExporter(std::move(sExporter))
     {
     }
@@ -169,11 +196,6 @@ public:
     void set_result_handler(Handler* pHandler)
     {
         m_pHandler = pHandler;
-    }
-
-    const OtherStats& stats() const override
-    {
-        return static_cast<const OtherStats&>(ComparatorBackend::stats());
     }
 
     ComparatorExporter& exporter() const

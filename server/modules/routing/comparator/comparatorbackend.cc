@@ -11,29 +11,6 @@
 
 
 /**
- * ComparatorBackend
- */
-bool ComparatorBackend::write(GWBUF&& buffer, response_type type)
-{
-    bool multi_part = ph().is_multi_part_packet(buffer);
-
-    // TODO: Write should return void, since there is nothing that can be done if the writing fails.
-    bool rv = Backend::write(std::move(buffer), type);
-
-    ++m_sStats->nRequest_packets;
-
-    if (!m_multi_part_in_process)
-    {
-        ++m_sStats->nRequests;
-    }
-
-    m_multi_part_in_process = multi_part;
-
-    return rv;
-}
-
-
-/**
  * ComparatorMainBackend
  */
 
@@ -71,11 +48,11 @@ void ComparatorOtherBackend::ready(const ComparatorOtherResult& other_result)
 
     if (other_duration < main_duration)
     {
-        ++const_cast<OtherStats&>(stats()).nFaster;
+        ++m_stats.nFaster;
     }
     else if (other_duration > main_duration)
     {
-        ++const_cast<OtherStats&>(stats()).nSlower;
+        ++m_stats.nSlower;
     }
 
     Action action = m_pHandler->ready(other_result);
