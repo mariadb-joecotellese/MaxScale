@@ -1,6 +1,16 @@
+/*
+ * Copyright (c) 2024 MariaDB plc
+ *
+ * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
+ */
+#pragma once
+
+#include "../wcarstorage.hh"
 #include <maxbase/host.hh>
 #include <mysql.h>
 #include <string>
+#include <filesystem>
+#include <memory>
 
 struct PlayerConfig
 {
@@ -10,8 +20,13 @@ struct PlayerConfig
     std::string   password{"skysql"};
     maxbase::Host host{"127.1.1.0", 3306};
 
-    std::string file_path;
-    MYSQL*      conn;
+    std::string capture_dir = "/home/mariadb/maxscale/var/lib/maxscale/capture";
+    std::string file_base_name;
+    MYSQL*      pConn;
+
 
     void show_help();
+
+    // Helper for testing
+    std::unique_ptr<Storage> create_read_storage(const std::filesystem::path& path) const;
 };

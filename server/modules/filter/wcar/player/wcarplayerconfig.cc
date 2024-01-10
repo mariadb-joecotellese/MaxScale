@@ -1,4 +1,12 @@
+/*
+ * Copyright (c) 2024 MariaDB plc
+ *
+ * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
+ */
+
 #include "wcarplayerconfig.hh"
+#include "../wcarsqlitestorage.hh"
+#include "../wcarbooststorage.hh"
 #include <getopt.h>
 #include <iostream>
 #include <iomanip>
@@ -64,7 +72,7 @@ void PlayerConfig::show_help()
               << OPT('u', user)
               << OPT('p', password)
               << OPT('H', host)
-              << "\nInput file: " << file_path
+              << "\nInput file: " << file_base_name
               << std::endl;
 }
 
@@ -113,7 +121,7 @@ PlayerConfig::PlayerConfig(int argc, char** argv)
     }
     else
     {
-        file_path = argv[optind];
+        file_base_name = argv[optind];
     }
 
     if (help)
@@ -122,19 +130,35 @@ PlayerConfig::PlayerConfig(int argc, char** argv)
         exit(error ? EXIT_FAILURE : EXIT_SUCCESS);
     }
 
-    conn = mysql_init(nullptr);
-    if (conn == nullptr)
+    pConn = mysql_init(nullptr);
+    if (pConn == nullptr)
     {
-        std::cerr << "Could not initialize connector-c " << mysql_error(conn) << std::endl;
+        std::cerr << "Could not initialize connector-c " << mysql_error(pConn) << std::endl;
         exit(EXIT_FAILURE);
     }
 
-    if (mysql_real_connect(conn, host.address().c_str(), user.c_str(),
+    if (mysql_real_connect(pConn, host.address().c_str(), user.c_str(),
                            password.c_str(), "", host.port(), nullptr, 0) == nullptr)
     {
         std::cerr << "Could not connect to " << host.address()
                   << ':' << std::to_string(host.port())
-                  << " Error: " << mysql_error(conn) << '\n';
+                  << " Error: " << mysql_error(pConn) << '\n';
         exit(EXIT_FAILURE);
     }
+}
+
+std::unique_ptr<Storage> PlayerConfig::create_read_storage(const std::filesystem::path& path) const
+{
+    auto ext = path.extension();
+    std::cout << "path = " << path << ' ' << ext << std::endl;
+    if (ext == ".sqlite")
+    {
+        return std::make_unique<SqliteStorage>(path, Access::READ_ONLY);
+    }
+    else if (ext == ".cx" || ext == ".ex")
+    {
+        return std::make_unique<BoostStorage>(path, ReadWrite::READ_ONLY);
+    }
+
+    abort();
 }

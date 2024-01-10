@@ -1,2 +1,2 @@
-add_executable(player wcarplayer.cc wcarplayerconfig.cc)
-target_link_libraries(player wcar-core maxbase)
+add_executable(player wcarplayermain.cc wcarplayer.cc wcarplayerconfig.cc)
+target_link_libraries(player wcar-core maxbase boost_serialization)
