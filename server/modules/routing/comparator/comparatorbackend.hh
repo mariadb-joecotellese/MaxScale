@@ -14,6 +14,7 @@
 #include <maxscale/parser.hh>
 #include <maxscale/router.hh>
 #include "comparatorresult.hh"
+#include "comparatorstats.hh"
 
 class ComparatorMainBackend;
 class ComparatorOtherBackend;
@@ -27,16 +28,9 @@ class ComparatorRouter;
 class ComparatorBackend : public mxs::Backend
 {
 public:
-    struct Stats
-    {
-        std::chrono::nanoseconds total_duration { 0 };
-        int64_t                  nRequest_packets { 0 };
-        int64_t                  nRequests { 0 };
-        int64_t                  nResponses { 0 };
-    };
-
     using Result = ComparatorResult;
     using SResult = std::shared_ptr<Result>;
+    using Stats = ComparatorStats;
 
     void set_parser_helper(const mxs::Parser::Helper* pHelper)
     {
@@ -109,11 +103,7 @@ protected:
 class ComparatorMainBackend final : public ComparatorBackend
 {
 public:
-    struct MainStats : Stats
-    {
-        // TODO: Placeholder.
-    };
-
+    using MainStats = ComparatorMainStats;
     using Result = ComparatorMainResult;
     using SResult = std::shared_ptr<Result>;
 
@@ -150,12 +140,6 @@ class ComparatorOtherBackend final : public ComparatorBackend
 
 {
 public:
-    struct OtherStats : Stats
-    {
-        int64_t nFaster { 0 };
-        int64_t nSlower { 0 };
-    };
-
     enum Action
     {
         CONTINUE,
@@ -171,6 +155,7 @@ public:
                            std::string_view json) = 0;
     };
 
+    using OtherStats = ComparatorOtherStats;
     using Result = ComparatorOtherResult;
     using SResult = std::shared_ptr<Result>;
 
