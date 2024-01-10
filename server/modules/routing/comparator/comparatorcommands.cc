@@ -30,6 +30,7 @@ void register_prepare_command();
 void register_start_command();
 void register_status_command();
 void register_stop_command();
+void register_summary_command();
 }
 
 void comparator_register_commands()
@@ -38,21 +39,7 @@ void comparator_register_commands()
     register_start_command();
     register_status_command();
     register_stop_command();
-}
-
-namespace
-{
-
-inline void check_args(const MODULECMD_ARG* pArgs, modulecmd_arg_type_t argv[], int argc)
-{
-    mxb_assert(pArgs->argc == argc);
-
-    for (int i = 0; i < argc; ++i)
-    {
-        mxb_assert(pArgs->argv[i].type.type == (argv[i].type & ~MODULECMD_ARG_NAME_MATCHES_DOMAIN));
-    }
-}
-
+    register_summary_command();
 }
 
 /*
@@ -247,8 +234,6 @@ Service* create_comparator_service(const SERVICE& service,
 
 bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
-    check_args(pArgs, command_prepare_argv, command_prepare_argc);
-
     bool rv = false;
 
     Service* pService = static_cast<Service*>(pArgs->argv[0].value.service);
@@ -346,8 +331,6 @@ static int command_start_argc = MXS_ARRAY_NELEMS(command_start_argv);
 
 bool command_start(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
-    check_args(pArgs, command_start_argv, command_start_argc);
-
     auto* pService = pArgs->argv[0].value.service;
     auto* pRouter = static_cast<ComparatorRouter*>(pService->router());
 
@@ -386,8 +369,6 @@ static int command_status_argc = MXS_ARRAY_NELEMS(command_status_argv);
 
 bool command_status(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
-    check_args(pArgs, command_status_argv, command_status_argc);
-
     auto* pService = pArgs->argv[0].value.service;
     auto* pRouter = static_cast<ComparatorRouter*>(pService->router());
 
@@ -426,8 +407,6 @@ static int command_stop_argc = MXS_ARRAY_NELEMS(command_stop_argv);
 
 bool command_stop(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
-    check_args(pArgs, command_stop_argv, command_stop_argc);
-
     auto* pService = pArgs->argv[0].value.service;
     auto* pRouter = static_cast<ComparatorRouter*>(pService->router());
 
@@ -449,3 +428,88 @@ void register_stop_command()
 }
 
 }
+
+/**
+ * call command summary
+ */
+namespace
+{
+
+static modulecmd_arg_type_t command_summary_argv[] =
+{
+    {MODULECMD_ARG_SERVICE | MODULECMD_ARG_NAME_MATCHES_DOMAIN, "Service name"},
+    {MODULECMD_ARG_STRING | MODULECMD_ARG_OPTIONAL,
+     "Enumeration - return|save|both - indicating whether the summary should be returned, "
+     "saved, or both returned and saved. 'save' is the default."},
+};
+
+std::map<std::string, ComparatorRouter::Summary> summary_keywords =
+{
+    { "return", ComparatorRouter::Summary::RETURN },
+    { "save", ComparatorRouter::Summary::SAVE },
+    { "both", ComparatorRouter::Summary::BOTH },
+};
+
+static int command_summary_argc = MXS_ARRAY_NELEMS(command_summary_argv);
+
+
+bool command_summary(const MODULECMD_ARG* pArgs, json_t** ppOutput)
+{
+    bool rv = true;
+
+    auto* pService = pArgs->argv[0].value.service;
+    auto* pRouter = static_cast<ComparatorRouter*>(pService->router());
+
+    ComparatorRouter::Summary summary = ComparatorRouter::Summary::SAVE;
+
+    if (pArgs->argc == 2)
+    {
+        const char* zKeyword = pArgs->argv[1].value.string;
+
+        auto it = summary_keywords.find(zKeyword);
+        auto end = summary_keywords.end();
+
+        if (it != end)
+        {
+            summary = it->second;
+        }
+        else
+        {
+            auto begin = summary_keywords.begin();
+            std::vector<std::string> values;
+            auto to = std::back_inserter(values);
+
+            std::transform(begin, end, to, [](const auto& kv) {
+                    return kv.first;
+                });
+
+            MXB_ERROR("'%s' is not a valid value. Valid values are: %s",
+                      zKeyword, mxb::join(values, ",", "'").c_str());
+            rv = false;
+        }
+    }
+
+    if (rv)
+    {
+        rv = pRouter->summary(summary, ppOutput);
+    }
+
+    return rv;
+};
+
+void register_summary_command()
+{
+    MXB_AT_DEBUG(bool rv);
+
+    MXB_AT_DEBUG(rv =) modulecmd_register_command(MXB_MODULE_NAME,
+                                                  "summary",
+                                                  MODULECMD_TYPE_PASSIVE,
+                                                  command_summary,
+                                                  MXS_ARRAY_NELEMS(command_summary_argv),
+                                                  command_summary_argv,
+                                                  "comparator service summary");
+    mxb_assert(rv);
+}
+
+}
+

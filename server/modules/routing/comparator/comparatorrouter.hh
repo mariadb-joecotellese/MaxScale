@@ -73,9 +73,17 @@ public:
 
     bool post_configure();
 
+    enum class Summary
+    {
+        RETURN,
+        SAVE,
+        BOTH
+    };
+
     bool start(json_t** ppOutput);
     bool status(json_t** ppOutput);
     bool stop(json_t** ppOutput);
+    bool summary(Summary summary, json_t** ppOutput);
 
 private:
     bool all_sessions_suspended(mxs::RoutingWorker::SessionResult sr)

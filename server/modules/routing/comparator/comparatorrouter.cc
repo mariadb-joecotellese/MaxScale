@@ -244,6 +244,12 @@ bool ComparatorRouter::stop(json_t** ppOutput)
     return rv;
 }
 
+bool ComparatorRouter::summary(Summary summary, json_t** ppOutput)
+{
+    MXB_ERROR("Not implemented yet.");
+    return false;
+}
+
 mxs::RoutingWorker::SessionResult ComparatorRouter::restart_sessions()
 {
     return mxs::RoutingWorker::restart_sessions(m_config.pService->name());
