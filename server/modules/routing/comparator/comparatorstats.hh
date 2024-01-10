@@ -76,15 +76,7 @@ struct ComparatorSessionStats
 
 struct ComparatorRouterStats
 {
-    ComparatorRouterStats() = default;
-    ComparatorRouterStats(const ComparatorRouterStats& rhs)
-        : nTotal_sessions(rhs.nTotal_sessions.load(std::memory_order_relaxed))
-        , nSessions(rhs.nSessions.load(std::memory_order_relaxed))
-        , session_stats(rhs.session_stats)
-    {
-    }
+    // TODO: Placeholder.
 
-    std::atomic<int64_t>   nTotal_sessions { 0 };
-    std::atomic<int64_t>   nSessions { 0 };
     ComparatorSessionStats session_stats;
 };

@@ -107,8 +107,6 @@ RouterSession* ComparatorRouter::newSession(MXS_SESSION* pSession, const Endpoin
     if (connected)
     {
         pRouter_session = new ComparatorSession(pSession, this, std::move(sMain), std::move(backends));
-        ++m_stats.nTotal_sessions;
-        ++m_stats.nSessions;
     }
 
     return pRouter_session;
@@ -258,13 +256,13 @@ bool ComparatorRouter::stop(json_t** ppOutput)
 namespace
 {
 
-json_t* generate_stats(const ComparatorRouter::Stats& stats)
+json_t* generate_stats(int64_t nTotal, int64_t nCurrent, const ComparatorRouter::Stats& stats)
 {
     json_t* pOutput = json_object();
 
     json_t* pSessions = json_object();
-    json_object_set_new(pSessions, "total", json_integer(stats.nTotal_sessions));
-    json_object_set_new(pSessions, "current", json_integer(stats.nSessions));
+    json_object_set_new(pSessions, "total", json_integer(nTotal));
+    json_object_set_new(pSessions, "current", json_integer(nCurrent));
     json_object_set_new(pOutput, "sessions", pSessions);
 
     json_t* pBackends = json_array();
@@ -336,7 +334,9 @@ bool ComparatorRouter::summary(Summary summary, json_t** ppOutput)
     path += time.str();
     path += ".json";
 
-    json_t* pOutput = generate_stats(stats);
+    json_t* pOutput = generate_stats(m_service.stats().n_total_conns(),
+                                     m_service.stats().n_current_conns(),
+                                     stats);
 
     if (summary == Summary::SAVE || summary == Summary::BOTH)
     {
@@ -358,8 +358,6 @@ bool ComparatorRouter::summary(Summary summary, json_t** ppOutput)
 
 void ComparatorRouter::collect(const ComparatorSessionStats& stats)
 {
-    --m_stats.nSessions;
-
     std::lock_guard<std::mutex> guard(m_stats_lock);
 
     m_stats.session_stats += stats;
