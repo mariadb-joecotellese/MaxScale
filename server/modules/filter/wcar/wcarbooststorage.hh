@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <filesystem>
 #include <fstream>
+#include <deque>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 
@@ -50,6 +51,8 @@ private:
     /// some as of yet unspecified strategy.
     void preload_more_events();
 
+    std::shared_ptr<std::string> find_canonical(int64_t can_id);
+
     // For now, assume that the canonicals always fit in memory.
     // Later, the strategy can be to keep the std::unordered_map entries,
     // but reset shared_ptrs to regain memory. The entries must be kept if an
@@ -64,6 +67,9 @@ private:
 
     using Canonicals = std::unordered_map<int64_t, CanonicalEntry>;
     Canonicals m_canonicals;
+
+    using Events = std::deque<QueryEvent>;
+    Events m_events;
 
     fs::path  m_base_path;
     fs::path  m_canonical_path;

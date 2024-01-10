@@ -5,6 +5,7 @@
  */
 #include "wcarbooststorage.hh"
 #include <maxbase/assert.hh>
+#include <algorithm>
 
 BoostStorage::BoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
@@ -142,8 +143,99 @@ void BoostStorage::save_event(int64_t can_id, const QueryEvent& qevent)
 
 void BoostStorage::read_canonicals()
 {
+    int64_t can_id;
+    std::string canonical;
+    for (;;)
+    {
+        try
+        {
+            (*m_sCanonical_ia) & can_id;
+            (*m_sCanonical_ia) & canonical;
+            auto hash = std::hash<std::string> {}(canonical);
+            auto shared = std::make_shared<std::string>(canonical);
+            m_canonicals.emplace(hash, CanonicalEntry {can_id, shared});
+        }
+        catch (std::exception& ex)
+        {
+            if (!m_canonical_fs.good())     // presumambly the stream was read to the end
+            {
+                break;
+            }
+            else
+            {
+                throw ex;
+            }
+        }
+    }
 }
 
 void BoostStorage::preload_more_events()
 {
+    // This will become something that needs to consider memory usage
+    // rather than number of events.
+    int64_t nfetch = 1000 - m_events.size();
+    while (nfetch--)
+    {
+        try
+        {
+            int64_t can_id;
+            QueryEvent qevent;
+
+            (*m_sEvent_ia) & can_id;
+            (*m_sEvent_ia) & qevent.event_id;
+
+            int nargs;
+            (*m_sEvent_ia) & nargs;
+            for (int i = 0; i < nargs; ++i)
+            {
+                int32_t pos;
+                std::string value;
+                (*m_sEvent_ia) & pos;
+                (*m_sEvent_ia) & value;
+                qevent.canonical_args.emplace_back(pos, std::move(value));
+            }
+
+            (*m_sEvent_ia) & qevent.session_id;
+
+            int64_t start_time_int;
+            int64_t end_time_int;
+            (*m_sEvent_ia) & start_time_int;
+            (*m_sEvent_ia) & end_time_int;
+            qevent.start_time = mxb::TimePoint(mxb::Duration(start_time_int));
+            qevent.end_time = mxb::TimePoint(mxb::Duration(end_time_int));
+
+            qevent.sCanonical = find_canonical(can_id);
+
+            m_events.push_back(std::move(qevent));
+        }
+        catch (std::exception& ex)
+        {
+            if (!m_canonical_fs.good())     // presumambly the stream was read to the end
+            {
+                break;
+            }
+            else
+            {
+                throw ex;
+            }
+        }
+    }
+}
+
+std::shared_ptr<std::string> BoostStorage::find_canonical(int64_t can_id)
+{
+    // Linear search isn't that bad - there aren't that many canonicals,
+    // and this is only called when loading events. If it becomes are
+    // problem, create an index.
+    // The other purpose of this is to be able to reload sql if it has been dropped.
+    auto ite = std::find_if(m_canonicals.begin(), m_canonicals.end(), [can_id](const auto& e){
+        return e.second.can_id == can_id;
+    });
+
+    if (ite == m_canonicals.end())
+    {
+        MXB_THROW(WcarError, "Bug, canonical should have been found.");
+    }
+
+    return ite->second.sCanonical;
 }
