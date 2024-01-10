@@ -9,12 +9,13 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <iomanip>
 #include <maxscale/paths.hh>
 #include <maxscale/service.hh>
 #include <maxscale/utils.hh>
 
 // Exports to a file
-class FileExporter : public ComparatorExporter
+class FileExporter final : public ComparatorExporter
 {
 public:
     FileExporter(int fd)
@@ -46,15 +47,21 @@ std::unique_ptr<ComparatorExporter> build_exporter(const ComparatorConfig& confi
     std::string dir = mxs::datadir();
     dir += "/";
     dir += MXB_MODULE_NAME;
+    dir += "/";
+    dir += config.pService->name();
 
     if (mxs_mkdir_all(dir.c_str(), 0777))
     {
+        time_t now = time(nullptr);
+        std::stringstream time;
+        time << std::put_time(std::localtime(&now),"%Y-%m-%dT%H-%M-%S");
+
         std::string file = dir + "/";
-        file += config.pService->name();
-        file += "-";
         file += config.pMain->name();
-        file += "-";
+        file += "_";
         file += target.name();
+        file += "_";
+        file += time.str();
         file += ".json";
 
         int fd = open(file.c_str(), O_APPEND | O_WRONLY | O_CREAT | O_CLOEXEC,
