@@ -29,13 +29,11 @@ class ComparatorBackend : public mxs::Backend
 public:
     struct Stats
     {
-        std::chrono::nanoseconds total_duration;
+        std::chrono::nanoseconds total_duration { 0 };
         int64_t                  nRequest_packets { 0 };
         int64_t                  nRequests { 0 };
         int64_t                  nResponses { 0 };
     };
-
-    using mxs::Backend::Backend;
 
     using Result = ComparatorResult;
     using SResult = std::shared_ptr<Result>;
@@ -47,9 +45,9 @@ public:
 
     bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override;
 
-    Stats stats() const
+    virtual const Stats& stats() const
     {
-        return m_stats;
+        return *m_sStats.get();
     }
 
     bool multi_part_in_process() const
@@ -72,8 +70,8 @@ public:
         auto sResult = std::move(m_results.front());
         m_results.pop_front();
 
-        ++m_stats.nResponses;
-        m_stats.total_duration += sResult->close(reply);
+        ++m_sStats->nResponses;
+        m_sStats->total_duration += sResult->close(reply);
     }
 
     void close(close_type type = CLOSE_NORMAL) override
@@ -89,6 +87,12 @@ public:
     }
 
 protected:
+    ComparatorBackend(mxs::Endpoint* pEndpoint, std::unique_ptr<Stats> sStats)
+        : mxs::Backend(pEndpoint)
+        , m_sStats(std::move(sStats))
+    {
+    }
+
     const mxs::Parser::Helper& ph() const
     {
         mxb_assert(m_pParser_helper);
@@ -99,16 +103,29 @@ protected:
     const mxs::Parser::Helper* m_pParser_helper { nullptr };
     bool                       m_multi_part_in_process { false };
     std::deque<SResult>        m_results;
-    Stats                      m_stats;
+    std::unique_ptr<Stats>     m_sStats;
 };
 
 class ComparatorMainBackend final : public ComparatorBackend
 {
 public:
-    using ComparatorBackend::ComparatorBackend;
+    struct MainStats : Stats
+    {
+        // TODO: Placeholder.
+    };
 
     using Result = ComparatorMainResult;
     using SResult = std::shared_ptr<Result>;
+
+    ComparatorMainBackend(mxs::Endpoint* pEndpoint)
+        : ComparatorBackend(pEndpoint, std::make_unique<MainStats>())
+    {
+    }
+
+    const MainStats& stats() const override
+    {
+        return static_cast<const MainStats&>(ComparatorBackend::stats());
+    }
 
     SResult prepare(const GWBUF& packet);
 
@@ -133,6 +150,12 @@ class ComparatorOtherBackend final : public ComparatorBackend
 
 {
 public:
+    struct OtherStats : Stats
+    {
+        int64_t nFaster { 0 };
+        int64_t nSlower { 0 };
+    };
+
     enum Action
     {
         CONTINUE,
@@ -153,7 +176,7 @@ public:
 
     ComparatorOtherBackend(mxs::Endpoint* pEndpoint,
                            std::shared_ptr<ComparatorExporter> sExporter)
-        : ComparatorBackend(pEndpoint)
+        : ComparatorBackend(pEndpoint, std::make_unique<OtherStats>())
         , m_sExporter(std::move(sExporter))
     {
     }
@@ -161,6 +184,11 @@ public:
     void set_result_handler(Handler* pHandler)
     {
         m_pHandler = pHandler;
+    }
+
+    const OtherStats& stats() const override
+    {
+        return static_cast<const OtherStats&>(ComparatorBackend::stats());
     }
 
     ComparatorExporter& exporter() const
