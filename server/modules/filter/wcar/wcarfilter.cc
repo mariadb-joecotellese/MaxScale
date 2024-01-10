@@ -7,6 +7,7 @@
 #include "wcarfilter.hh"
 #include "wcarinmemorystorage.hh"
 #include "wcarsqlitestorage.hh"
+#include "wcarbooststorage.hh"
 #include "wcarconfig.hh"
 #include <maxbase/stopwatch.hh>
 #include <string>
@@ -47,9 +48,7 @@ bool WcarFilter::post_configure()
         break;
 
     case StorageType::BINARY:
-        ok = false;
-        MXB_ERROR("StorageType::BINARY not implemented yet");
-        mxb_assert(!true);
+        m_sStorage = std::make_unique<BoostStorage>(base_path);
         break;
     }
 
