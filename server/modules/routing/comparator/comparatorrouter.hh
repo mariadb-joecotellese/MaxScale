@@ -14,6 +14,7 @@
 #include <maxscale/service.hh>
 #include "comparatorconfig.hh"
 #include "comparatorexporter.hh"
+#include "comparatorstats.hh"
 
 class ComparatorSession;
 
@@ -21,6 +22,8 @@ class ComparatorRouter : public mxs::Router
                        , private mxb::Worker::Callable
 {
 public:
+    using Stats = ComparatorRouterStats;
+
     enum class ComparatorState
     {
         PREPARED,      // Setup for action.
@@ -85,6 +88,8 @@ public:
     bool stop(json_t** ppOutput);
     bool summary(Summary summary, json_t** ppOutput);
 
+    void collect(const ComparatorSessionStats& stats);
+
 private:
     bool all_sessions_suspended(mxs::RoutingWorker::SessionResult sr)
     {
@@ -116,8 +121,10 @@ private:
     ComparatorState                         m_comparator_state { ComparatorState::PREPARED };
     SyncState                               m_sync_state { SyncState::IDLE };
     ComparatorConfig                        m_config;
-    mutable std::shared_mutex               m_rw_lock;
     SERVICE&                                m_service;
     mxb::Worker::DCId                       m_dcstart { mxb::Worker::NO_CALL };
     std::map<const mxs::Target*, SExporter> m_exporters;
+    mutable std::shared_mutex               m_exporters_rwlock;
+    Stats                                   m_stats;
+    std::mutex                              m_stats_lock;
 };

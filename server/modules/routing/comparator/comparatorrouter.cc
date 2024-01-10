@@ -5,6 +5,8 @@
  */
 
 #include "comparatorrouter.hh"
+#include <fstream>
+#include <iomanip>
 #include <maxbase/format.hh>
 #include <maxscale/mainworker.hh>
 #include <maxscale/routingworker.hh>
@@ -100,12 +102,21 @@ RouterSession* ComparatorRouter::newSession(MXS_SESSION* pSession, const Endpoin
         }
     }
 
-    return connected ? new ComparatorSession(pSession, this, std::move(sMain), std::move(backends)) : NULL;
+    RouterSession* pRouter_session = nullptr;
+
+    if (connected)
+    {
+        pRouter_session = new ComparatorSession(pSession, this, std::move(sMain), std::move(backends));
+        ++m_stats.nTotal_sessions;
+        ++m_stats.nSessions;
+    }
+
+    return pRouter_session;
 }
 
 std::shared_ptr<ComparatorExporter> ComparatorRouter::exporter_for(const mxs::Target* pTarget) const
 {
-    std::shared_lock<std::shared_mutex> guard(m_rw_lock);
+    std::shared_lock<std::shared_mutex> guard(m_exporters_rwlock);
 
     auto it = m_exporters.find(pTarget);
     mxb_assert(it != m_exporters.end());
@@ -127,7 +138,7 @@ bool ComparatorRouter::post_configure()
 {
     bool rval = true;
 
-    std::shared_lock<std::shared_mutex> shared_guard(m_rw_lock);
+    std::shared_lock<std::shared_mutex> shared_guard(m_exporters_rwlock);
 
     std::map<const mxs::Target*, SExporter> exporters;
 
@@ -162,7 +173,7 @@ bool ComparatorRouter::post_configure()
     {
         shared_guard.unlock();
 
-        std::lock_guard<std::shared_mutex> guard(m_rw_lock);
+        std::lock_guard<std::shared_mutex> guard(m_exporters_rwlock);
 
         m_exporters = std::move(exporters);
     }
@@ -244,10 +255,114 @@ bool ComparatorRouter::stop(json_t** ppOutput)
     return rv;
 }
 
+namespace
+{
+
+json_t* generate_stats(const ComparatorRouter::Stats& stats)
+{
+    json_t* pOutput = json_object();
+
+    json_t* pSessions = json_object();
+    json_object_set_new(pSessions, "total", json_integer(stats.nTotal_sessions));
+    json_object_set_new(pSessions, "current", json_integer(stats.nSessions));
+    json_object_set_new(pOutput, "sessions", pSessions);
+
+    json_t* pBackends = json_array();
+
+    for (const auto& kv : stats.session_stats.other_stats)
+    {
+        json_t* pBackend = json_object();
+
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(kv.second.total_duration);
+
+        json_object_set_new(pBackend, "total_duration", json_integer(ms.count()));
+        json_object_set_new(pBackend, "requests", json_integer(kv.second.nRequests));
+        json_object_set_new(pBackend, "responding_requests", json_integer(kv.second.nResponding_requests));
+        json_object_set_new(pBackend, "responses", json_integer(kv.second.nResponses));
+        json_object_set_new(pBackend, "faster_requests", json_integer(kv.second.nFaster));
+        json_object_set_new(pBackend, "slower_requests", json_integer(kv.second.nSlower));
+
+        json_array_append_new(pBackends, pBackend);
+    }
+
+    json_object_set_new(pOutput, "backends", pBackends);
+
+    return pOutput;
+}
+
+bool save_stats(const std::string& path, json_t* pOutput)
+{
+    std::ofstream out(path);
+
+    if (out)
+    {
+        auto str = mxb::json_dump(pOutput, JSON_INDENT(2)) + '\n';
+
+        out << str;
+
+        if (!out)
+        {
+            MXB_ERROR("Could not write summary to file '%s'.", path.c_str());
+        }
+    }
+    else
+    {
+        MXB_ERROR("Could not create file '%s'.", path.c_str());
+    }
+
+    return !out.fail();
+}
+
+}
+
 bool ComparatorRouter::summary(Summary summary, json_t** ppOutput)
 {
-    MXB_ERROR("Not implemented yet.");
-    return false;
+    bool rv = true;
+
+    std::unique_lock<std::mutex> guard(m_stats_lock);
+    Stats stats = m_stats;
+    guard.unlock();
+
+    std::string path = mxs::datadir();
+    path += "/";
+    path += MXB_MODULE_NAME;
+    path += "/";
+    path += m_config.pService->name();
+    path += "/summary_";
+
+    time_t now = time(nullptr);
+    std::stringstream time;
+    time << std::put_time(std::localtime(&now),"%Y-%m-%dT%H-%M-%S");
+    path += time.str();
+    path += ".json";
+
+    json_t* pOutput = generate_stats(stats);
+
+    if (summary == Summary::SAVE || summary == Summary::BOTH)
+    {
+        rv = save_stats(path, pOutput);
+    }
+
+    if (summary == Summary::RETURN)
+    {
+        *ppOutput = pOutput;
+        rv = true;
+    }
+    else
+    {
+        json_decref(pOutput);
+    }
+
+    return rv;
+}
+
+void ComparatorRouter::collect(const ComparatorSessionStats& stats)
+{
+    --m_stats.nSessions;
+
+    std::lock_guard<std::mutex> guard(m_stats_lock);
+
+    m_stats.session_stats += stats;
 }
 
 mxs::RoutingWorker::SessionResult ComparatorRouter::restart_sessions()

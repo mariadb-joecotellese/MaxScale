@@ -101,6 +101,11 @@ public:
         if (!m_multi_part_in_process)
         {
             ++m_stats.nRequests;
+
+            if (type != NO_RESPONSE)
+            {
+                ++m_stats.nResponding_requests;
+            }
         }
 
         m_multi_part_in_process = multi_part;

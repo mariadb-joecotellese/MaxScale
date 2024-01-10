@@ -10,8 +10,8 @@
 #include <maxscale/backend.hh>
 #include <maxscale/buffer.hh>
 #include "comparatorbackend.hh"
-#include "comparatorrouter.hh"
 #include "comparatorresult.hh"
+#include "comparatorstats.hh"
 
 class ComparatorRouter;
 
@@ -19,6 +19,8 @@ class ComparatorSession final : public mxs::RouterSession
                               , private ComparatorOtherBackend::Handler
 {
 public:
+    using Stats = ComparatorSessionStats;
+
     ComparatorSession(const ComparatorSession&) = delete;
     ComparatorSession& operator=(const ComparatorSession&) = delete;
 
@@ -26,6 +28,7 @@ public:
                       ComparatorRouter* pRouter,
                       SComparatorMainBackend sMain,
                       SComparatorOtherBackends backends);
+    ~ComparatorSession();
 
     bool routeQuery(GWBUF&& packet) override;
 

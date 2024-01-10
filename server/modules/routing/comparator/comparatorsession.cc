@@ -47,6 +47,18 @@ ComparatorSession::ComparatorSession(MXS_SESSION* pSession,
     }
 }
 
+ComparatorSession::~ComparatorSession()
+{
+    Stats stats { m_sMain->stats() };
+
+    for (auto& sOther : m_others)
+    {
+        stats.other_stats.insert(std::make_pair(sOther->target(), sOther->stats()));
+    }
+
+    m_router.collect(stats);
+}
+
 bool ComparatorSession::routeQuery(GWBUF&& packet)
 {
     bool rv = false;
