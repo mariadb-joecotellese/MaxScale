@@ -77,6 +77,13 @@ void ComparatorOtherBackend::ready(const ComparatorOtherResult& other_result)
             packet.set_type(GWBUF::TYPE_COLLECT_ROWS);
 
             write(std::move(packet), mxs::Backend::EXPECT_RESPONSE);
+            ++m_stats.nExplain_requests;
+
+            // Tune general counters, since those related to the extra
+            // EXPLAIN requests should be exluded.
+            --m_stats.nRequest_packets;
+            --m_stats.nRequests;
+            --m_stats.nResponding_requests;
         }
     }
 }
@@ -86,6 +93,14 @@ void ComparatorOtherBackend::ready(const ComparatorExplainResult& explain_result
                                    std::string_view json)
 {
     mxb_assert(m_pHandler);
+
+    ++m_stats.nExplain_responses;
+
+    // Tune counters as the extra EXPLAIN requests/responses should be
+    // excluded from the general book-keeping.
+    --m_stats.nResponses;
+
+    m_stats.explain_duration += explain_result.duration();
 
     m_pHandler->ready(explain_result, error, json);
 }

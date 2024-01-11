@@ -139,5 +139,7 @@ std::chrono::nanoseconds ComparatorExplainResult::close(const mxs::Reply& reply)
 
     m_handler.ready(*this, error, json);
 
-    return rv;
+    // Return 0, so that the duration of the EXPLAIN request is not
+    // included in the total duration.
+    return std::chrono::milliseconds { 0 };
 }

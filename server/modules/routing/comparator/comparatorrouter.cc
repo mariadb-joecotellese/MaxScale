@@ -16,6 +16,7 @@
 #include "../../../core/internal/service.hh"
 
 using namespace mxs;
+using std::chrono::duration_cast;
 
 
 ComparatorRouter::ComparatorRouter(SERVICE* pService)
@@ -271,14 +272,18 @@ json_t* generate_stats(int64_t nTotal, int64_t nCurrent, const ComparatorRouter:
     {
         json_t* pBackend = json_object();
 
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(kv.second.total_duration);
+        auto total_ms = duration_cast<std::chrono::milliseconds>(kv.second.total_duration);
+        auto explain_ms = duration_cast<std::chrono::milliseconds>(kv.second.explain_duration);
 
-        json_object_set_new(pBackend, "total_duration", json_integer(ms.count()));
+        json_object_set_new(pBackend, "total_duration", json_integer(total_ms.count()));
         json_object_set_new(pBackend, "requests", json_integer(kv.second.nRequests));
         json_object_set_new(pBackend, "responding_requests", json_integer(kv.second.nResponding_requests));
         json_object_set_new(pBackend, "responses", json_integer(kv.second.nResponses));
         json_object_set_new(pBackend, "faster_requests", json_integer(kv.second.nFaster));
         json_object_set_new(pBackend, "slower_requests", json_integer(kv.second.nSlower));
+        json_object_set_new(pBackend, "explain_duration", json_integer(explain_ms.count()));
+        json_object_set_new(pBackend, "explain_requests", json_integer(kv.second.nExplain_requests));
+        json_object_set_new(pBackend, "explain_responses", json_integer(kv.second.nExplain_responses));
 
         json_array_append_new(pBackends, pBackend);
     }

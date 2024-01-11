@@ -42,13 +42,19 @@ struct ComparatorMainStats : ComparatorStats
 
 struct ComparatorOtherStats : ComparatorStats
 {
-    int64_t nFaster { 0 };
-    int64_t nSlower { 0 };
+    std::chrono::nanoseconds explain_duration { 0 };
+    int64_t                  nExplain_requests { 0 };
+    int64_t                  nExplain_responses { 0 };
+    int64_t                  nFaster { 0 };
+    int64_t                  nSlower { 0 };
 
     ComparatorOtherStats& operator += (const ComparatorOtherStats& rhs)
     {
         ComparatorStats::operator += (rhs);
 
+        this->explain_duration += rhs.explain_duration;
+        this->nExplain_requests += rhs.nExplain_requests;
+        this->nExplain_responses += rhs.nExplain_responses;
         this->nFaster += rhs.nFaster;
         this->nSlower += rhs.nSlower;
 
