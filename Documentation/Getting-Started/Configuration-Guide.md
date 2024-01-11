@@ -156,6 +156,8 @@ runtime and can only be defined in a configuration file:
 * `admin_host`
 * `admin_pam_readonly_service`
 * `admin_pam_readwrite_service`
+* `admin_readonly_hosts`
+* `admin_readwrite_hosts`
 * `admin_port`
 * `admin_secure_gui`
 * `admin_ssl_ca`
@@ -1453,6 +1455,43 @@ authenticated by PAM. If only `admin_pam_readonly_service` is configured, only r
 operations can be authenticated by PAM. If both are set, the service used is determined by
 the requested operation. Leave or set both empty to disable PAM for REST-API.
 
+### `admin_readwrite_hosts`
+
+- **Type**: string
+- **Mandatory**: No
+- **Dynamic**: No
+- **Default**: `%`
+
+Limit REST-API logins to specific source addresses/hosts. Supports
+a comma-separated list of addresses and hostnames. Addresses can be given in
+CIDR-notation. Admin clients still need to supply credentials as usual.
+By default, all source addresses are allowed. `admin_readwrite_hosts` lists
+the hosts from which any operation is allowed.
+
+```
+admin_readwrite_hosts=192.168.1.1,127.0.0.1/21
+```
+
+When listing hostnames, `%` and `_` act as wildcards, similar to the hostname
+component in MariaDB Server user accounts. `localhost` is a reserved hostname
+and will not match any connection (use `127.0.0.1` for loopback connections).
+
+When checking the source host of the incoming REST-API client, MaxScale first
+compares against addresses and address masks. If a match was not found and the
+setting values contain hostnames, reverse name lookup is performed on the
+client address. The lookup can take a while in rare cases. To prevent such
+slowdown, use only IP-addresses in the host lists.
+
+### `admin_readonly_hosts`
+
+Works similar to `admin_readwrite_hosts`. Lists the hosts from which only read
+operations are allowed. An admin client can do a read operation if their source
+address matches either `admin_readwrite_hosts` or `admin_readonly_hosts`.
+
+```
+admin_readonly_hosts=mydomain%.com
+```
+
 ### `admin_jwt_algorithm`
 
 - **Type**: [enum](#enumerations)
@@ -1993,14 +2032,19 @@ from MariaDB MaxScale to clients.
 Example:
 
 ```
-version_string=5.5.37-MariaDB-RWsplit
+version_string=10.11.2-MariaDB-RWsplit
 ```
 
-If not set, the default value is `5.5.5-10.0.0 MaxScale <MaxScale version>`
-where `<MaxScale version>` is the version of MaxScale. If the provided string
-does not start with the number 5, a 5.5.5- prefix will be added to it. This
-means that a _version_string_ value of _MaxScale-Service_ would result in a
-_5.5.5-MaxScale-Service_ being sent to the client.
+If not set, MaxScale will attempt to use a version string from the
+backend databases by selecting the version string of the database with
+the lowest version number. If the selected version is from the MariaDB
+10 series, a `5.5.5-` prefix will be added to it similarly to how the
+MariaDB 10 series versions added it.
+
+If MaxScale has not been able to connect to a single database and the
+versions are unknown, the default value of `5.5.5-10.4.32 <MaxScale
+version>-maxscale` is used where `<MaxScale version>` is the version of
+MaxScale.
 
 ### `auth_all_servers`
 

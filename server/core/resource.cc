@@ -923,7 +923,8 @@ HttpResponse cb_logs(const HttpRequest& request)
     return HttpResponse(MHD_HTTP_OK, mxs_logs_to_json(request.host()));
 }
 
-HttpResponse cb_log_data(const HttpRequest& request)
+template<auto func>
+HttpResponse get_log_data_json(const HttpRequest& request)
 {
     int rows = 50;
     auto size = request.get_option("page[size]");
@@ -942,8 +943,17 @@ HttpResponse cb_log_data(const HttpRequest& request)
         }
     }
 
-    return HttpResponse(MHD_HTTP_OK, mxs_log_data_to_json(request.host(), cursor, rows,
-                                                          {priority.begin(), priority.end()}));
+    return HttpResponse(MHD_HTTP_OK, func(request.host(), cursor, rows, {priority.begin(), priority.end()}));
+}
+
+HttpResponse cb_log_data(const HttpRequest& request)
+{
+    return get_log_data_json<mxs_log_data_to_json>(request);
+}
+
+HttpResponse cb_log_entries(const HttpRequest& request)
+{
+    return get_log_data_json<mxs_log_entries_to_json>(request);
 }
 
 HttpResponse cb_log_stream(const HttpRequest& request)
@@ -1596,6 +1606,7 @@ public:
         m_get.emplace_back(cb_thread, "maxscale", "threads", ":thread");
         m_get.emplace_back(cb_logs, "maxscale", "logs");
         m_get.emplace_back(cb_log_data, "maxscale", "logs", "data");
+        m_get.emplace_back(cb_log_entries, "maxscale", "logs", "entries");
         m_get.emplace_back(cb_log_stream, "maxscale", "logs", "stream");
         m_get.emplace_back(cb_all_modules, "maxscale", "modules");
         m_get.emplace_back(cb_module, "maxscale", "modules", ":module");
@@ -1993,8 +2004,9 @@ static void remove_unwanted_fields(const HttpRequest& request, HttpResponse& res
     }
 }
 
-static void remove_unwanted_rows(const HttpRequest& request, HttpResponse& response)
+static bool remove_unwanted_rows(const HttpRequest& request, HttpResponse& response)
 {
+    bool ok = true;
     auto filter = request.get_option("filter");
 
     if (!filter.empty())
@@ -2004,15 +2016,15 @@ static void remove_unwanted_rows(const HttpRequest& request, HttpResponse& respo
         {
             auto json_ptr = filter.substr(0, pos);
             auto value = filter.substr(pos + 1);
-            json_error_t err;
-
-            if (json_t* js = json_loads(value.c_str(), JSON_DECODE_ANY, &err))
-            {
-                response.remove_rows(json_ptr, js);
-                json_decref(js);
-            }
+            ok = response.remove_rows(json_ptr, value);
+        }
+        else
+        {
+            MXB_ERROR("Invalid filter expression: %s", filter.c_str());
         }
     }
+
+    return ok;
 }
 
 static void paginate_result(const HttpRequest& request, HttpResponse& response)
@@ -2125,7 +2137,11 @@ static HttpResponse handle_request(const HttpRequest& request)
             rval.add_header(HTTP_RESPONSE_HEADER_ETAG, cksum.c_str());
         }
 
-        remove_unwanted_rows(request, rval);
+        if (!remove_unwanted_rows(request, rval))
+        {
+            return HttpResponse(MHD_HTTP_BAD_REQUEST, runtime_get_json_error());
+        }
+
         paginate_result(request, rval);
         remove_unwanted_fields(request, rval);
     }

@@ -11,23 +11,19 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
-const { maxctrl, error, _, helpMsg, parseValue, updateValue, doRequest } = require("./common.js");
+const { maxctrl, error, _, helpMsg, parseValue, doRequest, getJson } = require("./common.js");
 
 const param_type_msg =
   "The parameters should be given in the `key=value` format. This command also supports the legacy method \n" +
   "of passing parameters as `key value` pairs but the use of this is not recommended.";
 
-function setFilters(host, endpoint, argv) {
-  if (argv.filters.length == 0) {
-    // We're removing all filters from the service
-    argv.filters = null;
-  } else {
-    // Convert the list into relationships
-    argv.filters.forEach(function (value, i, arr) {
-      arr[i] = { id: value, type: "filters" };
-    });
-  }
+function paramToRelationship(body, values, relation_type) {
+  // Convert the list into relationships
+  const data = values.filter((v) => v).map((v) => ({ id: v, type: `${relation_type}` }));
+  _.set(body, `data.relationships.${relation_type}.data`, data);
+}
 
+function setFilters(host, endpoint, argv) {
   var payload = {
     data: {
       id: argv.service,
@@ -35,9 +31,37 @@ function setFilters(host, endpoint, argv) {
     },
   };
 
-  _.set(payload, "data.relationships.filters.data", argv.filters);
+  paramToRelationship(payload, argv.filters, "filters");
 
   return doRequest(host, endpoint, { method: "PATCH", data: payload });
+}
+
+function setMonitorRelationship(body, value) {
+  if (value) {
+    value = [{ id: value, type: "monitors" }];
+  } else {
+    value = [];
+  }
+
+  _.set(body, "data.relationships.monitors.data", value);
+}
+
+async function targetToRelationships(host, body, value) {
+  var res = await getJson(host, "servers");
+  var server_ids = res.data.map((v) => v.id);
+  var services = [];
+  var servers = [];
+
+  for (var v of value) {
+    if (server_ids.includes(v)) {
+      servers.push(v);
+    } else {
+      services.push(v);
+    }
+  }
+
+  paramToRelationship(body, servers, "servers");
+  paramToRelationship(body, services, "services");
 }
 
 // Converts a key=value string into an array of strings
@@ -46,7 +70,7 @@ function split_value(str) {
   return [str.slice(0, pos), str.slice(pos + 1)];
 }
 
-function updateParams(host, resource, val, extra) {
+async function updateParams(host, resource, val, extra, to_relationship) {
   var arr = [val].concat(extra);
 
   if (_.every(arr, (e) => e.includes("="))) {
@@ -69,7 +93,19 @@ function updateParams(host, resource, val, extra) {
     _.set(params, k, parseValue(values[i]));
   });
 
-  return updateValue(host, resource, "data.attributes.parameters", params);
+  var body = {};
+
+  if (to_relationship) {
+    for (var type of Object.keys(to_relationship)) {
+      if (typeof params[type] == "string") {
+        await to_relationship[type](body, params[type]);
+        delete params[type];
+      }
+    }
+  }
+
+  _.set(body, "data.attributes.parameters", params);
+  return doRequest(host, resource, { method: "PATCH", data: body });
 }
 
 exports.command = "alter <command>";
@@ -101,7 +137,9 @@ exports.builder = function (yargs) {
       },
       function (argv) {
         maxctrl(argv, function (host) {
-          return updateParams(host, "monitors/" + argv.monitor, argv.value, argv.params);
+          return updateParams(host, "monitors/" + argv.monitor, argv.value, argv.params, {
+            servers: (body, values) => paramToRelationship(body, values.split(","), "servers"),
+          });
         });
       }
     )
@@ -110,12 +148,17 @@ exports.builder = function (yargs) {
       "Alter service parameters",
       function (yargs) {
         return yargs
-          .epilog("To display the service parameters, execute `show service <service\n" + param_type_msg)
+          .epilog("To display the service parameters, execute `show service <service>\n" + param_type_msg)
           .usage("Usage: alter service <service> <key=value> ...");
       },
       function (argv) {
         maxctrl(argv, function (host) {
-          return updateParams(host, "services/" + argv.service, argv.value, argv.params);
+          return updateParams(host, "services/" + argv.service, argv.value, argv.params, {
+            servers: (body, values) => paramToRelationship(body, values.split(","), "servers"),
+            filters: (body, values) => paramToRelationship(body, values.split("|"), "filters"),
+            cluster: (body, values) => setMonitorRelationship(body, values, "monitors"),
+            targets: (body, values) => targetToRelationships(host, body, values.split(",")),
+          });
         });
       }
     )
@@ -133,7 +176,9 @@ exports.builder = function (yargs) {
               "will set the filter chain for the service `my-service` so that A gets the " +
               "query first after which it is passed to B and finally to C. This behavior is " +
               "the same as if the `filters=A|B|C` parameter was defined for the service.\n" +
-              "\n" +
+              "\n\n" +
+              "The filters can also be altered with `alter service 'filters=A|B|C'` similarly" +
+              "to how they are configured in the configuration file." +
               param_type_msg
           )
           .usage("Usage: alter service-filters <service> [filters...]");

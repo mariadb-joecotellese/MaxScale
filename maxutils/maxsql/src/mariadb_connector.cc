@@ -48,6 +48,120 @@ const char multiq_elem_no_data[] = "Multiquery element '%s' did not return any r
  * the class.
  */
 std::string default_plugin_dir;
+
+constexpr const int F_ENUM_TYPE = 256;
+constexpr const int F_SET_TYPE = 2048;
+
+constexpr const int BINARY_CHARSET = 63;
+
+bool field_type_is_string(int type, int charset)
+{
+    switch (type)
+    {
+    case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_VAR_STRING:
+    case MYSQL_TYPE_STRING:
+        return true;
+
+    case MYSQL_TYPE_TINY_BLOB:
+    case MYSQL_TYPE_MEDIUM_BLOB:
+    case MYSQL_TYPE_LONG_BLOB:
+    case MYSQL_TYPE_BLOB:
+        return charset != BINARY_CHARSET;
+
+    default:
+        return false;
+    }
+}
+
+const char* field_type_to_sql_type(int type, int charset)
+{
+    switch (type)
+    {
+    case MYSQL_TYPE_TINY:
+        return "TINYINT";
+
+    case MYSQL_TYPE_SHORT:
+        return "SMALLINT";
+
+    case MYSQL_TYPE_INT24:
+        return "MEDIUMINT";
+
+    case MYSQL_TYPE_LONG:
+        return "INT";
+
+    case MYSQL_TYPE_LONGLONG:
+        return "BIGINT";
+
+    case MYSQL_TYPE_FLOAT:
+        return "FLOAT";
+
+    case MYSQL_TYPE_DOUBLE:
+        return "DOUBLE";
+
+    case MYSQL_TYPE_NULL:
+        return "NULL";
+
+    case MYSQL_TYPE_TIMESTAMP:
+    case MYSQL_TYPE_TIMESTAMP2:
+        return "TIMESTAMP";
+
+    case MYSQL_TYPE_NEWDATE:
+    case MYSQL_TYPE_DATE:
+        return "DATE";
+
+    case MYSQL_TYPE_TIME:
+    case MYSQL_TYPE_TIME2:
+        return "TIME";
+
+    case MYSQL_TYPE_DATETIME:
+    case MYSQL_TYPE_DATETIME2:
+        return "DATETIME";
+
+    case MYSQL_TYPE_YEAR:
+        return "YEAR";
+
+    case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_VAR_STRING:
+        return "VARCHAR";
+
+    case MYSQL_TYPE_STRING:
+        return "CHAR";
+
+    case MYSQL_TYPE_BIT:
+        return "BIT";
+
+    case MYSQL_TYPE_JSON:
+        return "JSON";
+
+    case MYSQL_TYPE_DECIMAL:
+    case MYSQL_TYPE_NEWDECIMAL:
+        return "DECIMAL";
+
+    case MYSQL_TYPE_ENUM:
+        return "ENUM";
+
+    case MYSQL_TYPE_SET:
+        return "SET";
+
+    case MYSQL_TYPE_TINY_BLOB:
+        return charset == BINARY_CHARSET ? "TINYBLOB" : "TINYTEXT";
+
+    case MYSQL_TYPE_MEDIUM_BLOB:
+        return charset == BINARY_CHARSET ?  "MEDIUMBLOB" : "MEDIUMTEXT";
+
+    case MYSQL_TYPE_LONG_BLOB:
+        return charset == BINARY_CHARSET ?  "LONGBLOB" : "LONGTEXT";
+
+    case MYSQL_TYPE_BLOB:
+        return charset == BINARY_CHARSET ?  "BLOB" : "TEXT";
+
+    case MYSQL_TYPE_GEOMETRY:
+        return "GEOMETRY";
+    }
+
+    return "UNKNOWN";
+}
 }
 
 namespace maxsql
@@ -865,8 +979,27 @@ void MariaDBQueryResult::prepare_fields_info()
             break;
         }
 
-        Field new_elem = {field.name, resolved_type};
-        m_fields_info.push_back(std::move(new_elem));
+        Field f;
+
+        f.type = resolved_type;
+        f.name.assign(field.name, field.name_length);
+        f.table.assign(field.table, field.table_length);
+        f.schema.assign(field.db, field.db_length);
+        f.catalog.assign(field.catalog, field.catalog_length);
+        f.length = field.length;
+        f.flags = field.flags;
+        f.decimals = field.decimals;
+        f.sql_type = field_type_to_sql_type(field.type, field.charsetnr);
+
+        if (field_type_is_string(field.type, field.charsetnr))
+        {
+            if (auto cs = mariadb_get_charset_by_nr(field.charsetnr))
+            {
+                f.length /= std::max(1U, cs->char_maxlen);
+            }
+        }
+
+        m_fields_info.push_back(std::move(f));
     }
 }
 }
