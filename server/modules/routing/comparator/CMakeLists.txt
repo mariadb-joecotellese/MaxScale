@@ -7,6 +7,7 @@ add_library(comparator SHARED
   comparatorresult.cc
   comparatorrouter.cc
   comparatorsession.cc
+  comparatorstats.cc
   )
 
 target_link_libraries(comparator maxscale-common)

@@ -49,7 +49,7 @@ ComparatorSession::ComparatorSession(MXS_SESSION* pSession,
 
 ComparatorSession::~ComparatorSession()
 {
-    Stats stats { m_sMain->stats() };
+    Stats stats { m_sMain->backend()->target(), m_sMain->stats() };
 
     for (auto& sOther : m_others)
     {

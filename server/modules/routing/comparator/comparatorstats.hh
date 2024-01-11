@@ -8,6 +8,9 @@
 #include "comparatordefs.hh"
 #include <maxscale/target.hh>
 
+class ComparatorConfig;
+class SERVICE;
+
 struct ComparatorStats
 {
     std::chrono::nanoseconds total_duration { 0 };
@@ -26,9 +29,11 @@ struct ComparatorStats
 
         return *this;
     }
+
+    void fill_json(json_t* pJson) const;
 };
 
-struct ComparatorMainStats : ComparatorStats
+struct ComparatorMainStats final : ComparatorStats
 {
     // TODO: Placeholder.
 
@@ -38,9 +43,11 @@ struct ComparatorMainStats : ComparatorStats
 
         return *this;
     }
+
+    json_t* to_json() const;
 };
 
-struct ComparatorOtherStats : ComparatorStats
+struct ComparatorOtherStats final : ComparatorStats
 {
     std::chrono::nanoseconds explain_duration { 0 };
     int64_t                  nExplain_requests { 0 };
@@ -60,10 +67,13 @@ struct ComparatorOtherStats : ComparatorStats
 
         return *this;
     }
+
+    json_t* to_json() const;
 };
 
 struct ComparatorSessionStats
 {
+    mxs::Target*                                 pMain { nullptr };
     ComparatorMainStats                          main_stats;
     std::map<mxs::Target*, ComparatorOtherStats> other_stats;
 
@@ -78,11 +88,31 @@ struct ComparatorSessionStats
 
         return *this;
     }
+
+    json_t* to_json() const;
 };
 
-struct ComparatorRouterStats
+class ComparatorRouterStats
 {
-    // TODO: Placeholder.
+public:
+    ComparatorRouterStats(const SERVICE* pService)
+        : m_service(*pService)
+    {
+    }
 
-    ComparatorSessionStats session_stats;
+    ComparatorRouterStats& operator += (const ComparatorSessionStats& rhs)
+    {
+        mxb_assert(m_session_stats.pMain == rhs.pMain);
+
+        m_session_stats += rhs;
+        return *this;
+    }
+
+    void post_configure(const ComparatorConfig& config);
+
+    json_t* to_json() const;
+
+private:
+    const SERVICE&         m_service;
+    ComparatorSessionStats m_session_stats;
 };

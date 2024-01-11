@@ -24,6 +24,7 @@ ComparatorRouter::ComparatorRouter(SERVICE* pService)
     , m_comparator_state(ComparatorState::PREPARED)
     , m_config(pService->name(), this)
     , m_service(*pService)
+    , m_stats(pService)
 {
 }
 
@@ -136,6 +137,8 @@ uint64_t ComparatorRouter::getCapabilities() const
 bool ComparatorRouter::post_configure()
 {
     bool rval = true;
+
+    m_stats.post_configure(m_config);
 
     std::shared_lock<std::shared_mutex> shared_guard(m_exporters_rwlock);
 
@@ -257,42 +260,6 @@ bool ComparatorRouter::stop(json_t** ppOutput)
 namespace
 {
 
-json_t* generate_stats(int64_t nTotal, int64_t nCurrent, const ComparatorRouter::Stats& stats)
-{
-    json_t* pOutput = json_object();
-
-    json_t* pSessions = json_object();
-    json_object_set_new(pSessions, "total", json_integer(nTotal));
-    json_object_set_new(pSessions, "current", json_integer(nCurrent));
-    json_object_set_new(pOutput, "sessions", pSessions);
-
-    json_t* pBackends = json_array();
-
-    for (const auto& kv : stats.session_stats.other_stats)
-    {
-        json_t* pBackend = json_object();
-
-        auto total_ms = duration_cast<std::chrono::milliseconds>(kv.second.total_duration);
-        auto explain_ms = duration_cast<std::chrono::milliseconds>(kv.second.explain_duration);
-
-        json_object_set_new(pBackend, "total_duration", json_integer(total_ms.count()));
-        json_object_set_new(pBackend, "requests", json_integer(kv.second.nRequests));
-        json_object_set_new(pBackend, "responding_requests", json_integer(kv.second.nResponding_requests));
-        json_object_set_new(pBackend, "responses", json_integer(kv.second.nResponses));
-        json_object_set_new(pBackend, "faster_requests", json_integer(kv.second.nFaster));
-        json_object_set_new(pBackend, "slower_requests", json_integer(kv.second.nSlower));
-        json_object_set_new(pBackend, "explain_duration", json_integer(explain_ms.count()));
-        json_object_set_new(pBackend, "explain_requests", json_integer(kv.second.nExplain_requests));
-        json_object_set_new(pBackend, "explain_responses", json_integer(kv.second.nExplain_responses));
-
-        json_array_append_new(pBackends, pBackend);
-    }
-
-    json_object_set_new(pOutput, "backends", pBackends);
-
-    return pOutput;
-}
-
 bool save_stats(const std::string& path, json_t* pOutput)
 {
     std::ofstream out(path);
@@ -339,9 +306,7 @@ bool ComparatorRouter::summary(Summary summary, json_t** ppOutput)
     path += time.str();
     path += ".json";
 
-    json_t* pOutput = generate_stats(m_service.stats().n_total_conns(),
-                                     m_service.stats().n_current_conns(),
-                                     stats);
+    json_t* pOutput = stats.to_json();
 
     if (summary == Summary::SAVE || summary == Summary::BOTH)
     {
@@ -365,7 +330,7 @@ void ComparatorRouter::collect(const ComparatorSessionStats& stats)
 {
     std::lock_guard<std::mutex> guard(m_stats_lock);
 
-    m_stats.session_stats += stats;
+    m_stats += stats;
 }
 
 mxs::RoutingWorker::SessionResult ComparatorRouter::restart_sessions()
