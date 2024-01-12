@@ -220,8 +220,15 @@ private:
                std::string_view json) override;
 
 private:
-    std::shared_ptr<ComparatorExporter> m_sExporter;
-    Handler*                            m_pHandler { nullptr };
+    using SComparatorExplainResult = std::shared_ptr<ComparatorExplainResult>;
+    using SComparatorExporter = std::shared_ptr<ComparatorExporter>;
+
+    void execute_pending_explains();
+    void execute(const SComparatorExplainResult& sExplain_result);
+
+    SComparatorExporter                  m_sExporter;
+    Handler*                             m_pHandler { nullptr };
+    std::deque<SComparatorExplainResult> m_pending_explains;
 };
 
 namespace comparator
