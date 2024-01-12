@@ -171,11 +171,6 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
         }
     }
 
-    if (report == ReportAction::REPORT_ALWAYS)
-    {
-        generate_report(other_result);
-    }
-
     ComparatorOtherBackend::Action rv = ComparatorOtherBackend::CONTINUE;
 
     if (other_result.is_explainable())
@@ -198,6 +193,14 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
         }
     }
 
+    if (report == ReportAction::REPORT_ALWAYS)
+    {
+        if (rv != ComparatorOtherBackend::EXPLAIN)
+        {
+            generate_report(other_result);
+        }
+    }
+
     return rv;
 }
 
@@ -205,8 +208,6 @@ void ComparatorSession::ready(const ComparatorExplainResult& explain_result,
                               const std::string& error,
                               std::string_view json)
 {
-    // TODO: Log information.
-
     if (!error.empty())
     {
         auto& main_result = explain_result.other_result().main_result();
@@ -215,11 +216,12 @@ void ComparatorSession::ready(const ComparatorExplainResult& explain_result,
     }
     else
     {
-        MXB_NOTICE("EXPLAIN: %.*s", (int)json.size(), json.data());
+        generate_report(explain_result.other_result(), json);
     }
 }
 
-void ComparatorSession::generate_report(const ComparatorOtherResult& other_result)
+void ComparatorSession::generate_report(const ComparatorOtherResult& other_result,
+                                        std::string_view explain_json)
 {
     const auto& main_result = other_result.main_result();
 
@@ -229,10 +231,27 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
     json_object_set_new(pJson, "session", json_integer(m_pSession->id()));
     json_object_set_new(pJson, "query_id", json_integer(++m_num_queries));
 
-    json_t* pArr = json_array();
+    json_t* pMain = generate_json(main_result);
+    json_t* pOther = generate_json(other_result);
+    if (!explain_json.empty())
+    {
+        json_error_t error;
+        json_t* pExplain = json_loadb(explain_json.data(), explain_json.length(), 0, &error);
 
-    json_array_append_new(pArr, generate_json(main_result));
-    json_array_append_new(pArr, generate_json(other_result));
+        if (!pExplain)
+        {
+            MXB_WARNING("Could not parse EXPLAIN result '%.*s' returned by server, storing as string: %s",
+                        (int)explain_json.length(), explain_json.data(), error.text);
+
+            pExplain = json_stringn(explain_json.data(), explain_json.length());
+        }
+
+        json_object_set_new(pOther, "explain", pExplain);
+    }
+
+    json_t* pArr = json_array();
+    json_array_append_new(pArr, pMain);
+    json_array_append_new(pArr, pOther);
 
     json_object_set_new(pJson, "results", pArr);
 

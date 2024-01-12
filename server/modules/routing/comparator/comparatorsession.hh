@@ -45,7 +45,8 @@ private:
                std::string_view json) override;
 
 private:
-    void generate_report(const ComparatorOtherResult& result);
+    void generate_report(const ComparatorOtherResult& result,
+                         std::string_view explain_json = std::string_view {});
     json_t* generate_json(const ComparatorResult& result);
 
     SComparatorMainBackend   m_sMain;
