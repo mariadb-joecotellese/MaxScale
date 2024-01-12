@@ -240,9 +240,24 @@ bool ComparatorRouter::stop(json_t** ppOutput)
         break;
 
     case ComparatorState::SYNCHRONIZING:
-        mxb_assert(false);
-        // TODO: Handle stop when synchronizing.
-        MXB_ERROR("Not implemented yet.");
+        if (m_sync_state == SyncState::SUSPENDING)
+        {
+            mxb_assert(m_dcstart != 0);
+            cancel_dcall(m_dcstart);
+            m_dcstart = 0;
+
+            resume_sessions();
+
+            m_comparator_state = ComparatorState::PREPARED;
+            m_sync_state = SyncState::IDLE;
+
+            rv = true;
+        }
+        else
+        {
+            MXB_ERROR("The synchronization state of '%s' is '%s' and hence it cannot be stopped.",
+                      m_service.name(), to_string(m_sync_state));
+        }
         break;
 
     case ComparatorState::CAPTURING:
