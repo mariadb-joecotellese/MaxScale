@@ -160,6 +160,21 @@ public:
         return *m_sMain_result.get();
     }
 
+    const std::string& sql() const
+    {
+        return m_sMain_result->sql();
+    }
+
+    uint8_t command() const
+    {
+        return m_sMain_result->command();
+    }
+
+    bool is_explainable() const
+    {
+        return m_sMain_result->is_explainable();
+    }
+
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:

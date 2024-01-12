@@ -59,15 +59,14 @@ void ComparatorOtherBackend::ready(const ComparatorOtherResult& other_result)
 
     if (action == EXPLAIN)
     {
-        if (other_result.main_result().is_explainable())
-        {
-            auto sOther_result = other_result.shared_from_this();
+        mxb_assert(other_result.is_explainable());
 
-            auto* pExplain_result = new ComparatorExplainResult(this, sOther_result);
-            auto sExplain_result = std::shared_ptr<ComparatorExplainResult>(pExplain_result);
+        auto sOther_result = other_result.shared_from_this();
 
-            m_pending_explains.emplace_back(std::move(sExplain_result));
-        }
+        auto* pExplain_result = new ComparatorExplainResult(this, sOther_result);
+        auto sExplain_result = std::shared_ptr<ComparatorExplainResult>(pExplain_result);
+
+        m_pending_explains.emplace_back(std::move(sExplain_result));
     }
 
     execute_pending_explains();
@@ -109,7 +108,7 @@ void ComparatorOtherBackend::execute_pending_explains()
 void ComparatorOtherBackend::execute(const std::shared_ptr<ComparatorExplainResult>& sExplain_result)
 {
     std::string sql { "EXPLAIN FORMAT=JSON "};
-    sql += sExplain_result->other_result().main_result().sql();
+    sql += sExplain_result->other_result().sql();
 
     m_results.emplace_back(std::move(sExplain_result));
 

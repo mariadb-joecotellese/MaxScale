@@ -176,16 +176,25 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
         generate_report(other_result);
     }
 
-    ComparatorOtherBackend::Action rv = report == ReportAction::REPORT_ALWAYS
-        ? ComparatorOtherBackend::EXPLAIN : ComparatorOtherBackend::CONTINUE;
+    ComparatorOtherBackend::Action rv = ComparatorOtherBackend::CONTINUE;
 
-    if (rv == ComparatorOtherBackend::CONTINUE && config.explain_difference != 0)
+    if (other_result.is_explainable())
     {
-        delta = (main_duration * config.max_execution_time_difference) / 100;
-
-        if (other_duration > main_duration + delta)
+        if (report == ReportAction::REPORT_ALWAYS)
         {
             rv = ComparatorOtherBackend::EXPLAIN;
+        }
+        else
+        {
+            if (config.explain_difference != 0)
+            {
+                delta = (main_duration * config.max_execution_time_difference) / 100;
+
+                if (other_duration > main_duration + delta)
+                {
+                    rv = ComparatorOtherBackend::EXPLAIN;
+                }
+            }
         }
     }
 
