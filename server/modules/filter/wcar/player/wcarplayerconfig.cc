@@ -5,8 +5,7 @@
  */
 
 #include "wcarplayerconfig.hh"
-#include "../wcarsqlitestorage.hh"
-#include "../wcarbooststorage.hh"
+#include "wcartransform.hh"
 #include <getopt.h>
 #include <iostream>
 #include <iomanip>
@@ -145,20 +144,4 @@ PlayerConfig::PlayerConfig(int argc, char** argv)
                   << " Error: " << mysql_error(pConn) << '\n';
         exit(EXIT_FAILURE);
     }
-}
-
-std::unique_ptr<Storage> PlayerConfig::create_read_storage(const std::filesystem::path& path) const
-{
-    auto ext = path.extension();
-    std::cout << "path = " << path << ' ' << ext << std::endl;
-    if (ext == ".sqlite")
-    {
-        return std::make_unique<SqliteStorage>(path, Access::READ_ONLY);
-    }
-    else if (ext == ".cx" || ext == ".ex")
-    {
-        return std::make_unique<BoostStorage>(path, ReadWrite::READ_ONLY);
-    }
-
-    abort();
 }

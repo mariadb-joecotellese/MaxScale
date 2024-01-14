@@ -1,24 +1,9 @@
 #include "wcarplayer.hh"
 #include "wcarplayerconfig.hh"
+#include "wcartransform.hh"
 #include <maxbase/stopwatch.hh>
 #include <maxsimd/canonical.hh>
 #include <iostream>
-
-bool execute_stmt(MYSQL* pConn, const std::string& sql)
-{
-    if (mysql_query(pConn, sql.c_str()))
-    {
-        std::cerr << "MariaDB: Error code " << mysql_error(pConn) << std::endl;
-        return false;
-    }
-
-    while (MYSQL_RES* result = mysql_store_result(pConn))
-    {
-        mysql_free_result(result);
-    }
-
-    return true;
-}
 
 Player::Player(const PlayerConfig* pConfig)
     : m_config(*pConfig)
@@ -28,12 +13,13 @@ Player::Player(const PlayerConfig* pConfig)
 void Player::replay()
 {
     mxb::StopWatch sw;
-    auto path = m_config.capture_dir + '/' + m_config.file_base_name;
-    auto sStorage = m_config.create_read_storage(path);
+    Transform xform(&m_config);
+
+    Storage& storage = xform.player_storage();
 
     int64_t count = 0;
 
-    for (const auto& event : *sStorage)
+    for (const auto& event : storage)
     {
         auto sql = maxsimd::canonical_args_to_sql(*event.sCanonical, event.canonical_args);
 //        std::cout << "sql = " << sql << std::endl;

@@ -26,7 +26,4 @@ struct PlayerConfig
 
 
     void show_help();
-
-    // Helper for testing
-    std::unique_ptr<Storage> create_read_storage(const std::filesystem::path& path) const;
 };
