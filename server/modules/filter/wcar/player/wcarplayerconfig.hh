@@ -22,8 +22,6 @@ struct PlayerConfig
 
     std::string capture_dir = "/home/mariadb/maxscale/var/lib/maxscale/capture";
     std::string file_base_name;
-    MYSQL*      pConn;
-
 
     void show_help();
 };

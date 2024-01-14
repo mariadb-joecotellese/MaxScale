@@ -41,7 +41,7 @@ Transform::Transform(const PlayerConfig* pConfig)
     }
     else
     {
-        // Copy from existing storeage to a sqlite storage
+        // Copy from existing storage to a sqlite storage
         fs::path sqlite_path{path};
         sqlite_path.replace_extension(".sqlite");
         std::unique_ptr<SqliteStorage> sSqlite = std::make_unique<SqliteStorage>(sqlite_path,

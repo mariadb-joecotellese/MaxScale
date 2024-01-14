@@ -128,20 +128,4 @@ PlayerConfig::PlayerConfig(int argc, char** argv)
         show_help();
         exit(error ? EXIT_FAILURE : EXIT_SUCCESS);
     }
-
-    pConn = mysql_init(nullptr);
-    if (pConn == nullptr)
-    {
-        std::cerr << "Could not initialize connector-c " << mysql_error(pConn) << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    if (mysql_real_connect(pConn, host.address().c_str(), user.c_str(),
-                           password.c_str(), "", host.port(), nullptr, 0) == nullptr)
-    {
-        std::cerr << "Could not connect to " << host.address()
-                  << ':' << std::to_string(host.port())
-                  << " Error: " << mysql_error(pConn) << '\n';
-        exit(EXIT_FAILURE);
-    }
 }
