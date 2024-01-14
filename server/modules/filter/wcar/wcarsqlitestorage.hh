@@ -30,6 +30,11 @@ public:
     Iterator end() const override;
     int64_t  num_unread() const override;
 
+    void set_sort_by_start_time()
+    {
+        m_sort_by_start_time = true;
+    }
+
 private:
     QueryEvent next_event() override;
 
@@ -53,9 +58,9 @@ private:
     Access        m_access;
     fs::path      m_path;
     sqlite3*      m_pDb = nullptr;
-    int64_t       m_last_event_read = -1;
     sqlite3_stmt* m_pCanonical_insert_stmt = nullptr;
     sqlite3_stmt* m_pEvent_insert_stmt = nullptr;
     sqlite3_stmt* m_pArg_insert_stmt = nullptr;
     sqlite3_stmt* m_pEvent_read_stmt = nullptr;
+    bool          m_sort_by_start_time = false;
 };

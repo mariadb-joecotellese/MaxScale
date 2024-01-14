@@ -262,8 +262,15 @@ Storage::Iterator SqliteStorage::begin()
         m_pEvent_read_stmt = nullptr;
     }
 
-    auto event_query = MAKE_STR("select event_id, can_id, connection_id, start_time, end_time "
-                                "from event where event_id > " << m_last_event_read);
+    std::string event_query = "select event_id, can_id, connection_id, start_time, end_time from event ";
+    if (m_sort_by_start_time)
+    {
+        event_query += "order by start_time";
+    }
+    else
+    {
+        event_query += "order by event_id";
+    }
 
     sqlite_prepare(event_query, &m_pEvent_read_stmt);
 
@@ -366,8 +373,6 @@ QueryEvent SqliteStorage::next_event()
 
     auto canonical = select_canonical(can_id);
     auto can_args = select_canonical_args(event_id);
-
-    m_last_event_read = event_id;
 
     return QueryEvent{make_shared<std::string>(std::move(canonical)),
                       std::move(can_args),
