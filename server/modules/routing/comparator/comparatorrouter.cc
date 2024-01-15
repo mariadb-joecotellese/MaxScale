@@ -47,30 +47,6 @@ const char* ComparatorRouter::to_string(ComparatorState comparator_state)
     return "unknown";
 }
 
-const char* ComparatorRouter::to_string(SyncState sync_state)
-{
-    switch (sync_state)
-    {
-    case SyncState::IDLE:
-        return "idle";
-
-    case SyncState::SUSPENDING:
-        return "suspending";
-
-    case SyncState::REWIRING:
-        return "rewiring";
-
-    case SyncState::STOPPING_REPLICATION:
-        return "stopping_replication";
-
-    case SyncState::RESTARTING_AND_RESUMING:
-        return "restarting_and_resuming";
-    }
-
-    mxb_assert(!true);
-    return "unknown";
-}
-
 // static
 ComparatorRouter* ComparatorRouter::create(SERVICE* pService)
 {
@@ -195,18 +171,13 @@ bool ComparatorRouter::start(json_t** ppOutput)
     }
 
     m_comparator_state = ComparatorState::SYNCHRONIZING;
-    m_sync_state = SyncState::SUSPENDING;
 
     RoutingWorker::SessionResult sr = suspend_sessions();
 
     MainWorker::get()->lcall([this, sr]() {
-            if (all_sessions_suspended(sr))
-            {
-                m_sync_state = SyncState::REWIRING;
+            synchronize(sr);
 
-                synchronize();
-            }
-            else
+            if (m_comparator_state == ComparatorState::SYNCHRONIZING)
             {
                 start_synchronize_dcall();
             }
@@ -240,24 +211,14 @@ bool ComparatorRouter::stop(json_t** ppOutput)
         break;
 
     case ComparatorState::SYNCHRONIZING:
-        if (m_sync_state == SyncState::SUSPENDING)
-        {
-            mxb_assert(m_dcstart != 0);
-            cancel_dcall(m_dcstart);
-            m_dcstart = 0;
+        mxb_assert(m_dcstart != 0);
+        cancel_dcall(m_dcstart);
+        m_dcstart = 0;
 
-            resume_sessions();
+        resume_sessions();
 
-            m_comparator_state = ComparatorState::PREPARED;
-            m_sync_state = SyncState::IDLE;
-
-            rv = true;
-        }
-        else
-        {
-            MXB_ERROR("The synchronization state of '%s' is '%s' and hence it cannot be stopped.",
-                      m_service.name(), to_string(m_sync_state));
-        }
+        m_comparator_state = ComparatorState::PREPARED;
+        rv = true;
         break;
 
     case ComparatorState::CAPTURING:
@@ -372,10 +333,6 @@ void ComparatorRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t**
 {
     json_t* pOutput = json_object();
     json_object_set_new(pOutput, "state", json_string(to_string(m_comparator_state)));
-    if (m_comparator_state == ComparatorState::SYNCHRONIZING)
-    {
-        json_object_set_new(pOutput, "sync_state", json_string(to_string(m_sync_state)));
-    }
     json_t* pSessions = json_object();
     json_object_set_new(pSessions, "total", json_integer(sr.total));
     json_object_set_new(pSessions, "suspended", json_integer(sr.affected));
@@ -456,87 +413,49 @@ bool ComparatorRouter::stop_replication(const SERVER& server)
     return rv;
 }
 
-bool ComparatorRouter::synchronize()
+bool ComparatorRouter::synchronize_dcall()
 {
-    mxb_assert(m_comparator_state == ComparatorState::SYNCHRONIZING);
-
-    bool rv = true;
-
-    switch (m_sync_state)
-    {
-    case SyncState::IDLE:
-        mxb_assert(!true);
-        break;
-
-    case SyncState::SUSPENDING:
-        sync_suspend();
-        break;
-
-    case SyncState::REWIRING:
-        sync_rewire();
-        break;
-
-    case SyncState::STOPPING_REPLICATION:
-        sync_stop_replication();
-        break;
-
-    case SyncState::RESTARTING_AND_RESUMING:
-        sync_restart_and_resume();
-        break;
-    };
-
-    if (m_comparator_state == ComparatorState::SYNCHRONIZING)
-    {
-        mxb_assert(m_sync_state != SyncState::IDLE);
-
-        if (m_dcstart == 0) // Will be 0, after the first lcall.
-        {
-            start_synchronize_dcall();
-        }
-    }
-    else
-    {
-        m_dcstart = 0;
-        rv = false;
-    }
-
-    return rv;
-}
-
-void ComparatorRouter::sync_suspend()
-{
-    mxb_assert(m_sync_state == SyncState::SUSPENDING);
-
     RoutingWorker::SessionResult sr = suspend_sessions();
 
+    synchronize(sr);
+
+    bool call_again = (m_comparator_state == ComparatorState::SYNCHRONIZING);
+
+    if (!call_again)
+    {
+        m_dcstart = 0;
+    }
+
+    return call_again;
+}
+
+void ComparatorRouter::synchronize(const RoutingWorker::SessionResult& sr)
+{
     if (all_sessions_suspended(sr))
     {
-        m_sync_state = SyncState::REWIRING;
-        synchronize();
+        if (rewire_service())
+        {
+            if (sync_stop_replication())
+            {
+                restart_and_resume();
+
+                m_comparator_state = ComparatorState::CAPTURING;
+            }
+            else
+            {
+                m_comparator_state = ComparatorState::PREPARED;
+            }
+        }
+        else
+        {
+            m_comparator_state = ComparatorState::PREPARED;
+        }
     }
 }
 
-void ComparatorRouter::sync_rewire()
+bool ComparatorRouter::sync_stop_replication()
 {
-    mxb_assert(m_sync_state == SyncState::REWIRING);
-
-    if (rewire_service())
-    {
-        m_sync_state = SyncState::STOPPING_REPLICATION;
-        synchronize();
-    }
-    else
-    {
-        m_sync_state = SyncState::IDLE;
-        m_comparator_state = ComparatorState::PREPARED;
-    }
-}
-
-void ComparatorRouter::sync_stop_replication()
-{
-    mxb_assert(m_sync_state == SyncState::STOPPING_REPLICATION);
-
-    bool ok = true;
+    bool rv = false;
 
     std::vector<SERVER*> servers = m_service.reachable_servers();
 
@@ -581,11 +500,7 @@ void ComparatorRouter::sync_stop_replication()
 
             if (!behind)
             {
-                if (stop_replication(*pReplica))
-                {
-                    m_sync_state = SyncState::RESTARTING_AND_RESUMING;
-                    synchronize();
-                }
+                rv = stop_replication(*pReplica);
             }
             else
             {
@@ -597,24 +512,18 @@ void ComparatorRouter::sync_stop_replication()
         {
             MXB_ERROR("First server of '%s' is '%s', although expected to be '%s'.",
                       m_service.name(), pMain->name(), m_config.pMain->name());
-            ok = false;
         }
     }
     else
     {
         MXB_ERROR("'%s' has currently %d reachable servers, while 2 is expected.",
                   m_service.name(), (int)servers.size());
-        ok = false;
     }
 
-    if (!ok)
-    {
-        m_sync_state = SyncState::IDLE;
-        m_comparator_state = ComparatorState::PREPARED;
-    }
+    return rv;
 }
 
-void ComparatorRouter::sync_restart_and_resume()
+void ComparatorRouter::restart_and_resume()
 {
     RoutingWorker::SessionResult sr = restart_sessions();
 
@@ -632,9 +541,6 @@ void ComparatorRouter::sync_restart_and_resume()
                     "when the sessions again were resumed.",
                     sr.total - sr.affected, sr.total, m_config.pService->name());
     }
-
-    m_sync_state = SyncState::IDLE;
-    m_comparator_state = ComparatorState::CAPTURING;
 }
 
 void ComparatorRouter::start_synchronize_dcall()
@@ -642,6 +548,6 @@ void ComparatorRouter::start_synchronize_dcall()
     mxb_assert(m_dcstart == 0);
 
     m_dcstart = dcall(std::chrono::milliseconds { 1000 }, [this]() {
-            return synchronize();
+            return synchronize_dcall();
         });
 }

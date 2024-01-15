@@ -31,17 +31,7 @@ public:
         CAPTURING      // Sessions restarted, capturing in process.
     };
 
-    enum class SyncState
-    {
-        IDLE,                   // No synchronization in progress.
-        SUSPENDING,             // Sessions are being suspended.
-        REWIRING,               // Service is being rewired.
-        STOPPING_REPLICATION,   // Replication is being stopped.
-        RESTARTING_AND_RESUMING // Sessions are being restarted and resumed.
-    };
-
     static const char* to_string(ComparatorState comparator_state);
-    static const char* to_string(SyncState sync_state);
 
     ComparatorRouter(const ComparatorRouter&) = delete;
     ComparatorRouter& operator=(const ComparatorRouter&) = delete;
@@ -106,11 +96,10 @@ private:
     bool rewire_service();
     bool stop_replication(const SERVER& server);
 
-    bool synchronize();
-    void sync_suspend();
-    void sync_rewire();
-    void sync_stop_replication();
-    void sync_restart_and_resume();
+    bool synchronize_dcall();
+    void synchronize(const mxs::RoutingWorker::SessionResult& sr);
+    bool sync_stop_replication();
+    void restart_and_resume();
 
     void start_synchronize_dcall();
 
@@ -119,7 +108,6 @@ private:
     using SExporter = std::shared_ptr<ComparatorExporter>;
 
     ComparatorState                         m_comparator_state { ComparatorState::PREPARED };
-    SyncState                               m_sync_state { SyncState::IDLE };
     ComparatorConfig                        m_config;
     SERVICE&                                m_service;
     mxb::Worker::DCId                       m_dcstart { mxb::Worker::NO_CALL };
