@@ -28,7 +28,7 @@ public:
     {
         PREPARED,      // Setup for action.
         SYNCHRONIZING, // Started, suspending sessions, stopping replication, etc.
-        CAPTURING,     // Sessions restarted, capturing in process.
+        COMPARING,     // Sessions restarted, comparing in process.
         STOPPING       // Stopping
     };
 
@@ -95,19 +95,19 @@ private:
     void get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOutput);
 
     bool rewire_service(const std::set<std::string>& from_targets, const std::set<std::string>& to_targets);
-    bool rewire_service_for_capturing();
+    bool rewire_service_for_comparison();
     bool rewire_service_for_normalcy();
     bool stop_replication(const SERVER& server);
     bool stop_replication();
     void restart_and_resume();
 
-    void synchronize(const mxs::RoutingWorker::SessionResult& sr);
-    bool synchronize_dcall();
-    void start_synchronize_dcall();
+    void setup(const mxs::RoutingWorker::SessionResult& sr);
+    bool setup_dcall();
+    void start_setup_dcall();
 
-    void decapture(const mxs::RoutingWorker::SessionResult& sr);
-    bool decapture_dcall();
-    void start_decapture_dcall();
+    void teardown(const mxs::RoutingWorker::SessionResult& sr);
+    bool teardown_dcall();
+    void start_teardown_dcall();
 
     ComparatorRouter(SERVICE* pService);
 
