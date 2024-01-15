@@ -28,7 +28,8 @@ public:
     {
         PREPARED,      // Setup for action.
         SYNCHRONIZING, // Started, suspending sessions, stopping replication, etc.
-        CAPTURING      // Sessions restarted, capturing in process.
+        CAPTURING,     // Sessions restarted, capturing in process.
+        STOPPING       // Stopping
     };
 
     static const char* to_string(ComparatorState comparator_state);
@@ -94,14 +95,18 @@ private:
     void get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOutput);
 
     bool rewire_service();
+    bool dewire_service();
     bool stop_replication(const SERVER& server);
 
     bool synchronize_dcall();
     void synchronize(const mxs::RoutingWorker::SessionResult& sr);
     bool sync_stop_replication();
     void restart_and_resume();
-
     void start_synchronize_dcall();
+
+    bool decapture_dcall();
+    void decapture(const mxs::RoutingWorker::SessionResult& sr);
+    void start_decapture_dcall();
 
     ComparatorRouter(SERVICE* pService);
 

@@ -41,6 +41,9 @@ const char* ComparatorRouter::to_string(ComparatorState comparator_state)
 
     case ComparatorState::CAPTURING:
         return "capturing";
+
+    case ComparatorState::STOPPING:
+        return "stopping";
     }
 
     mxb_assert(!true);
@@ -199,9 +202,9 @@ bool ComparatorRouter::status(json_t** ppOutput)
 
 bool ComparatorRouter::stop(json_t** ppOutput)
 {
-    bool rv = false;
+    mxb_assert(MainWorker::is_current());
 
-    json_t* pOutput = nullptr;
+    bool rv = false;
 
     switch (m_comparator_state)
     {
@@ -221,14 +224,29 @@ bool ComparatorRouter::stop(json_t** ppOutput)
         rv = true;
         break;
 
-    case ComparatorState::CAPTURING:
-        mxb_assert(false);
-        // TODO: Handle stop when capturing.
-        MXB_ERROR("Not implemented yet.");
+    case ComparatorState::STOPPING:
+        MXB_ERROR("'%s' is already being stopped.", m_service.name());
         break;
-    }
 
-    *ppOutput = pOutput;
+    case ComparatorState::CAPTURING:
+        {
+            m_comparator_state = ComparatorState::STOPPING;
+
+            RoutingWorker::SessionResult sr = suspend_sessions();
+
+            MainWorker::get()->lcall([this, sr]() {
+                    decapture(sr);
+
+                    if (m_comparator_state == ComparatorState::STOPPING)
+                    {
+                        start_decapture_dcall();
+                    }
+                });
+
+            get_status(sr, ppOutput);
+            rv = true;
+        }
+    }
 
     return rv;
 }
@@ -375,6 +393,37 @@ bool ComparatorRouter::rewire_service()
     {
         MXB_ERROR("Could not unlink server '%s' from service '%s'.",
                   m_config.pMain->name(), m_config.pService->name());
+    }
+
+    return rv;
+}
+
+bool ComparatorRouter::dewire_service()
+{
+    bool rv = false;
+
+    std::set<std::string> targets { m_service.name() };
+
+    Service* pService = static_cast<Service*>(m_config.pService);
+    rv = runtime_unlink_service(pService, targets);
+
+    if (rv)
+    {
+        targets.clear();
+        targets.insert(m_config.pMain->name());
+
+        rv = runtime_link_service(pService, targets);
+
+        if (!rv)
+        {
+            MXB_ERROR("Could not link service '%s' to original target '%s'.",
+                      pService->name(), m_config.pMain->name());
+        }
+    }
+    else
+    {
+        MXB_ERROR("Could not unlink target '%s' from service '%s'.",
+                  m_service.name(), m_config.pService->name());
     }
 
     return rv;
@@ -549,5 +598,48 @@ void ComparatorRouter::start_synchronize_dcall()
 
     m_dcstart = dcall(std::chrono::milliseconds { 1000 }, [this]() {
             return synchronize_dcall();
+        });
+}
+
+bool ComparatorRouter::decapture_dcall()
+{
+    RoutingWorker::SessionResult sr = suspend_sessions();
+
+    decapture(sr);
+
+    bool call_again = (m_comparator_state == ComparatorState::STOPPING);
+
+    if (!call_again)
+    {
+        m_dcstart = 0;
+    }
+
+    return call_again;
+}
+
+void ComparatorRouter::decapture(const mxs::RoutingWorker::SessionResult& sr)
+{
+    if (all_sessions_suspended(sr))
+    {
+        if (dewire_service())
+        {
+            restart_and_resume();
+        }
+        else
+        {
+            // TODO: An ERROR state is needed also.
+            mxb_assert(!true);
+        }
+
+        m_comparator_state = ComparatorState::PREPARED;
+    }
+}
+
+void ComparatorRouter::start_decapture_dcall()
+{
+    mxb_assert(m_dcstart == 0);
+
+    m_dcstart = dcall(std::chrono::milliseconds { 1000 }, [this]() {
+            return decapture_dcall();
         });
 }
