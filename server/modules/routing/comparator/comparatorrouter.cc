@@ -462,47 +462,7 @@ bool ComparatorRouter::stop_replication(const SERVER& server)
     return rv;
 }
 
-bool ComparatorRouter::synchronize_dcall()
-{
-    RoutingWorker::SessionResult sr = suspend_sessions();
-
-    synchronize(sr);
-
-    bool call_again = (m_comparator_state == ComparatorState::SYNCHRONIZING);
-
-    if (!call_again)
-    {
-        m_dcstart = 0;
-    }
-
-    return call_again;
-}
-
-void ComparatorRouter::synchronize(const RoutingWorker::SessionResult& sr)
-{
-    if (all_sessions_suspended(sr))
-    {
-        if (rewire_service())
-        {
-            if (sync_stop_replication())
-            {
-                restart_and_resume();
-
-                m_comparator_state = ComparatorState::CAPTURING;
-            }
-            else
-            {
-                m_comparator_state = ComparatorState::PREPARED;
-            }
-        }
-        else
-        {
-            m_comparator_state = ComparatorState::PREPARED;
-        }
-    }
-}
-
-bool ComparatorRouter::sync_stop_replication()
+bool ComparatorRouter::stop_replication()
 {
     bool rv = false;
 
@@ -592,22 +552,37 @@ void ComparatorRouter::restart_and_resume()
     }
 }
 
-void ComparatorRouter::start_synchronize_dcall()
+void ComparatorRouter::synchronize(const RoutingWorker::SessionResult& sr)
 {
-    mxb_assert(m_dcstart == 0);
+    if (all_sessions_suspended(sr))
+    {
+        if (rewire_service())
+        {
+            if (stop_replication())
+            {
+                restart_and_resume();
 
-    m_dcstart = dcall(std::chrono::milliseconds { 1000 }, [this]() {
-            return synchronize_dcall();
-        });
+                m_comparator_state = ComparatorState::CAPTURING;
+            }
+            else
+            {
+                m_comparator_state = ComparatorState::PREPARED;
+            }
+        }
+        else
+        {
+            m_comparator_state = ComparatorState::PREPARED;
+        }
+    }
 }
 
-bool ComparatorRouter::decapture_dcall()
+bool ComparatorRouter::synchronize_dcall()
 {
     RoutingWorker::SessionResult sr = suspend_sessions();
 
-    decapture(sr);
+    synchronize(sr);
 
-    bool call_again = (m_comparator_state == ComparatorState::STOPPING);
+    bool call_again = (m_comparator_state == ComparatorState::SYNCHRONIZING);
 
     if (!call_again)
     {
@@ -615,6 +590,15 @@ bool ComparatorRouter::decapture_dcall()
     }
 
     return call_again;
+}
+
+void ComparatorRouter::start_synchronize_dcall()
+{
+    mxb_assert(m_dcstart == 0);
+
+    m_dcstart = dcall(std::chrono::milliseconds { 1000 }, [this]() {
+            return synchronize_dcall();
+        });
 }
 
 void ComparatorRouter::decapture(const mxs::RoutingWorker::SessionResult& sr)
@@ -633,6 +617,22 @@ void ComparatorRouter::decapture(const mxs::RoutingWorker::SessionResult& sr)
 
         m_comparator_state = ComparatorState::PREPARED;
     }
+}
+
+bool ComparatorRouter::decapture_dcall()
+{
+    RoutingWorker::SessionResult sr = suspend_sessions();
+
+    decapture(sr);
+
+    bool call_again = (m_comparator_state == ComparatorState::STOPPING);
+
+    if (!call_again)
+    {
+        m_dcstart = 0;
+    }
+
+    return call_again;
 }
 
 void ComparatorRouter::start_decapture_dcall()

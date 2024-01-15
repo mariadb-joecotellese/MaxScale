@@ -97,15 +97,15 @@ private:
     bool rewire_service();
     bool dewire_service();
     bool stop_replication(const SERVER& server);
-
-    bool synchronize_dcall();
-    void synchronize(const mxs::RoutingWorker::SessionResult& sr);
-    bool sync_stop_replication();
+    bool stop_replication();
     void restart_and_resume();
+
+    void synchronize(const mxs::RoutingWorker::SessionResult& sr);
+    bool synchronize_dcall();
     void start_synchronize_dcall();
 
-    bool decapture_dcall();
     void decapture(const mxs::RoutingWorker::SessionResult& sr);
+    bool decapture_dcall();
     void start_decapture_dcall();
 
     ComparatorRouter(SERVICE* pService);
