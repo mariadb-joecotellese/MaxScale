@@ -25,6 +25,31 @@ PlayerSession::PlayerSession(const PlayerConfig* pConfig, Player* pPlayer, int64
     : m_config(*pConfig)
     , m_player(*pPlayer)
     , m_session_id(session_id)
+    , m_thread(&PlayerSession::run, this)
+{
+}
+
+PlayerSession::~PlayerSession()
+{
+    m_request_stop = true;
+    m_condition.notify_one();
+    m_thread.join();
+}
+
+void PlayerSession::queue_query(const std::string& sql)
+{
+    std::lock_guard guard(m_mutex);
+    m_queue.push_back(sql);
+    m_condition.notify_one();
+}
+
+void PlayerSession::stop()
+{
+    m_request_stop = true;
+    m_condition.notify_one();
+}
+
+void PlayerSession::run()
 {
     m_pConn = mysql_init(nullptr);
     if (m_pConn == nullptr)
@@ -41,14 +66,25 @@ PlayerSession::PlayerSession(const PlayerConfig* pConfig, Player* pPlayer, int64
                   << " Error: " << mysql_error(m_pConn) << '\n';
         exit(EXIT_FAILURE);
     }
-}
 
-PlayerSession::~PlayerSession()
-{
+    for (;;)
+    {
+        std::unique_lock lock(m_mutex);
+        m_condition.wait(lock, [this]{
+            return !m_queue.empty() || m_request_stop;
+        });
+
+        if (m_queue.empty() && m_request_stop)
+        {
+            break;
+        }
+
+        auto sql = std::move(m_queue.front());
+        m_queue.pop_front();
+        lock.unlock();
+
+        execute_stmt(m_pConn, sql);
+    }
+
     mysql_close(m_pConn);
-}
-
-void PlayerSession::queue_query(const std::string& sql)
-{
-    execute_stmt(m_pConn, sql);
 }

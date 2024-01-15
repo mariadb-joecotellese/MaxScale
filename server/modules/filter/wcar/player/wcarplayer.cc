@@ -30,7 +30,7 @@ void Player::replay()
 
         if (ite != end(sessions) && event.start_time == event.end_time)
         {
-            sessions.erase(ite);
+            ite->second->stop();
             continue;
         }
 

@@ -7,9 +7,12 @@
 
 #include <maxbase/stopwatch.hh>
 #include "wcarplayer.hh"
+#include <queue>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 bool execute_stmt(MYSQL* pConn, const std::string& sql);
-
 
 /**
  * @brief A Session is a single thread performing queries one by one
@@ -25,10 +28,19 @@ public:
     PlayerSession(PlayerSession&&) = delete;
 
     void queue_query(const std::string& sql);
+    void stop();
 
 private:
-    const PlayerConfig& m_config;
-    Player&             m_player;
-    int64_t             m_session_id;
-    MYSQL*              m_pConn;
+
+    void run();
+
+    const PlayerConfig&     m_config;
+    Player&                 m_player;
+    int64_t                 m_session_id;
+    MYSQL*                  m_pConn;
+    std::thread             m_thread;
+    std::mutex              m_mutex;
+    std::condition_variable m_condition;
+    std::deque<std::string> m_queue;
+    bool                    m_request_stop = false;
 };
