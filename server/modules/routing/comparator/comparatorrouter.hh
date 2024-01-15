@@ -94,8 +94,9 @@ private:
 
     void get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOutput);
 
-    bool rewire_service();
-    bool dewire_service();
+    bool rewire_service(const std::set<std::string>& from_targets, const std::set<std::string>& to_targets);
+    bool rewire_service_for_capturing();
+    bool rewire_service_for_normalcy();
     bool stop_replication(const SERVER& server);
     bool stop_replication();
     void restart_and_resume();

@@ -359,71 +359,62 @@ void ComparatorRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t**
     *ppOutput = pOutput;
 }
 
-bool ComparatorRouter::rewire_service()
+bool ComparatorRouter::rewire_service(const std::set<std::string>& from_targets,
+                                      const std::set<std::string>& to_targets)
 {
     bool rv = false;
 
-    std::set<std::string> servers { m_config.pMain->name() };
-
     Service* pService = static_cast<Service*>(m_config.pService);
-    rv = runtime_unlink_service(pService, servers);
+    rv = runtime_unlink_service(pService, from_targets);
 
     if (rv)
     {
-        std::set<std::string> targets { m_service.name() };
-
-        rv = runtime_link_service(pService, targets);
+        rv = runtime_link_service(pService, to_targets);
 
         if (!rv)
         {
-            MXB_ERROR("Could not link comparator service '%s' to service '%s'. Now restoring situation.",
-                      m_service.name(), pService->name());
-
-            targets.clear();
-            targets.insert(m_config.name());
-
-            if (!runtime_link_service(pService, targets))
-            {
-                MXB_ERROR("Could not link original server '%s' back to service '%s.",
-                          m_config.pMain->name(), m_config.pService->name());
-            }
+            MXB_ERROR("Could not link targets %s to service '%s'.",
+                      mxb::join(to_targets, ",", "'").c_str(), pService->name());
         }
     }
     else
     {
-        MXB_ERROR("Could not unlink server '%s' from service '%s'.",
-                  m_config.pMain->name(), m_config.pService->name());
+        MXB_ERROR("Could not unlink targets %s from service '%s'.",
+                  mxb::join(from_targets, ",", "'").c_str(), pService->name());
     }
 
     return rv;
 }
 
-bool ComparatorRouter::dewire_service()
+bool ComparatorRouter::rewire_service_for_capturing()
 {
     bool rv = false;
 
-    std::set<std::string> targets { m_service.name() };
+    std::set<std::string> from_targets { m_config.pMain->name() };
+    std::set<std::string> to_targets { m_service.name() };
 
-    Service* pService = static_cast<Service*>(m_config.pService);
-    rv = runtime_unlink_service(pService, targets);
+    rv = rewire_service(from_targets, to_targets);
 
-    if (rv)
+    if (!rv)
     {
-        targets.clear();
-        targets.insert(m_config.pMain->name());
-
-        rv = runtime_link_service(pService, targets);
-
-        if (!rv)
-        {
-            MXB_ERROR("Could not link service '%s' to original target '%s'.",
-                      pService->name(), m_config.pMain->name());
-        }
+        MXB_ERROR("Could not rewire service '%s' for capturing.", m_config.pService->name());
     }
-    else
+
+    return rv;
+}
+
+bool ComparatorRouter::rewire_service_for_normalcy()
+{
+    bool rv = false;
+
+    std::set<std::string> from_targets { m_service.name() };
+    std::set<std::string> to_targets { m_config.pMain->name() };
+
+    rv = rewire_service(from_targets, to_targets);
+
+    if (!rv)
     {
-        MXB_ERROR("Could not unlink target '%s' from service '%s'.",
-                  m_service.name(), m_config.pService->name());
+        MXB_ERROR("Could not rewire service '%s' for normalcy.", m_config.pService->name());
     }
 
     return rv;
@@ -556,7 +547,7 @@ void ComparatorRouter::synchronize(const RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
-        if (rewire_service())
+        if (rewire_service_for_capturing())
         {
             if (stop_replication())
             {
@@ -605,7 +596,7 @@ void ComparatorRouter::decapture(const mxs::RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
-        if (dewire_service())
+        if (rewire_service_for_normalcy())
         {
             restart_and_resume();
         }
