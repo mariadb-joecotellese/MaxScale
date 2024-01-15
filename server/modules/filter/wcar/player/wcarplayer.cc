@@ -26,12 +26,19 @@ void Player::replay()
     {
         auto sql = maxsimd::canonical_args_to_sql(*event.sCanonical, event.canonical_args);
 
+        auto ite = sessions.find(event.session_id);
+
+        if (ite != end(sessions) && event.start_time == event.end_time)
+        {
+            sessions.erase(ite);
+            continue;
+        }
+
         if ((++count % 251) == 0)
         {
             std::cout << "\r" << count << std::flush;
         }
 
-        auto ite = sessions.find(event.session_id);
         if (ite == end(sessions))
         {
             auto ins = sessions.emplace(event.session_id,

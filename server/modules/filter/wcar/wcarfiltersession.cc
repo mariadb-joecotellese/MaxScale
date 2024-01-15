@@ -39,6 +39,16 @@ WcarFilterSession::WcarFilterSession(MXS_SESSION* pSession, SERVICE* pService, c
 
 WcarFilterSession::~WcarFilterSession()
 {
+    QueryEvent closing_event;
+    // Non empty canonical to avoid checking, with a message for debug.
+    closing_event.sCanonical = std::make_shared<std::string>("Close session");
+    closing_event.session_id = m_pSession->id();
+    closing_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
+    closing_event.end_time = closing_event.start_time;
+
+    auto* pWorker = mxs::RoutingWorker::get_current();
+    auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
+    pShared_data->send_update(closing_event);
 }
 
 bool WcarFilterSession::routeQuery(GWBUF&& buffer)
