@@ -54,11 +54,8 @@ const char create_backup_cmd[] = "create-backup";
 const char restore_from_backup_cmd[] = "restore-from-backup";
 const char mask[] = "******";
 
-const string rebuild_datadir = "/var/lib/mysql";    // configurable?
 const char link_test_msg[] = "Test message";
 const int socat_timeout_s = 5;      // TODO: configurable?
-const char list_dir_err_fmt[] = "Could not list contents of '%s' on %s. '%s' must exist and "
-                                "be accessible. %s";
 
 bool manual_switchover(ExecMode mode, SwitchoverType type, const MODULECMD_ARG* args, json_t** error_out);
 bool manual_failover(ExecMode mode, const MODULECMD_ARG* args, json_t** output);
@@ -68,6 +65,16 @@ bool release_locks(ExecMode mode, const MODULECMD_ARG* args, json_t** output);
 
 std::tuple<MariaDBMonitor*, string, string> read_args(const MODULECMD_ARG& args);
 std::tuple<bool, std::chrono::seconds>      get_timeout(const string& timeout_str, json_t** output);
+
+bool check_datadir_path(const string& str)
+{
+    // Check that path starts with / but also contains something else. This hopefully prevents most
+    // accidental "rm -rf /"-style mistakes.
+    return str.length() >= 2 && str[0] == '/' && str.find_first_not_of('/', 1) != string::npos;
+}
+
+const char bad_datadir[] = "Data directory '%s' is invalid. The directory should be an absolute path and "
+                           "not point to root.";
 
 /**
  * Command handlers. These are called by the rest-api.
@@ -240,12 +247,28 @@ bool handle_async_cs_set_readwrite(const MODULECMD_ARG* args, json_t** output)
     return async_cs_run_cmd_with_timeout(func, args, output);
 }
 
+std::tuple<bool, string> datadir_helper(const MODULECMD_ARG* args, int expected_ind, json_t** output)
+{
+    bool rval = true;
+    const char* datadir_param = args->argc > expected_ind ? args->argv[expected_ind].value.string : nullptr;
+    string datadir = datadir_param ? datadir_param : "";
+    mxb::trim(datadir);
+
+    if (!datadir.empty() && !check_datadir_path(datadir))
+    {
+        *output = mxs_json_error_append(*output, bad_datadir, datadir.c_str());
+        rval = false;
+    }
+    return {rval, std::move(datadir)};
+}
+
 bool handle_async_rebuild_server(const MODULECMD_ARG* args, json_t** output)
 {
     auto* mon = static_cast<MariaDBMonitor*>(args->argv[0].value.monitor);
     SERVER* target = args->argv[1].value.server;
     SERVER* source = args->argc > 2 ? args->argv[2].value.server : nullptr;
-    return mon->schedule_rebuild_server(target, source, output);
+    auto [datadir_ok, datadir] = datadir_helper(args, 3, output);
+    return datadir_ok ? mon->schedule_rebuild_server(target, source, datadir, output) : false;
 }
 
 bool handle_async_create_backup(const MODULECMD_ARG* args, json_t** output)
@@ -261,7 +284,8 @@ bool handle_async_restore_from_backup(const MODULECMD_ARG* args, json_t** output
     auto* mon = static_cast<MariaDBMonitor*>(args->argv[0].value.monitor);
     SERVER* target = args->argv[1].value.server;
     string bu_name = args->argv[2].value.string;
-    return mon->schedule_restore_from_backup(target, bu_name, output);
+    auto [datadir_ok, datadir] = datadir_helper(args, 3, output);
+    return datadir_ok ? mon->schedule_restore_from_backup(target, bu_name, datadir, output) : false;
 }
 
 /**
@@ -654,7 +678,8 @@ void register_monitor_commands()
     {
         { MODULECMD_ARG_MONITOR | MODULECMD_ARG_NAME_MATCHES_DOMAIN, ARG_MONITOR_DESC },
         { MODULECMD_ARG_SERVER, "Target server" },
-        { MODULECMD_ARG_SERVER | MODULECMD_ARG_OPTIONAL, "Source server (optional)" }
+        { MODULECMD_ARG_SERVER | MODULECMD_ARG_OPTIONAL, "Source server (optional)" },
+        { MODULECMD_ARG_STRING | MODULECMD_ARG_OPTIONAL, "Target data directory (optional)" }
     };
 
     modulecmd_register_command(MXB_MODULE_NAME, "async-rebuild-server", MODULECMD_TYPE_ACTIVE,
@@ -677,7 +702,8 @@ void register_monitor_commands()
     {
         { MODULECMD_ARG_MONITOR | MODULECMD_ARG_NAME_MATCHES_DOMAIN, ARG_MONITOR_DESC },
         { MODULECMD_ARG_SERVER, "Target server" },
-        { MODULECMD_ARG_STRING, "Backup name"}
+        { MODULECMD_ARG_STRING, "Backup name"},
+        { MODULECMD_ARG_STRING | MODULECMD_ARG_OPTIONAL, "Target data directory (optional)" }
     };
     modulecmd_register_command(MXB_MODULE_NAME, "async-restore-from-backup", MODULECMD_TYPE_ACTIVE,
                                handle_async_restore_from_backup,
@@ -1225,9 +1251,10 @@ MariaDBMonitor::run_cs_rest_cmd(HttpCmd httcmd, const std::string& rest_cmd, con
     }
 }
 
-bool MariaDBMonitor::schedule_rebuild_server(SERVER* target, SERVER* source, json_t** error_out)
+bool MariaDBMonitor::schedule_rebuild_server(SERVER* target, SERVER* source, const std::string& datadir,
+                                             json_t** error_out)
 {
-    auto op = std::make_unique<mon_op::RebuildServer>(*this, target, source);
+    auto op = std::make_unique<mon_op::RebuildServer>(*this, target, source, datadir);
     return schedule_manual_command(move(op), rebuild_server_cmd, error_out);
 }
 
@@ -1238,9 +1265,9 @@ bool MariaDBMonitor::schedule_create_backup(SERVER* source, const std::string& b
 }
 
 bool MariaDBMonitor::schedule_restore_from_backup(SERVER* target, const std::string& bu_name,
-                                                  json_t** error_out)
+                                                  const std::string& datadir, json_t** error_out)
 {
-    auto op = std::make_unique<mon_op::RestoreFromBackup>(*this, target, bu_name);
+    auto op = std::make_unique<mon_op::RestoreFromBackup>(*this, target, bu_name, datadir);
     return schedule_manual_command(std::move(op), restore_from_backup_cmd, error_out);
 }
 
@@ -1460,8 +1487,10 @@ void SimpleOp::cancel()
     // any of it was ran. In any case, nothing to do.
 }
 
-BackupOperation::BackupOperation(MariaDBMonitor& mon)
+BackupOperation::BackupOperation(MariaDBMonitor& mon, std::string datadir)
     : m_mon(mon)
+    , m_custom_datadir(std::move(datadir))
+    , m_mbu_use_memory(m_mon.m_settings.mbu_use_memory)
 {
     m_ssh_timeout = m_mon.m_settings.ssh_timeout;
     m_source_port = m_mon.m_settings.rebuild_port;
@@ -1492,8 +1521,8 @@ ssh_util::SSession BackupOperation::init_ssh_session(const char* name, const str
     return ses;
 }
 
-RebuildServer::RebuildServer(MariaDBMonitor& mon, SERVER* target, SERVER* source)
-    : BackupOperation(mon)
+RebuildServer::RebuildServer(MariaDBMonitor& mon, SERVER* target, SERVER* source, std::string datadir)
+    : BackupOperation(mon, std::move(datadir))
     , m_target_srv(target)
     , m_source_srv(source)
 {
@@ -1743,11 +1772,12 @@ bool BackupOperation::serve_backup(const string& mariadb_user, const string& mar
 {
     auto source_name = m_source_name.c_str();
     // Start serving the backup stream. The source will wait for a new connection.
+    const int parallel = m_mon.m_settings.mbu_parallel;
     const char stream_fmt[] = "sudo mariabackup --user=%s --password=%s --backup --safe-slave-backup "
                               "--target-dir=/tmp --stream=xbstream --parallel=%i "
                               "| pigz -c | socat - TCP-LISTEN:%i,reuseaddr";
-    string stream_cmd = mxb::string_printf(stream_fmt, mariadb_user.c_str(), mariadb_pw.c_str(), 1,
-                                           m_source_port);
+    string stream_cmd = mxb::string_printf(stream_fmt, mariadb_user.c_str(), mariadb_pw.c_str(),
+                                           parallel, m_source_port);
     auto [cmd_handle, ssh_errmsg] = ssh_util::start_async_cmd(m_source_ses, stream_cmd);
 
     auto& error_out = m_result.output;
@@ -1773,7 +1803,7 @@ bool BackupOperation::serve_backup(const string& mariadb_user, const string& mar
         {
             // The stream serve operation ended before it should. Print all output available.
             // The ssh-command includes username & pw so mask those in the message.
-            string masked_cmd = mxb::string_printf(stream_fmt, mask, mask, 1, m_source_port);
+            string masked_cmd = mxb::string_printf(stream_fmt, mask, mask, parallel, m_source_port);
 
             int rc = cmd_handle->rc();
 
@@ -1873,35 +1903,105 @@ bool BackupOperation::check_server_is_valid_source(const MariaDBServer* source)
     return source_ok;
 }
 
-bool BackupOperation::prepare_target()
+bool BackupOperation::prepare_target(MariaDBServer* target)
 {
     bool target_prepared = false;
-    string clear_datadir = mxb::string_printf("sudo rm -rf %s/*", rebuild_datadir.c_str());
-    // Check that the rm-command length is correct. A safeguard against later changes which could
-    // cause MaxScale to delete all files (sudo rm -rf *). Datadir may need to be configurable or read
-    // from server. rm must be run as sudo since the directory and files is owned by "mysql". Even group
-    // access would not suffice as server does not give write access to group members.
-    if (clear_datadir.length() == 28)
+    mxb_assert(m_eff_datadir.empty());
+
+    if (m_custom_datadir.empty())
     {
-        if (run_cmd_on_target("sudo systemctl stop mariadb", "stop MariaDB Server")
-            && run_cmd_on_target(clear_datadir, "empty data directory"))
+        const char default_datadir[] = "/var/lib/mysql";
+
+        if (target->is_running())
         {
-            MXB_NOTICE("MariaDB Server %s stopped, data and log directories cleared.",
-                       m_target_name.c_str());
-            target_prepared = true;
+            // Ask the target server for its data directory setting.
+            string errmsg;
+            const string query = "select @@datadir;";
+            auto res = target->execute_query(query, &errmsg);
+            if (res && res->next_row() && res->get_col_count() > 0)
+            {
+                string dir_res = res->get_string(0);
+                // Even though this came from the server, do not accept blindly. Better be safe than sorry.
+                if (check_datadir_path(dir_res))
+                {
+                    m_eff_datadir = dir_res;
+                    MXB_NOTICE("Detected data directory '%s' on %s.",
+                               m_eff_datadir.c_str(), m_target_name.c_str());
+                }
+                else
+                {
+                    PRINT_JSON_ERROR(m_result.output, "Data directory '%s' reported by %s is invalid. "
+                                                      "The value should be an absolute path.",
+                                     dir_res.c_str(), m_target_name.c_str());
+                }
+            }
+            else if (res)
+            {
+                // Weird error, cancel operation.
+                PRINT_JSON_ERROR(m_result.output, "Empty response to '%s' from %s.",
+                                 query.c_str(), m_target_name.c_str());
+            }
+            else
+            {
+                // Query should not fail.
+                PRINT_JSON_ERROR(m_result.output, "Failed to detect data directory on %s, %s.",
+                                 m_target_name.c_str(), errmsg.c_str());
+            }
+        }
+        else
+        {
+            m_eff_datadir = default_datadir;
+            MXB_WARNING("%s is not running, cannot query data directory. Assuming '%s'. If this is wrong, "
+                        "data directory must be manually given in the command.",
+                        m_target_name.c_str(), default_datadir);
         }
     }
     else
     {
-        mxb_assert(!true);
-        PRINT_JSON_ERROR(m_result.output, "Invalid rm-command (this should not happen!)");
+        // User gave custom directory. Path should have been checked already.
+        if (check_datadir_path(m_custom_datadir))
+        {
+            m_eff_datadir = m_custom_datadir;
+            MXB_NOTICE("Using user supplied data directory '%s' on %s.",
+                       m_eff_datadir.c_str(), m_target_name.c_str());
+        }
+        else
+        {
+            mxb_assert(!true);
+            PRINT_JSON_ERROR(m_result.output, bad_datadir, m_custom_datadir.c_str());
+        }
     }
+
+    if (!m_eff_datadir.empty())
+    {
+        string clear_datadir = mxb::string_printf("sudo rm -rf %s/*", m_eff_datadir.c_str());
+        // Check that the rm-command length is correct. A safeguard against later changes which could
+        // cause MaxScale to delete all files (sudo rm -rf *). Datadir may need to be configurable or read
+        // from server. rm must be run as sudo since the directory and files is owned by "mysql". Even group
+        // access would not suffice as server does not give write access to group members.
+        if (clear_datadir.length() >= (12 + 2 + 2))
+        {
+            if (run_cmd_on_target("sudo systemctl stop mariadb", "stop MariaDB Server")
+                && run_cmd_on_target(clear_datadir, "empty data directory"))
+            {
+                MXB_NOTICE("MariaDB Server %s stopped, data and log directories cleared.",
+                           m_target_name.c_str());
+                target_prepared = true;
+            }
+        }
+        else
+        {
+            mxb_assert(!true);
+            PRINT_JSON_ERROR(m_result.output, "Invalid rm-command (this should not happen!)");
+        }
+    }
+
     return target_prepared;
 }
 
 bool RebuildServer::state_prepare_target()
 {
-    m_state = prepare_target() ? State::START_TRANSFER : State::CLEANUP;
+    m_state = prepare_target(m_target) ? State::START_TRANSFER : State::CLEANUP;
     return true;
 }
 
@@ -1934,7 +2034,7 @@ bool BackupOperation::start_transfer(const string& destination, TargetOwner targ
 
 bool RebuildServer::state_start_transfer()
 {
-    m_state = start_transfer(rebuild_datadir, TargetOwner::ROOT) ? State::WAIT_TRANSFER : State::CLEANUP;
+    m_state = start_transfer(m_eff_datadir, TargetOwner::ROOT) ? State::WAIT_TRANSFER : State::CLEANUP;
     return true;
 }
 
@@ -2087,8 +2187,12 @@ bool BackupOperation::start_backup_prepare()
     bool prepare_started = false;
     // This step can fail if the previous step failed to write files. Just looking at the return value
     // of "mbstream" is not reliable.
-    const char prepare_fmt[] = "sudo mariabackup --use-memory=1G --prepare --target-dir=%s";
-    string prepare_cmd = mxb::string_printf(prepare_fmt, rebuild_datadir.c_str());
+    const char prepare_fmt[] = "sudo mariabackup --prepare --target-dir=%s";
+    const char prepare_use_memory_fmt[] = "sudo mariabackup --prepare --use-memory=%s --target-dir=%s";
+    string prepare_cmd = m_mbu_use_memory.empty() ? mxb::string_printf(prepare_fmt, m_eff_datadir.c_str()) :
+        mxb::string_printf(prepare_use_memory_fmt, m_mbu_use_memory.c_str(),
+                           m_eff_datadir.c_str());
+
     auto [cmd_handle, ssh_errmsg] = ssh_util::start_async_cmd(m_target_ses, prepare_cmd);
 
     if (cmd_handle)
@@ -2175,10 +2279,10 @@ bool BackupOperation::start_target()
 {
     bool server_started = false;
     // chown must be run as sudo since changing user to something else than self.
-    string chown_cmd = mxb::string_printf("sudo chown -R mysql:mysql %s", rebuild_datadir.c_str());
+    string chown_cmd = mxb::string_printf("sudo chown -R mysql:mysql %s", m_eff_datadir.c_str());
     // Check that the chown-command length is correct. Mainly a safeguard against later changes which could
     // cause MaxScale to change owner of every file on the system.
-    if (chown_cmd.length() == 40)
+    if (chown_cmd.length() >= (26 + 2))
     {
         if (run_cmd_on_target(chown_cmd, "change ownership of datadir contents")
             && run_cmd_on_target("sudo systemctl start mariadb", "start MariaDB Server"))
@@ -2200,7 +2304,7 @@ bool BackupOperation::start_replication(MariaDBServer* target, MariaDBServer* re
     string gtid;
     // The gtid of the rebuilt server may not be correct, read it from xtrabackup_binlog_info.
     string read_gtid_cmd = mxb::string_printf("sudo cat %s/xtrabackup_binlog_info | tr -s ' ' | "
-                                              "cut --fields=3 | tail -n 1", rebuild_datadir.c_str());
+                                              "cut --fields=3 | tail -n 1", m_eff_datadir.c_str());
     auto res = ssh_util::run_cmd(*m_target_ses, read_gtid_cmd, m_ssh_timeout);
     if (res.type == RType::OK && res.rc == 0)
     {
@@ -2479,7 +2583,7 @@ bool RebuildServer::state_serve_backup()
 
 void RebuildServer::state_check_datadir()
 {
-    m_state = check_datadir(m_target_ses, rebuild_datadir) ? State::START_BACKUP_PREPARE :
+    m_state = check_datadir(m_target_ses, m_eff_datadir) ? State::START_BACKUP_PREPARE :
         State::CLEANUP;
 }
 
@@ -2531,7 +2635,7 @@ Result Result::deep_copy() const
 }
 
 CreateBackup::CreateBackup(MariaDBMonitor& mon, SERVER* source, std::string bu_name)
-    : BackupOperation(mon)
+    : BackupOperation(mon, "")
     , m_source_srv(source)
     , m_bu_name(std::move(bu_name))
 {
@@ -2753,8 +2857,8 @@ void CreateBackup::state_check_backup()
     m_state = check_datadir(m_target_ses, m_bu_path) ? State::DONE : State::CLEANUP;
 }
 
-RestoreFromBackup::RestoreFromBackup(MariaDBMonitor& mon, SERVER* target, string bu_name)
-    : BackupOperation(mon)
+RestoreFromBackup::RestoreFromBackup(MariaDBMonitor& mon, SERVER* target, string bu_name, std::string datadir)
+    : BackupOperation(mon, std::move(datadir))
     , m_target_srv(target)
     , m_bu_name(std::move(bu_name))
 {
@@ -3038,7 +3142,7 @@ bool RestoreFromBackup::state_serve_backup()
 
 bool RestoreFromBackup::state_prepare_target()
 {
-    m_state = prepare_target() ? State::START_TRANSFER : State::CLEANUP;
+    m_state = prepare_target(m_target) ? State::START_TRANSFER : State::CLEANUP;
     return true;
 }
 
@@ -3048,7 +3152,7 @@ bool RestoreFromBackup::state_start_transfer()
     // Connect to source and start stream the backup.
     const char receive_fmt[] = "socat -u TCP:%s:%i,connect-timeout=%i STDOUT | sudo tar -xz -C %s/";
     string receive_cmd = mxb::string_printf(receive_fmt, m_source_host.c_str(), source_port(),
-                                            socat_timeout_s, rebuild_datadir.c_str());
+                                            socat_timeout_s, m_eff_datadir.c_str());
 
     bool rval = false;
     auto [cmd_handle, ssh_errmsg] = ssh_util::start_async_cmd(m_target_ses, receive_cmd);
@@ -3092,7 +3196,7 @@ bool RestoreFromBackup::state_wait_transfer()
 
 void RestoreFromBackup::state_check_datadir()
 {
-    m_state = check_datadir(m_target_ses, rebuild_datadir) ? State::START_BACKUP_PREPARE :
+    m_state = check_datadir(m_target_ses, m_eff_datadir) ? State::START_BACKUP_PREPARE :
         State::CLEANUP;
 }
 
