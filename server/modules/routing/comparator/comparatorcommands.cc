@@ -54,7 +54,8 @@ namespace
 static modulecmd_arg_type_t command_prepare_argv[] =
 {
     {MODULECMD_ARG_SERVICE, "Service name"},
-    {MODULECMD_ARG_SERVER,  "Server name"}
+    {MODULECMD_ARG_SERVER,  "Main server name"},
+    {MODULECMD_ARG_SERVER,  "Other server name"}
 };
 
 static int command_prepare_argc = MXS_ARRAY_NELEMS(command_prepare_argv);
@@ -240,64 +241,46 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     bool rv = false;
 
     Service* pService = static_cast<Service*>(pArgs->argv[0].value.service);
-    SERVER* pReplica = pArgs->argv[1].value.server;
+    SERVER* pPrimary = pArgs->argv[1].value.server;
+    SERVER* pReplica = pArgs->argv[2].value.server;
 
     vector<mxs::Target*> targets = pService->get_children();
+    auto end = targets.end();
 
-    if (targets.size() == 1)
+    auto it = std::find(targets.begin(), end, pPrimary);
+
+    if (it != end)
     {
-        vector<SERVER*> servers = pService->reachable_servers();
-
-        if (servers.size() == 1)
+        if (check_prepare_prerequisites(*pService, *pPrimary, *pReplica))
         {
-            SERVER* pPrimary = servers.front();
+            mxs::Monitor* pComparator_monitor = create_comparator_monitor(*pService, *pPrimary, *pReplica);
 
-            if (pPrimary == servers.front())
+            if (pComparator_monitor)
             {
-                if (check_prepare_prerequisites(*pService, *pPrimary, *pReplica))
+                MonitorManager::start_monitor(pComparator_monitor);
+
+                Service* pComparator_service = create_comparator_service(*pService, *pPrimary, *pReplica);
+
+                if (pComparator_service)
                 {
-                    mxs::Monitor* pComparator_monitor = create_comparator_monitor(*pService,
-                                                                                  *pPrimary,
-                                                                                  *pReplica);
+                    json_t* pOutput = json_object();
+                    auto s = mxb::string_printf("Comparator service '%s' and associated "
+                                                "monitor '%s' created. Server '%s' ready "
+                                                "to be evaluated.",
+                                                pComparator_service->name(),
+                                                pComparator_monitor->name(),
+                                                pReplica->name());
+                    json_object_set_new(pOutput, "status", json_string(s.c_str()));
+                    *ppOutput = pOutput;
 
-                    if (pComparator_monitor)
-                    {
-                        MonitorManager::start_monitor(pComparator_monitor);
-
-                        Service* pComparator_service = create_comparator_service(*pService,
-                                                                                 *pPrimary,
-                                                                                 *pReplica);
-
-                        if (pComparator_service)
-                        {
-                            json_t* pOutput = json_object();
-                            auto s = mxb::string_printf("Comparator service '%s' and associated "
-                                                        "monitor '%s' created. Server '%s' ready "
-                                                        "to be evaluated.",
-                                                        pComparator_service->name(),
-                                                        pComparator_monitor->name(),
-                                                        pReplica->name());
-                            json_object_set_new(pOutput, "status", json_string(s.c_str()));
-                            *ppOutput = pOutput;
-
-                            rv = true;
-                        }
-                    }
+                    rv = true;
                 }
             }
-            else
-            {
-                MXB_ERROR("The immediate target of the service %s is not a server.", pService->name());
-            }
-        }
-        else
-        {
-            MXB_ERROR("The service %s has more reachable servers than 1.", pService->name());
         }
     }
     else
     {
-        MXB_ERROR("The service %s has more targets than 1.", pService->name());
+        MXB_ERROR("'%s' is not a server of service '%s'.", pPrimary->name(), pService->name());
     }
 
     return rv;
