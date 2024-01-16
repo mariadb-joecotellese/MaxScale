@@ -15,6 +15,7 @@
 #include <maxscale/modulecmd.hh>
 #include <maxscale/utils.hh>
 #include <maxscale/protocol/mariadb/maxscale.hh>
+#include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/monitormanager.hh"
 #include "../../../core/internal/service.hh"
 #include "comparatorrouter.hh"
@@ -31,6 +32,7 @@ void register_start_command();
 void register_status_command();
 void register_stop_command();
 void register_summary_command();
+void register_unprepare_command();
 }
 
 void comparator_register_commands()
@@ -40,6 +42,7 @@ void comparator_register_commands()
     register_status_command();
     register_stop_command();
     register_summary_command();
+    register_unprepare_command();
 }
 
 /*
@@ -268,10 +271,11 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
                         if (pComparator_service)
                         {
                             json_t* pOutput = json_object();
-                            auto s = mxb::string_printf("Monitor '%s' and service '%s' created. "
-                                                        "Server '%s' ready to be evaluated.",
-                                                        pComparator_monitor->name(),
+                            auto s = mxb::string_printf("Comparator service '%s' and associated "
+                                                        "monitor '%s' created. Server '%s' ready "
+                                                        "to be evaluated.",
                                                         pComparator_service->name(),
+                                                        pComparator_monitor->name(),
                                                         pReplica->name());
                             json_object_set_new(pOutput, "status", json_string(s.c_str()));
                             *ppOutput = pOutput;
@@ -508,6 +512,71 @@ void register_summary_command()
                                                   MXS_ARRAY_NELEMS(command_summary_argv),
                                                   command_summary_argv,
                                                   "comparator service summary");
+    mxb_assert(rv);
+}
+
+}
+
+/*
+ * call command unprepare
+ */
+namespace
+{
+
+static modulecmd_arg_type_t command_unprepare_argv[] =
+{
+    {MODULECMD_ARG_SERVICE | MODULECMD_ARG_NAME_MATCHES_DOMAIN, "Service name"},
+};
+
+static int command_unprepare_argc = MXS_ARRAY_NELEMS(command_unprepare_argv);
+
+bool command_unprepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
+{
+    bool rv = false;
+
+    Service* pService = static_cast<Service*>(pArgs->argv[0].value.service);
+
+    std::vector<mxs::Target*> targets = pService->get_children();
+    std::set<std::string> target_names;
+
+    std::transform(targets.begin(), targets.end(), std::inserter(target_names, target_names.begin()),
+                   [](const mxs::Target* pTarget) {
+                       return pTarget->name();
+                   });
+
+    rv = runtime_unlink_service(pService, target_names);
+
+    if (rv)
+    {
+        bool use_force = false;
+        rv = runtime_destroy_service(pService, use_force);
+
+        if (!rv)
+        {
+            MXB_ERROR("Could not unprepare/destroy service '%s'.", pService->name());
+        }
+    }
+    else
+    {
+        MXB_ERROR("Could not remove targets %s from service '%s' in order to "
+                  "unprepare/destroy the latter.",
+                  mxb::join(target_names, ",", "'").c_str(), pService->name());
+    }
+
+    return rv;
+}
+
+void register_unprepare_command()
+{
+    MXB_AT_DEBUG(bool rv);
+
+    MXB_AT_DEBUG(rv =) modulecmd_register_command(MXB_MODULE_NAME,
+                                                  "unprepare",
+                                                  MODULECMD_TYPE_ACTIVE,
+                                                  command_unprepare,
+                                                  MXS_ARRAY_NELEMS(command_unprepare_argv),
+                                                  command_unprepare_argv,
+                                                  "Unprepare/destroy comparator service");
     mxb_assert(rv);
 }
 
