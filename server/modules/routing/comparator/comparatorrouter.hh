@@ -98,6 +98,7 @@ private:
     bool rewire_service_for_comparison();
     bool rewire_service_for_normalcy();
     bool stop_replication(const SERVER& server);
+
     bool stop_replication();
     void restart_and_resume();
 
@@ -108,6 +109,8 @@ private:
     void teardown(const mxs::RoutingWorker::SessionResult& sr);
     bool teardown_dcall();
     void start_teardown_dcall();
+
+    bool update_exporters();
 
     ComparatorRouter(SERVICE* pService);
 

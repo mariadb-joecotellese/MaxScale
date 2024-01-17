@@ -95,6 +95,10 @@ RouterSession* ComparatorRouter::newSession(MXS_SESSION* pSession, const Endpoin
 
 std::shared_ptr<ComparatorExporter> ComparatorRouter::exporter_for(const mxs::Target* pTarget) const
 {
+    // TODO: Remove this once the servers have been put into place before
+    // TODO: post_configure() is called.
+    const_cast<ComparatorRouter*>(this)->update_exporters();
+
     std::shared_lock<std::shared_mutex> guard(m_exporters_rwlock);
 
     auto it = m_exporters.find(pTarget);
@@ -115,51 +119,9 @@ uint64_t ComparatorRouter::getCapabilities() const
 
 bool ComparatorRouter::post_configure()
 {
-    bool rval = true;
-
     m_stats.post_configure(m_config);
 
-    std::shared_lock<std::shared_mutex> shared_guard(m_exporters_rwlock);
-
-    std::map<const mxs::Target*, SExporter> exporters;
-
-    for (const mxs::Target* pTarget : m_service.get_children())
-    {
-        if (pTarget != m_config.pMain)
-        {
-            auto it = m_exporters.find(pTarget);
-
-            if (it != m_exporters.end())
-            {
-                exporters.insert(*it);
-            }
-            else
-            {
-                SExporter sExporter = build_exporter(m_config, *pTarget);
-
-                if (sExporter)
-                {
-                    exporters.insert(std::make_pair(pTarget, sExporter));
-                }
-                else
-                {
-                    rval = false;
-                    break;
-                }
-            }
-        }
-    }
-
-    if (rval)
-    {
-        shared_guard.unlock();
-
-        std::lock_guard<std::shared_mutex> guard(m_exporters_rwlock);
-
-        m_exporters = std::move(exporters);
-    }
-
-    return rval;
+    return update_exporters();
 }
 
 bool ComparatorRouter::start(json_t** ppOutput)
@@ -633,4 +595,51 @@ void ComparatorRouter::start_teardown_dcall()
     m_dcstart = dcall(std::chrono::milliseconds { 1000 }, [this]() {
             return teardown_dcall();
         });
+}
+
+bool ComparatorRouter::update_exporters()
+{
+    bool rv = true;
+
+    std::shared_lock<std::shared_mutex> shared_guard(m_exporters_rwlock);
+
+    std::map<const mxs::Target*, SExporter> exporters;
+
+    for (const mxs::Target* pTarget : m_service.get_children())
+    {
+        if (pTarget != m_config.pMain)
+        {
+            auto it = m_exporters.find(pTarget);
+
+            if (it != m_exporters.end())
+            {
+                exporters.insert(*it);
+            }
+            else
+            {
+                SExporter sExporter = build_exporter(m_config, *pTarget);
+
+                if (sExporter)
+                {
+                    exporters.insert(std::make_pair(pTarget, sExporter));
+                }
+                else
+                {
+                    rv = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (rv)
+    {
+        shared_guard.unlock();
+
+        std::lock_guard<std::shared_mutex> guard(m_exporters_rwlock);
+
+        m_exporters = std::move(exporters);
+    }
+
+    return rv;
 }

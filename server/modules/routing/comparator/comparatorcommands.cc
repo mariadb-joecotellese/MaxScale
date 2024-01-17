@@ -10,6 +10,7 @@
 #include <maxbase/format.hh>
 #include <maxbase/string.hh>
 #include <maxsql/mariadb_connector.hh>
+#include <maxscale/cn_strings.hh>
 #include <maxscale/config.hh>
 #include <maxscale/json_api.hh>
 #include <maxscale/modulecmd.hh>
@@ -189,26 +190,60 @@ Service* create_comparator_service(const string& name,
                                    const SERVER& primary,
                                    const SERVER& replica)
 {
-    mxs::ConfigParameters params;
-    mxs::ConfigParameters unknown;
-
     auto& sValues = service.config();
 
-    vector<string> servers { primary.name(), replica.name() };
+    json_t* pParameters = json_object();
+    json_object_set_new(pParameters, CN_USER, json_string(sValues->user.c_str()));
+    json_object_set_new(pParameters, CN_PASSWORD, json_string(sValues->password.c_str()));
+    json_object_set_new(pParameters, CN_SERVICE, json_string(service.name()));
+    json_object_set_new(pParameters, "main", json_string(primary.name()));
 
-    params.set("user", sValues->user);
-    params.set("password", sValues->password);
-    params.set("router", "comparator");
-    params.set("main", primary.name());
-    params.set("servers", mxb::join(servers, ","));
-    params.set("service", service.name());
+    json_t* pAttributes = json_object();
+    json_object_set_new(pAttributes, CN_ROUTER, json_string(MXB_MODULE_NAME));
+    json_object_set_new(pAttributes, CN_PARAMETERS, pParameters);
 
-    Service* pComparator_service = Service::create(name.c_str(), params);
+    json_t* pServers_data = json_array();
+    for (const string& server : { primary.name(), replica.name() })
+    {
+        json_t* pServer_data = json_object();
+        json_object_set_new(pServer_data, CN_ID, json_string(server.c_str()));
+        json_object_set_new(pServer_data, CN_TYPE, json_string(CN_SERVERS));
 
-    if (!pComparator_service)
+        json_array_append_new(pServers_data, pServer_data);
+    }
+    json_t* pServers = json_object();
+    json_object_set_new(pServers, CN_DATA, pServers_data);
+
+    json_t* pRelationships = json_object();
+    json_object_set_new(pRelationships, CN_SERVERS, pServers);
+
+    json_t* pData = json_object();
+    json_object_set_new(pData, CN_ID, json_string(name.c_str()));
+    json_object_set_new(pData, CN_TYPE, json_string(CN_SERVICES));
+    json_object_set_new(pData, CN_ATTRIBUTES, pAttributes);
+    json_object_set_new(pData, CN_RELATIONSHIPS, pRelationships);
+
+    json_t* pJson = json_object();
+    json_object_set_new(pJson, CN_DATA, pData);
+
+    Service* pComparator_service = nullptr;
+
+    if (runtime_create_service_from_json(pJson))
+    {
+        pComparator_service = Service::find(name);
+
+        if (!pComparator_service)
+        {
+            MXB_ERROR("Could create Comparator service '%s', but it could not subsequently "
+                      "be looked up.", name.c_str());
+        }
+    }
+    else
     {
         MXB_ERROR("Could not create Comparator service '%s', please check earlier errors.", name.c_str());
     }
+
+    json_decref(pJson);
 
     return pComparator_service;
 }
