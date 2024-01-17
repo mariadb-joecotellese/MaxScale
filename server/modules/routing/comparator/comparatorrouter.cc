@@ -21,7 +21,6 @@ using std::chrono::duration_cast;
 
 ComparatorRouter::ComparatorRouter(SERVICE* pService)
     : mxb::Worker::Callable(mxs::MainWorker::get())
-    , m_comparator_state(ComparatorState::PREPARED)
     , m_config(pService->name(), this)
     , m_service(*pService)
     , m_stats(pService)
@@ -44,6 +43,26 @@ const char* ComparatorRouter::to_string(ComparatorState comparator_state)
 
     case ComparatorState::STOPPING:
         return "stopping";
+    }
+
+    mxb_assert(!true);
+    return "unknown";
+}
+
+// static
+const char* ComparatorRouter::to_string(SyncState sync_state)
+{
+    switch (sync_state)
+    {
+    case SyncState::NOT_APPLICABLE:
+        return "not_applicable";
+
+    case SyncState::STOPPING_REPLICATION:
+        return "stopping_replication";
+
+    case SyncState::SUSPENDING_SESSIONS:
+        return "suspending_sessions";
+
     }
 
     mxb_assert(!true);
@@ -135,7 +154,7 @@ bool ComparatorRouter::start(json_t** ppOutput)
         return false;
     }
 
-    m_comparator_state = ComparatorState::SYNCHRONIZING;
+    set_state(ComparatorState::SYNCHRONIZING, SyncState::SUSPENDING_SESSIONS);
 
     RoutingWorker::SessionResult sr = suspend_sessions();
 
@@ -182,7 +201,7 @@ bool ComparatorRouter::stop(json_t** ppOutput)
 
         resume_sessions();
 
-        m_comparator_state = ComparatorState::PREPARED;
+        set_state(ComparatorState::PREPARED);
         rv = true;
         break;
 
@@ -192,7 +211,7 @@ bool ComparatorRouter::stop(json_t** ppOutput)
 
     case ComparatorState::COMPARING:
         {
-            m_comparator_state = ComparatorState::STOPPING;
+            set_state(ComparatorState::STOPPING, SyncState::SUSPENDING_SESSIONS);
 
             RoutingWorker::SessionResult sr = suspend_sessions();
 
@@ -289,6 +308,37 @@ void ComparatorRouter::collect(const ComparatorSessionStats& stats)
     m_stats += stats;
 }
 
+void ComparatorRouter::set_state(ComparatorState comparator_state, SyncState sync_state)
+{
+    m_comparator_state = comparator_state;
+    m_sync_state = sync_state;
+
+#ifdef SS_DEBUG
+    switch (m_comparator_state)
+    {
+    case ComparatorState::PREPARED:
+    case ComparatorState::COMPARING:
+        mxb_assert(m_sync_state == SyncState::NOT_APPLICABLE);
+        break;
+
+    case ComparatorState::SYNCHRONIZING:
+        mxb_assert(m_sync_state != SyncState::NOT_APPLICABLE);
+        break;
+
+    case ComparatorState::STOPPING:
+        mxb_assert(m_sync_state == SyncState::SUSPENDING_SESSIONS);
+    }
+#endif
+}
+
+void ComparatorRouter::set_sync_state(SyncState sync_state)
+{
+    m_sync_state = sync_state;
+
+    mxb_assert(m_comparator_state == ComparatorState::SYNCHRONIZING
+               && m_sync_state != SyncState::NOT_APPLICABLE);
+}
+
 mxs::RoutingWorker::SessionResult ComparatorRouter::restart_sessions()
 {
     return mxs::RoutingWorker::restart_sessions(m_config.pService->name());
@@ -313,6 +363,7 @@ void ComparatorRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t**
 {
     json_t* pOutput = json_object();
     json_object_set_new(pOutput, "state", json_string(to_string(m_comparator_state)));
+    json_object_set_new(pOutput, "sync_state", json_string(to_string(m_sync_state)));
     json_t* pSessions = json_object();
     json_object_set_new(pSessions, "total", json_integer(sr.total));
     json_object_set_new(pSessions, "suspended", json_integer(sr.affected));
@@ -513,13 +564,15 @@ void ComparatorRouter::setup(const RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
+        set_sync_state(SyncState::STOPPING_REPLICATION);
+
         switch (stop_replication())
         {
         case ReplicationStatus::STOPPED:
             if (rewire_service_for_comparison())
             {
                 restart_and_resume();
-                m_comparator_state = ComparatorState::COMPARING;
+                set_state(ComparatorState::COMPARING);
             }
             else
             {
@@ -535,7 +588,7 @@ void ComparatorRouter::setup(const RoutingWorker::SessionResult& sr)
                                m_config.pService->name());
 
                     resume_sessions();
-                    m_comparator_state = ComparatorState::PREPARED;
+                    set_state(ComparatorState::PREPARED);
                 }
                 else
                 {
@@ -555,7 +608,7 @@ void ComparatorRouter::setup(const RoutingWorker::SessionResult& sr)
                       "Resuming sessions according to original configuration.",
                       m_config.pService->name());
             resume_sessions();
-            m_comparator_state = ComparatorState::PREPARED;
+            set_state(ComparatorState::PREPARED);
             break;
         }
     }
@@ -600,7 +653,7 @@ void ComparatorRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
             mxb_assert(!true);
         }
 
-        m_comparator_state = ComparatorState::PREPARED;
+        set_state(ComparatorState::PREPARED);
     }
 }
 

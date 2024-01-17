@@ -32,7 +32,15 @@ public:
         STOPPING       // Stopping
     };
 
+    enum class SyncState
+    {
+        NOT_APPLICABLE,       // The comparator state is not SYNCHRONIZING.
+        STOPPING_REPLICATION, // The replication is being stopped. Mat be delayed due to lag.
+        SUSPENDING_SESSIONS   // The sessions are being suspended.
+    };
+
     static const char* to_string(ComparatorState comparator_state);
+    static const char* to_string(SyncState sync_state);
 
     ComparatorRouter(const ComparatorRouter&) = delete;
     ComparatorRouter& operator=(const ComparatorRouter&) = delete;
@@ -82,6 +90,10 @@ public:
     void collect(const ComparatorSessionStats& stats);
 
 private:
+    void set_state(ComparatorState comparator_state,
+                   SyncState sync_state = SyncState::NOT_APPLICABLE);
+    void set_sync_state(SyncState sync_state);
+
     bool all_sessions_suspended(mxs::RoutingWorker::SessionResult sr)
     {
         return sr.total == sr.affected;
@@ -124,6 +136,7 @@ private:
     using SExporter = std::shared_ptr<ComparatorExporter>;
 
     ComparatorState                         m_comparator_state { ComparatorState::PREPARED };
+    SyncState                               m_sync_state { SyncState::NOT_APPLICABLE };
     ComparatorConfig                        m_config;
     SERVICE&                                m_service;
     mxb::Worker::DCId                       m_dcstart { mxb::Worker::NO_CALL };
