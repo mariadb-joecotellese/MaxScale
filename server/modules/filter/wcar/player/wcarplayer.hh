@@ -7,8 +7,6 @@
 
 #include "wcarplayerconfig.hh"
 
-bool execute_stmt(MYSQL* pConn, const std::string& sql);
-
 class Player
 {
 public:

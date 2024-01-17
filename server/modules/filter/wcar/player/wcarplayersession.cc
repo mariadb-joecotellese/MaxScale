@@ -1,15 +1,20 @@
 #include "wcarplayersession.hh"
 #include "wcarplayer.hh"
 #include <maxbase/stopwatch.hh>
+#include <maxbase/string.hh>
 #include <maxsimd/canonical.hh>
 #include <iostream>
 #include <thread>
 
-bool execute_stmt(MYSQL* pConn, const std::string& sql)
+bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent)
 {
+    auto sql = maxsimd::recreate_sql(*qevent.sCanonical, qevent.canonical_args);
+
     if (mysql_query(pConn, sql.c_str()))
     {
-        std::cerr << "MariaDB: Error code " << mysql_error(pConn) << std::endl;
+        std::cerr << "MariaDB: Error S " << qevent.session_id << " E " << qevent.event_id
+                  << " SQL " << mxb::show_some(sql)
+                  << " Error code " << mysql_error(pConn) << std::endl;
         return false;
     }
 
@@ -36,10 +41,10 @@ PlayerSession::~PlayerSession()
     m_thread.join();
 }
 
-void PlayerSession::queue_query(const std::string& sql)
+void PlayerSession::queue_query(QueryEvent&& qevent)
 {
     std::lock_guard guard(m_mutex);
-    m_queue.push_back(sql);
+    m_queue.push_back(std::move(qevent));
     m_condition.notify_one();
 }
 
@@ -79,11 +84,11 @@ void PlayerSession::run()
             break;
         }
 
-        auto sql = std::move(m_queue.front());
+        auto qevent = std::move(m_queue.front());
         m_queue.pop_front();
         lock.unlock();
 
-        execute_stmt(m_pConn, sql);
+        execute_stmt(m_pConn, qevent);
     }
 
     mysql_close(m_pConn);

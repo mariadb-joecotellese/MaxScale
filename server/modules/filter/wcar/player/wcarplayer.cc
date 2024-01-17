@@ -22,7 +22,7 @@ void Player::replay()
     int64_t count = 0;
     std::unordered_map<int64_t, std::unique_ptr<PlayerSession>> sessions;
 
-    for (const auto& event : storage)
+    for (auto&& event : storage)
     {
         auto sql = maxsimd::canonical_args_to_sql(*event.sCanonical, event.canonical_args);
 
@@ -46,7 +46,7 @@ void Player::replay()
             ite = ins.first;
         }
 
-        ite->second->queue_query(sql);
+        ite->second->queue_query(std::move(event));
     }
 
     std::cout << "\r" << count << std::endl;

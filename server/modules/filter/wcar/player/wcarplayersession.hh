@@ -12,8 +12,6 @@
 #include <mutex>
 #include <condition_variable>
 
-bool execute_stmt(MYSQL* pConn, const std::string& sql);
-
 /**
  * @brief A Session is a single thread performing queries one by one
  *        in sync with the Player.
@@ -27,7 +25,7 @@ public:
     ~PlayerSession();
     PlayerSession(PlayerSession&&) = delete;
 
-    void queue_query(const std::string& sql);
+    void queue_query(QueryEvent&& qevent);
     void stop();
 
 private:
@@ -41,6 +39,6 @@ private:
     std::thread             m_thread;
     std::mutex              m_mutex;
     std::condition_variable m_condition;
-    std::deque<std::string> m_queue;
+    std::deque<QueryEvent>  m_queue;
     bool                    m_request_stop = false;
 };
