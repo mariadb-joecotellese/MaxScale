@@ -99,7 +99,14 @@ private:
     bool rewire_service_for_normalcy();
     bool stop_replication(const SERVER& server);
 
-    bool stop_replication();
+    enum ReplicationStatus
+    {
+        STOPPED, // Replication stopped.
+        LAGGING, // Replication not stopped, as replica still lags behind.
+        ERROR,   // Either the replica cannot be connected, or the stopping failed.
+    };
+
+    ReplicationStatus stop_replication();
     void restart_and_resume();
 
     void setup(const mxs::RoutingWorker::SessionResult& sr);

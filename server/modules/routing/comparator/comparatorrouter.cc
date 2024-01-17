@@ -415,9 +415,9 @@ bool ComparatorRouter::stop_replication(const SERVER& server)
     return rv;
 }
 
-bool ComparatorRouter::stop_replication()
+ComparatorRouter::ReplicationStatus ComparatorRouter::stop_replication()
 {
-    bool rv = false;
+    ReplicationStatus rv = ReplicationStatus::ERROR;
 
     std::vector<SERVER*> servers = m_service.reachable_servers();
 
@@ -462,12 +462,16 @@ bool ComparatorRouter::stop_replication()
 
             if (!behind)
             {
-                rv = stop_replication(*pReplica);
+                if (stop_replication(*pReplica))
+                {
+                    rv = ReplicationStatus::STOPPED;
+                }
             }
             else
             {
                 MXB_DEV("'%s' is behind '%s', not breaking replication yet.",
                         pReplica->name(), pMain->name());
+                rv = ReplicationStatus::LAGGING;
             }
         }
         else
@@ -509,22 +513,50 @@ void ComparatorRouter::setup(const RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
-        if (rewire_service_for_comparison())
+        switch (stop_replication())
         {
-            if (stop_replication())
+        case ReplicationStatus::STOPPED:
+            if (rewire_service_for_comparison())
             {
                 restart_and_resume();
-
                 m_comparator_state = ComparatorState::COMPARING;
             }
             else
             {
-                m_comparator_state = ComparatorState::PREPARED;
+                // Not sure whether rewiring actually can fail, if the arguments are ok.
+
+                MXB_ERROR("Could not rewire '%s' service for comparison of servers. "
+                          "Now attempting to reset the configuration.",
+                          m_config.pService->name());
+
+                if (rewire_service_for_normalcy())
+                {
+                    MXB_NOTICE("Service '%s' reset to original configuration, resuming sessions.",
+                               m_config.pService->name());
+
+                    resume_sessions();
+                    m_comparator_state = ComparatorState::PREPARED;
+                }
+                else
+                {
+                    MXB_ERROR("Could not reset configuration of service '%s', cannot resume "
+                              "sessions. This will need manual intervention.",
+                              m_config.pService->name());
+                }
+
             }
-        }
-        else
-        {
+            break;
+
+        case ReplicationStatus::LAGGING:
+            break;
+
+        case ReplicationStatus::ERROR:
+            MXB_ERROR("Could not stop replication, cannot rewire service '%s'. "
+                      "Resuming sessions according to original configuration.",
+                      m_config.pService->name());
+            resume_sessions();
             m_comparator_state = ComparatorState::PREPARED;
+            break;
         }
     }
 }
