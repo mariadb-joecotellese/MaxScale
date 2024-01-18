@@ -469,19 +469,6 @@ export function stringListToStr(arr) {
     return arr.join(',\n').trim()
 }
 
-export function genGraphAnnotationCnf() {
-    return {
-        display: false,
-        yMin: 0,
-        yMax: 0,
-        borderColor: '#f59d34',
-        borderWidth: 1,
-        label: {
-            backgroundColor: '#f59d34',
-            color: 'white',
-            content: 'label',
-            display: true,
-            padding: 4,
-        },
-    }
+export function validateHexColor(color) {
+    return Boolean(color.match(/^#[0-9A-F]{6}$/i))
 }

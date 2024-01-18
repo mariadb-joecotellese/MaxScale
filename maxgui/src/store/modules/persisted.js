@@ -12,7 +12,6 @@
  * Public License.
  */
 import { APP_CONFIG } from '@rootSrc/utils/constants'
-import { genGraphAnnotationCnf } from '@rootSrc/utils/helpers'
 
 export default {
     namespaced: true,
@@ -20,9 +19,9 @@ export default {
     state: {
         refresh_rate_by_route_group: APP_CONFIG.DEF_REFRESH_RATE_BY_GROUP,
         dsh_graphs_cnf: {
-            sessions: { annotations: { line_0: genGraphAnnotationCnf() } },
-            connections: { annotations: { line_0: genGraphAnnotationCnf() } },
-            load: { annotations: { line_0: genGraphAnnotationCnf() } },
+            sessions: { annotations: {} },
+            connections: { annotations: {} },
+            load: { annotations: {} },
         },
         are_dsh_graphs_expanded: false,
     },
@@ -30,8 +29,8 @@ export default {
         UPDATE_REFRESH_RATE_BY_ROUTE_GROUP(state, { group, payload }) {
             state.refresh_rate_by_route_group[group] = payload
         },
-        UPDATE_DSH_GRAPHS_CNF(state, { graphName, payload }) {
-            state.dsh_graphs_cnf[graphName] = payload
+        SET_DSH_GRAPHS_CNF(state, payload) {
+            state.dsh_graphs_cnf = payload
         },
         SET_ARE_DSH_GRAPHS_EXPANDED(state, payload) {
             state.are_dsh_graphs_expanded = payload
