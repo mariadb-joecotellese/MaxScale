@@ -127,64 +127,6 @@ bool check_prepare_prerequisites(const SERVICE& service,
     return rv;
 }
 
-mxs::Monitor* create_comparator_monitor(const string& name,
-                                        const SERVER& primary,
-                                        const SERVER& replica)
-{
-    mxs::Monitor* pComparator_monitor = nullptr;
-    mxs::Monitor* pPrimary_monitor = MonitorManager::server_is_monitored(&primary);
-
-    if (!pPrimary_monitor)
-    {
-        MXB_ERROR("Cannot create Comparator monitor '%s', the primary server '%s' is not "
-                  "monitored and thus there is no monitor to copy settings from.",
-                  name.c_str(), primary.name());
-    }
-    else
-    {
-        string module = "mariadbmon";
-        mxs::ConfigParameters params;
-
-        const auto& settings = pPrimary_monitor->conn_settings();
-
-        params.set("module", module);
-        params.set("user", settings.username);
-        params.set("password", settings.password);
-        params.set("servers", replica.name());
-
-        pComparator_monitor = MonitorManager::create_monitor(name, module, &params);
-
-        if (!pComparator_monitor)
-        {
-            MXB_ERROR("Could not create Comparator monitor '%s', please check earlier errors.", name.c_str());
-        }
-    }
-
-    return pComparator_monitor;
-}
-
-mxs::Monitor* create_comparator_monitor(const SERVICE& service,
-                                        const SERVER& primary,
-                                        const SERVER& replica)
-{
-    mxs::Monitor* pComparator_monitor = nullptr;
-
-    string name { "Monitor_for_Comparator" };
-    name += service.name();
-
-    if (const char* zType = mxs::Config::get_object_type(name))
-    {
-        MXB_ERROR("Cannot create Comparator monitor '%s', a %s with that name already exists.",
-                  name.c_str(), zType);
-    }
-    else
-    {
-        pComparator_monitor = create_comparator_monitor(name, primary, replica);
-    }
-
-    return pComparator_monitor;
-}
-
 Service* create_comparator_service(const string& name,
                                    const SERVICE& service,
                                    const SERVER& primary,
@@ -288,28 +230,19 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     {
         if (check_prepare_prerequisites(*pService, *pPrimary, *pReplica))
         {
-            mxs::Monitor* pComparator_monitor = create_comparator_monitor(*pService, *pPrimary, *pReplica);
+            Service* pComparator_service = create_comparator_service(*pService, *pPrimary, *pReplica);
 
-            if (pComparator_monitor)
+            if (pComparator_service)
             {
-                MonitorManager::start_monitor(pComparator_monitor);
+                json_t* pOutput = json_object();
+                auto s = mxb::string_printf("Comparator service '%s' created. Server '%s' ready "
+                                            "to be evaluated.",
+                                            pComparator_service->name(),
+                                            pReplica->name());
+                json_object_set_new(pOutput, "status", json_string(s.c_str()));
+                *ppOutput = pOutput;
 
-                Service* pComparator_service = create_comparator_service(*pService, *pPrimary, *pReplica);
-
-                if (pComparator_service)
-                {
-                    json_t* pOutput = json_object();
-                    auto s = mxb::string_printf("Comparator service '%s' and associated "
-                                                "monitor '%s' created. Server '%s' ready "
-                                                "to be evaluated.",
-                                                pComparator_service->name(),
-                                                pComparator_monitor->name(),
-                                                pReplica->name());
-                    json_object_set_new(pOutput, "status", json_string(s.c_str()));
-                    *ppOutput = pOutput;
-
-                    rv = true;
-                }
+                rv = true;
             }
         }
     }

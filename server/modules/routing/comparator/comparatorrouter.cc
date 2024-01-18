@@ -9,12 +9,14 @@
 #include <iomanip>
 #include <maxbase/format.hh>
 #include <maxscale/mainworker.hh>
+#include <maxscale/protocol/mariadb/gtid.hh>
 #include <maxscale/routingworker.hh>
 #include <maxsql/mariadb_connector.hh>
 #include "comparatorsession.hh"
 #include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/service.hh"
 
+using namespace mxq;
 using namespace mxs;
 using std::chrono::duration_cast;
 
@@ -94,11 +96,10 @@ RouterSession* ComparatorRouter::newSession(MXS_SESSION* pSession, const Endpoin
 
         for (const auto& sBackend : backends)
         {
-            if (sBackend->can_connect())
-            {
-                // TODO: Ignore if it cannot connect?
-                sBackend->connect();
-            }
+            // We do not call can_connect(), but simply attempt to connect. That
+            // removes the need for having it monitored. Further, there's nothing
+            // we can do if we cannot connect or if something fails later.
+            sBackend->connect();
         }
     }
 
@@ -466,6 +467,58 @@ bool ComparatorRouter::stop_replication(const SERVER& server)
     return rv;
 }
 
+namespace
+{
+
+using GtidPosByDomain = std::unordered_map<uint32_t, uint64_t>;
+
+std::optional<GtidPosByDomain> get_gtid_pos_by_domain(const SERVICE& service, const SERVER& server)
+{
+    std::optional<GtidPosByDomain> rv;
+
+    MariaDB mdb;
+
+    MariaDB::ConnectionSettings& settings = mdb.connection_settings();
+
+    const auto& sConfig = service.config();
+    settings.user = sConfig->user;
+    settings.password = sConfig->password;
+
+    if (mdb.open(server.address(), server.port()))
+    {
+        auto sResult = mdb.query("SELECT @@gtid_current_pos");
+
+        if (sResult)
+        {
+            if (sResult->next_row())
+            {
+                mariadb::GtidList gtids = mariadb::GtidList::from_string(sResult->get_string(0));
+
+                GtidPosByDomain gtid_pos_by_domain;
+                for (const auto& gtid : gtids.triplets())
+                {
+                    gtid_pos_by_domain.insert(std::make_pair(gtid.m_domain, gtid.m_sequence));
+                }
+
+                rv = gtid_pos_by_domain;
+            }
+        }
+        else
+        {
+            MXB_ERROR("Could not obtain the current gtid position: %s", mdb.error());
+        }
+    }
+    else
+    {
+        MXB_ERROR("Could not open connection to %s:%d: %s",
+                  server.address(), server.port(), mdb.error());
+    }
+
+    return rv;
+}
+
+}
+
 ComparatorRouter::ReplicationStatus ComparatorRouter::stop_replication()
 {
     ReplicationStatus rv = ReplicationStatus::ERROR;
@@ -480,49 +533,55 @@ ComparatorRouter::ReplicationStatus ComparatorRouter::stop_replication()
 
         if (pMain == m_config.pMain)
         {
-            using GtiPosByDomain = std::unordered_map<uint32_t, uint64_t>;
+            GtidPosByDomain from = pMain->get_gtid_list();
+            std::optional<GtidPosByDomain> to = get_gtid_pos_by_domain(m_service, *pReplica);
 
-            GtiPosByDomain from = pMain->get_gtid_list();
-            GtiPosByDomain to = pReplica->get_gtid_list();
-
-            bool behind = false;
-            for (auto kv : from)
+            if (to)
             {
-                auto domain = kv.first;
-                auto position = kv.second;
-
-                auto it = to.find(domain);
-
-                if (it == to.end())
+                bool behind = false;
+                for (auto kv : from)
                 {
-                    MXB_DEV("Replica '%s' lacks domain %u, which is found in '%s'.",
-                            pReplica->name(), domain, pMain->name());
-                    behind = true;
+                    auto domain = kv.first;
+                    auto position = kv.second;
+
+                    auto it = to.value().find(domain);
+
+                    if (it == to.value().end())
+                    {
+                        MXB_DEV("Replica '%s' lacks domain %u, which is found in '%s'.",
+                                pReplica->name(), domain, pMain->name());
+                        behind = true;
+                    }
+                    else
+                    {
+                        if (it->second < position)
+                        {
+                            MXB_DEV("The position %lu of domain %u in server '%s' is behind "
+                                    "the position %lu in server '%s'.",
+                                    it->second, domain, pReplica->name(), position, pMain->name());
+                            behind = true;
+                        }
+                    }
+                }
+
+                if (!behind)
+                {
+                    if (stop_replication(*pReplica))
+                    {
+                        rv = ReplicationStatus::STOPPED;
+                    }
                 }
                 else
                 {
-                    if (it->second < position)
-                    {
-                        MXB_DEV("The position %lu of domain %u in server '%s' is behind "
-                                "the position %lu in server '%s'.",
-                                it->second, domain, pReplica->name(), position, pMain->name());
-                        behind = true;
-                    }
-                }
-            }
-
-            if (!behind)
-            {
-                if (stop_replication(*pReplica))
-                {
-                    rv = ReplicationStatus::STOPPED;
+                    MXB_DEV("'%s' is behind '%s', not breaking replication yet.",
+                            pReplica->name(), pMain->name());
+                    rv = ReplicationStatus::LAGGING;
                 }
             }
             else
             {
-                MXB_DEV("'%s' is behind '%s', not breaking replication yet.",
-                        pReplica->name(), pMain->name());
-                rv = ReplicationStatus::LAGGING;
+                MXB_ERROR("Could not get the Gtid positions of '%s'.",
+                          pReplica->name());
             }
         }
         else
