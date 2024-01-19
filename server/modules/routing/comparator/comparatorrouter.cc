@@ -115,10 +115,6 @@ RouterSession* ComparatorRouter::newSession(MXS_SESSION* pSession, const Endpoin
 
 std::shared_ptr<ComparatorExporter> ComparatorRouter::exporter_for(const mxs::Target* pTarget) const
 {
-    // TODO: Remove this once the servers have been put into place before
-    // TODO: post_configure() is called.
-    const_cast<ComparatorRouter*>(this)->update_exporters();
-
     std::shared_lock<std::shared_mutex> guard(m_exporters_rwlock);
 
     auto it = m_exporters.find(pTarget);
@@ -139,9 +135,27 @@ uint64_t ComparatorRouter::getCapabilities() const
 
 bool ComparatorRouter::post_configure()
 {
+    bool rv= true;
+
     m_stats.post_configure(m_config);
 
-    return update_exporters();
+    for (const mxs::Target* pTarget : m_service.get_children())
+    {
+        if (pTarget->kind() != mxs::Target::Kind::SERVER)
+        {
+            MXB_ERROR("The target '%s' is not a server. Only servers may be "
+                      "used as targets of '%s'.",
+                      pTarget->name(), m_service.name());
+            rv = false;
+        }
+    }
+
+    if (rv)
+    {
+        rv = update_exporters();
+    }
+
+    return rv;
 }
 
 bool ComparatorRouter::start(json_t** ppOutput)
