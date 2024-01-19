@@ -43,19 +43,19 @@ cache_result_t InMemoryStorageST::get_value(Token* pToken,
                                             uint32_t flags,
                                             uint32_t soft_ttl,
                                             uint32_t hard_ttl,
-                                            GWBUF** ppResult,
-                                            const std::function<void (cache_result_t, GWBUF*)>&)
+                                            GWBUF* pResult,
+                                            const std::function<void (cache_result_t, GWBUF&&)>&)
 {
-    return do_get_value(pToken, key, flags, soft_ttl, hard_ttl, ppResult);
+    return do_get_value(pToken, key, flags, soft_ttl, hard_ttl, pResult);
 }
 
 cache_result_t InMemoryStorageST::put_value(Token* pToken,
                                             const CacheKey& key,
                                             const std::vector<std::string>& invalidation_words,
-                                            const GWBUF* pValue,
+                                            const GWBUF& value,
                                             const std::function<void (cache_result_t)>&)
 {
-    return do_put_value(pToken, key, invalidation_words, pValue);
+    return do_put_value(pToken, key, invalidation_words, value);
 }
 
 cache_result_t InMemoryStorageST::del_value(Token* pToken,

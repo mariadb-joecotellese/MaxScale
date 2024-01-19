@@ -81,7 +81,7 @@ bool RWSplitSession::routeQuery(GWBUF&& buffer)
     if (replaying_trx() || m_pending_retries > 0 || !m_query_queue.empty())
     {
         MXB_INFO("New %s received while %s is active: %s",
-                 mariadb::cmd_to_string(buffer.data()[4]),
+                 mariadb::cmd_to_string(buffer),
                  replaying_trx() ?  "transaction replay" : "query execution",
                  get_sql_string(buffer).c_str());
 
@@ -111,6 +111,10 @@ bool RWSplitSession::route_query(GWBUF&& buffer)
         /** No active or pending queries */
         try
         {
+            // Commit the changes to the routing info. This updates the set of temporary tables and prepared
+            // statements. TODO: This should probably be done after the query is successfully routed.
+            m_qc.commit_route_info_update(buffer);
+
             route_stmt(std::move(buffer), plan);
             rval = true;
         }
@@ -223,7 +227,7 @@ void RWSplitSession::trx_replay_next_stmt()
         {
             // More statements to replay, pop the oldest one and execute it
             GWBUF buf = m_replayed_trx.pop_stmt();
-            const char* cmd = mariadb::cmd_to_string(mxs_mysql_get_command(buf));
+            const char* cmd = mariadb::cmd_to_string(buf);
             MXB_INFO("Replaying %s: %s", cmd, get_sql_string(buf).c_str());
             retry_query(std::move(buf), 0);
         }
@@ -334,7 +338,7 @@ void RWSplitSession::manage_transactions(RWBackend* backend, const GWBUF& writeb
 
                 if (reply.is_complete())
                 {
-                    const char* cmd = mariadb::cmd_to_string(mxs_mysql_get_command(m_current_query.buffer));
+                    const char* cmd = mariadb::cmd_to_string(m_current_query.buffer);
 
                     // Add an empty checksum for any statements which we don't want to checksum. This allows
                     // us to identify which statement it was that caused the checksum mismatch.
@@ -629,11 +633,6 @@ void RWSplitSession::client_reply(GWBUF&& writebuf, const mxs::ReplyRoute& down,
 
         track_tx_isolation(reply);
 
-        if (reply.command() == MXS_COM_STMT_PREPARE && reply.is_ok())
-        {
-            m_qc.ps_store_response(reply.generated_id(), reply.param_count());
-        }
-
         if (m_state == OTRX_ROLLBACK)
         {
             // Transaction rolled back, start replaying it on the master
@@ -816,7 +815,7 @@ void RWSplitSession::start_trx_replay()
         {
             // Pop the first statement and start replaying the transaction
             GWBUF buf = m_replayed_trx.pop_stmt();
-            const char* cmd = mariadb::cmd_to_string(mxs_mysql_get_command(buf));
+            const char* cmd = mariadb::cmd_to_string(buf);
             MXB_INFO("Replaying %s: %s", cmd, get_sql_string(buf).c_str());
             retry_query(std::move(buf), 1);
         }

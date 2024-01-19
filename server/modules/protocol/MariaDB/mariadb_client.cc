@@ -69,7 +69,6 @@ const int CLIENT_CAPABILITIES_LEN = 32;
 const int SSL_REQUEST_PACKET_SIZE = MYSQL_HEADER_LEN + CLIENT_CAPABILITIES_LEN;
 const int NORMAL_HS_RESP_MIN_SIZE = MYSQL_AUTH_PACKET_BASE_SIZE + 2;
 const int NORMAL_HS_RESP_MAX_SIZE = MYSQL_PACKET_LENGTH_MAX - 1;
-const int MAX_PACKET_SIZE = MYSQL_PACKET_LENGTH_MAX + MYSQL_HEADER_LEN;
 
 const int ER_OUT_OF_ORDER = 1156;
 const char PACKETS_OOO_MSG[] = "Got packets out of order";      // Matches server message
@@ -1317,7 +1316,6 @@ bool MariaDBClientConnection::record_for_history(GWBUF& buffer, uint8_t cmd)
             if (m_session_data->history().erase(id))
             {
                 mxb_assert(id);
-                m_qc.ps_erase(&buffer);
                 m_session_data->exec_metadata.erase(id);
             }
         }
@@ -1347,18 +1345,13 @@ bool MariaDBClientConnection::record_for_history(GWBUF& buffer, uint8_t cmd)
         m_pending_cmd = buffer.deep_clone();
         should_record = true;
 
-        if (cmd == MXS_COM_STMT_PREPARE
-            || mxs::Parser::type_mask_contains(info.type_mask(), mxs::sql::TYPE_PREPARE_NAMED_STMT))
-        {
-            // This will silence the warnings about unknown PS IDs
-            m_qc.ps_store(&buffer, m_next_id);
-        }
-
         if (++m_next_id == MAX_SESCMD_ID)
         {
             m_next_id = 1;
         }
     }
+
+    m_qc.commit_route_info_update(buffer);
 
     return should_record;
 }
@@ -1375,7 +1368,7 @@ bool MariaDBClientConnection::record_for_history(GWBUF& buffer, uint8_t cmd)
 bool MariaDBClientConnection::route_statement(GWBUF&& buffer)
 {
     bool recording = false;
-    uint8_t cmd = mxs_mysql_get_command(buffer);
+    uint8_t cmd = mariadb::get_command(buffer);
 
     if (m_session->capabilities() & RCAP_TYPE_SESCMD_HISTORY)
     {
@@ -1445,7 +1438,7 @@ bool MariaDBClientConnection::route_statement(GWBUF&& buffer)
     return ok;
 }
 
-void MariaDBClientConnection::finish_recording_history(const GWBUF* buffer, const mxs::Reply& reply)
+void MariaDBClientConnection::finish_recording_history(const mxs::Reply& reply)
 {
     if (reply.is_complete())
     {
@@ -1453,11 +1446,6 @@ void MariaDBClientConnection::finish_recording_history(const GWBUF* buffer, cons
                  mariadb::cmd_to_string(m_pending_cmd[4]), m_pending_cmd.id(),
                  maxbase::show_some(string(mariadb::get_sql(m_pending_cmd)), 200).c_str(),
                  reply.is_ok() ? "OK" : reply.error().message().c_str());
-
-        if (reply.command() == MXS_COM_STMT_PREPARE)
-        {
-            m_qc.ps_store_response(m_pending_cmd.id(), reply.param_count());
-        }
 
         // Check the early responses to this command that arrived and were discarded before the accepted
         // response that ended up here was received. Doing this with lcall() allows the command ID and the
@@ -1795,7 +1783,7 @@ void MariaDBClientConnection::execute_kill(std::shared_ptr<KillInfo> info, std::
                     if (client->connect())
                     {
                         auto ok_cb = [this, send_kill_resp, cl = client.get()](
-                            GWBUF* buf, const mxs::ReplyRoute& route, const mxs::Reply& reply){
+                            GWBUF&& buf, const mxs::ReplyRoute& route, const mxs::Reply& reply){
                             MXB_INFO("Reply to KILL from '%s': %s",
                                      route.empty() ? "<none>" : route.first()->target()->name(),
                                      reply.error() ? reply.error().message().c_str() : "OK");
@@ -2280,7 +2268,7 @@ void MariaDBClientConnection::cancel_change_user_p2(const GWBUF& buffer)
     MXB_WARNING("COM_CHANGE_USER from '%s' to '%s' succeeded on MaxScale but "
                 "returned (0x%0hhx) on backends: %s",
                 orig_auth_data->user.c_str(), curr_auth_data->user.c_str(),
-                mxs_mysql_get_command(buffer), mariadb::extract_error(buffer).c_str());
+                mariadb::get_command(buffer), mariadb::extract_error(buffer).c_str());
 
     // Restore original auth data from backup.
     curr_auth_data = move(orig_auth_data);
@@ -2689,7 +2677,7 @@ json_t* MariaDBClientConnection::diagnostics() const
 
 bool MariaDBClientConnection::large_query_continues(const GWBUF& buffer) const
 {
-    return MYSQL_GET_PACKET_LEN(&buffer) == MAX_PACKET_SIZE;
+    return mariadb::get_header(buffer.data()).pl_length == MYSQL_PACKET_LENGTH_MAX;
 }
 
 bool MariaDBClientConnection::process_normal_packet(GWBUF&& buffer)
@@ -2699,7 +2687,7 @@ bool MariaDBClientConnection::process_normal_packet(GWBUF&& buffer)
     {
         const uint8_t* data = buffer.data();
         auto header = mariadb::get_header(data);
-        m_command = MYSQL_GET_COMMAND(data);
+        m_command = mariadb::get_command(data);
         is_large = (header.pl_length == MYSQL_PACKET_LENGTH_MAX);
     }
 
@@ -2978,21 +2966,21 @@ MariaDBClientConnection::clientReply(GWBUF&& buffer, const mxs::ReplyRoute& down
             break;
 
         case RoutingState::RECORD_HISTORY:
-            finish_recording_history(&buffer, reply);
+            finish_recording_history(reply);
             break;
 
         default:
-            if (m_session->capabilities() & RCAP_TYPE_SESCMD_HISTORY)
-            {
-                m_qc.update_from_reply(reply);
-            }
-
             if (reply.state() == mxs::ReplyState::LOAD_DATA)
             {
                 m_routing_state = RoutingState::LOAD_DATA;
             }
             break;
         }
+    }
+
+    if (m_session->capabilities() & RCAP_TYPE_SESCMD_HISTORY)
+    {
+        m_qc.update_from_reply(reply);
     }
 
     if (mxs_mysql_is_binlog_dump(m_command))
@@ -3530,7 +3518,7 @@ void MariaDBClientConnection::deliver_backend_auth_result(GWBUF&& auth_reply)
 {
     mxb_assert(m_auth_state == AuthState::WAIT_FOR_BACKEND);
     mxb_assert(!auth_reply.empty());
-    auto cmd = MYSQL_GET_COMMAND(auth_reply.data());
+    auto cmd = mariadb::get_command(auth_reply);
     if (cmd == MYSQL_REPLY_OK)
     {
         m_pt_be_auth_res = PtAuthResult::OK;

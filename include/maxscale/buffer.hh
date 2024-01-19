@@ -463,16 +463,6 @@ inline const uint8_t* GWBUF::end() const
     return m_end;
 }
 
-inline uint8_t* GWBUF_DATA(GWBUF* b)
-{
-    return b->data();
-}
-
-inline const uint8_t* GWBUF_DATA(const GWBUF* b)
-{
-    return b->data();
-}
-
 inline size_t GWBUF::length() const
 {
     return m_end - m_start;
@@ -497,49 +487,4 @@ inline void GWBUF::write_complete(size_t n_bytes)
 inline uint32_t GWBUF::id() const
 {
     return m_id;
-}
-
-/**
- * Allocate a new gateway buffer of specified size.
- *
- * @param size  The size in bytes of the data area required
- *
- * @return Pointer to the buffer structure or NULL if memory could not
- *         be allocated.
- */
-extern GWBUF* gwbuf_alloc(unsigned int size);
-
-/**
- * Free a chain of gateway buffers
- *
- * @param buf  The head of the list of buffers to free, can be NULL.
- */
-extern void gwbuf_free(GWBUF* buf);
-
-/**
- * Clone a GWBUF. Note that if the GWBUF is actually a list of
- * GWBUFs, then every GWBUF in the list will be cloned. Note that but
- * for the GWBUF structure itself, the data is shared.
- *
- * @param buf  The GWBUF to be cloned.
- *
- * @return The cloned GWBUF, or NULL if any part of @buf could not be cloned.
- */
-GWBUF* gwbuf_clone_shallow(GWBUF* buf);
-
-/**
- * Append a buffer onto a linked list of buffer structures.
- *
- * @param head  The current head of the linked list or NULL.
- * @param tail  Another buffer to make the tail of the linked list, must not be NULL
- *
- * @return The new head of the linked list
- */
-GWBUF* gwbuf_append(GWBUF* head, GWBUF* tail);
-
-namespace maxscale
-{
-// Conversion functions. Likely needed only temporarily.
-GWBUF* gwbuf_to_gwbufptr(GWBUF&& buffer);
-GWBUF  gwbufptr_to_gwbuf(GWBUF* buffer);
 }

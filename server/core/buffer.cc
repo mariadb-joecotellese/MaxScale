@@ -27,24 +27,6 @@
 using mxs::RoutingWorker;
 using std::move;
 
-/**
- * Allocate a new gateway buffer structure of size bytes.
- *
- * For now we allocate memory directly from malloc for buffer the management
- * structure and the actual data buffer itself. We may swap at a future date
- * to a more efficient mechanism.
- *
- * @param       size The size in bytes of the data area required
- * @return      Pointer to the buffer structure or NULL if memory could not
- *              be allocated.
- */
-GWBUF* gwbuf_alloc(unsigned int size)
-{
-    mxb_assert(size > 0);
-    auto rval = new GWBUF(size);
-    return rval;
-}
-
 GWBUF::GWBUF(size_t size)
     : m_sbuf(std::make_shared<SHARED_BUF>(size))
     , m_start(m_sbuf->buf_start.get())
@@ -68,21 +50,6 @@ GWBUF GWBUF::deep_clone() const
     GWBUF rval = shallow_clone();
     rval.ensure_unique();
     return rval;
-}
-
-/**
- * Free a list of gateway buffers
- *
- * @param buf The head of the list of buffers to free
- */
-void gwbuf_free(GWBUF* buf)
-{
-    delete buf;
-}
-
-GWBUF* gwbuf_clone_shallow(GWBUF* buf)
-{
-    return mxs::gwbuf_to_gwbufptr(buf->shallow_clone());
 }
 
 GWBUF GWBUF::split(uint64_t n_bytes)
@@ -126,24 +93,6 @@ int GWBUF::compare(const GWBUF& rhs) const
     size_t rlen = rhs.length();
 
     return (llen == rlen) ? memcmp(data(), rhs.data(), llen) : ((llen > rlen) ? 1 : -1);
-}
-
-GWBUF* gwbuf_append(GWBUF* head, GWBUF* tail)
-{
-    // This function is used such that 'head' should take ownership of 'tail'.
-    if (head)
-    {
-        if (tail)
-        {
-            head->merge_back(move(*tail));
-            delete tail;
-        }
-        return head;
-    }
-    else
-    {
-        return tail;
-    }
 }
 
 void GWBUF::set_type(Type type)
@@ -353,16 +302,4 @@ SHARED_BUF::SHARED_BUF(size_t len)
     : buf_start(new uint8_t[len])   // Don't use make_unique here, it zero-inits the buffer
     , buf_end(buf_start.get() + len)
 {
-}
-
-GWBUF* mxs::gwbuf_to_gwbufptr(GWBUF&& buffer)
-{
-    return new GWBUF(std::move(buffer));
-}
-
-GWBUF mxs::gwbufptr_to_gwbuf(GWBUF* buffer)
-{
-    GWBUF rval(std::move(*buffer));
-    delete buffer;
-    return rval;
 }

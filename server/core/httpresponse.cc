@@ -169,7 +169,14 @@ public:
     {
         try
         {
-            return do_parse();
+            auto rval = parse_expr();
+
+            if (!m_str.empty())
+            {
+                throw ParseError(mxb::cat("Unexpected trailing data: ", m_str));
+            }
+
+            return rval;
         }
         catch (const ParseError& e)
         {
@@ -179,7 +186,7 @@ public:
     }
 
 private:
-    std::unique_ptr<Matcher> do_parse()
+    std::unique_ptr<Matcher> parse_expr()
     {
         if (m_str.empty())
         {
@@ -259,7 +266,7 @@ private:
 
         do
         {
-            expr.push_back(parse());
+            expr.push_back(parse_expr());
         }
         while (try_consume(","));
 
@@ -312,7 +319,7 @@ private:
 template<class Compare>
 void filter_body(json_t* body, const std::string& json_ptr, Compare comp)
 {
-    if (auto data = json_object_get(body, CN_DATA))
+    if (json_t* data = json_object_get(body, CN_DATA))
     {
         if (json_is_array(data))
         {
@@ -322,7 +329,7 @@ void filter_body(json_t* body, const std::string& json_ptr, Compare comp)
 
             json_array_foreach(data, i, val)
             {
-                if (auto lhs = mxb::json_ptr(val, json_ptr.c_str()); lhs && comp(lhs))
+                if (json_t* lhs = mxb::json_ptr(val, json_ptr.c_str()); lhs && comp(lhs))
                 {
                     json_array_append_new(new_arr, json_copy(val));
                 }
@@ -451,13 +458,13 @@ void HttpResponse::remove_fields_from_resource(json_t* obj, const std::string& t
 
     if (json_is_string(t) && json_string_value(t) == type)
     {
-        if (auto attr = json_object_get(obj, CN_ATTRIBUTES))
+        if (json_t* attr = json_object_get(obj, CN_ATTRIBUTES))
         {
-            auto newattr = json_object();
+            json_t* newattr = json_object();
 
             for (const auto& a : fields)
             {
-                auto tmp = json_deep_copy(attr);
+                json_t* tmp = json_deep_copy(attr);
                 remove_fields_from_object(tmp, mxb::strtok(a, "/"));
                 json_object_update_recursive(newattr, tmp);
                 json_decref(tmp);
@@ -471,13 +478,13 @@ void HttpResponse::remove_fields_from_resource(json_t* obj, const std::string& t
             }
         }
 
-        if (auto rel = json_object_get(obj, CN_RELATIONSHIPS))
+        if (json_t* rel = json_object_get(obj, CN_RELATIONSHIPS))
         {
-            auto newrel = json_object();
+            json_t* newrel = json_object();
 
             for (const auto& a : fields)
             {
-                auto tmp = json_deep_copy(rel);
+                json_t* tmp = json_deep_copy(rel);
                 remove_fields_from_object(tmp, mxb::strtok(a, "/"));
                 json_object_update_recursive(newrel, tmp);
                 json_decref(tmp);
@@ -528,7 +535,7 @@ void HttpResponse::set_cookie(const std::string& name,
 
 void HttpResponse::remove_fields(const std::string& type, const std::unordered_set<std::string>& fields)
 {
-    if (auto data = json_object_get(m_body, CN_DATA))
+    if (json_t* data = json_object_get(m_body, CN_DATA))
     {
         if (json_is_array(data))
         {
@@ -579,7 +586,7 @@ void HttpResponse::paginate(int64_t limit, int64_t offset)
 {
     mxb_assert(limit > 0);
 
-    if (auto data = json_object_get(m_body, CN_DATA))
+    if (json_t* data = json_object_get(m_body, CN_DATA))
     {
         if (json_is_array(data))
         {

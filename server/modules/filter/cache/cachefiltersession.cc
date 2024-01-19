@@ -15,6 +15,7 @@
 #define MXB_MODULE_NAME "cache"
 #include "cachefiltersession.hh"
 #include <new>
+#include <utility>
 #include <maxbase/alloc.hh>
 #include <maxbase/pretty_print.hh>
 #include <maxscale/parser.hh>
@@ -107,14 +108,14 @@ inline bool uses_name(std::string_view name, const char** pzNames, size_t nNames
     return bsearch(std::string(name).c_str(), pzNames, nNames, sizeof(const char*), compare_name) != NULL;
 }
 
-bool uses_non_cacheable_function(const Parser& parser, GWBUF* pPacket)
+bool uses_non_cacheable_function(const Parser& parser, const GWBUF& packet)
 {
     bool rv = false;
 
     const Parser::FunctionInfo* pInfo;
     size_t nInfos;
 
-    parser.get_function_info(*pPacket, &pInfo, &nInfos);
+    parser.get_function_info(packet, &pInfo, &nInfos);
 
     const Parser::FunctionInfo* pEnd = pInfo + nInfos;
 
@@ -128,14 +129,14 @@ bool uses_non_cacheable_function(const Parser& parser, GWBUF* pPacket)
     return rv;
 }
 
-bool uses_non_cacheable_variable(const Parser& parser, GWBUF* pPacket)
+bool uses_non_cacheable_variable(const Parser& parser, const GWBUF& packet)
 {
     bool rv = false;
 
     const Parser::FieldInfo* pInfo;
     size_t nInfos;
 
-    parser.get_field_info(*pPacket, &pInfo, &nInfos);
+    parser.get_field_info(packet, &pInfo, &nInfos);
 
     const Parser::FieldInfo* pEnd = pInfo + nInfos;
 
@@ -286,7 +287,6 @@ CacheFilterSession::CacheFilterSession(MXS_SESSION* pSession,
                                   }))
     , m_state(CACHE_EXPECTING_NOTHING)
     , m_sCache(std::move(sCache))
-    , m_next_response(nullptr)
     , m_zDefaultDb(zDefaultDb)
     , m_zUseDb(NULL)
     , m_refreshing(false)
@@ -411,7 +411,6 @@ bool CacheFilterSession::routeQuery(GWBUF&& packet)
     }
     else
     {
-        GWBUF* pPacket = mxs::gwbuf_to_gwbufptr(std::move(packet));
         routing_action_t action = ROUTING_CONTINUE;
 
         reset_response_state();
@@ -427,18 +426,18 @@ bool CacheFilterSession::routeQuery(GWBUF&& packet)
             // it is ensured that the packets are handled in the right order.
             if (!m_queued_packets.empty())
             {
-                m_queued_packets.push_back(mxs::gwbufptr_to_gwbuf(pPacket));
-                pPacket = mxs::gwbuf_to_gwbufptr(std::move(m_queued_packets.front()));
+                m_queued_packets.push_back(std::move(packet));
+                packet = std::move(m_queued_packets.front());
                 m_queued_packets.pop_front();
             }
 
-            uint8_t* pData = static_cast<uint8_t*>(GWBUF_DATA(pPacket));
+            uint8_t* pData = packet.data();
 
             // All of these should be guaranteed by RCAP_TYPE_TRANSACTION_TRACKING
-            mxb_assert(pPacket->length() >= MYSQL_HEADER_LEN + 1);
-            mxb_assert(MYSQL_GET_PAYLOAD_LEN(pData) + MYSQL_HEADER_LEN == pPacket->length());
+            mxb_assert(packet.length() >= MYSQL_HEADER_LEN + 1);
+            mxb_assert(MYSQL_GET_PAYLOAD_LEN(pData) + MYSQL_HEADER_LEN == packet.length());
 
-            switch ((int)MYSQL_GET_COMMAND(pData))
+            switch (mariadb::get_command(pData))
             {
             case MXS_COM_INIT_DB:
                 {
@@ -480,9 +479,9 @@ bool CacheFilterSession::routeQuery(GWBUF&& packet)
 
             case MXS_COM_QUERY:
                 {
-                    if (!maxsimd::is_multi_stmt(get_sql_string(*pPacket)))
+                    if (!maxsimd::is_multi_stmt(get_sql_string(packet)))
                     {
-                        action = route_COM_QUERY(pPacket);
+                        action = route_COM_QUERY(packet.shallow_clone());
                     }
                     else if (log_decisions())
                     {
@@ -498,15 +497,14 @@ bool CacheFilterSession::routeQuery(GWBUF&& packet)
 
         if (action == ROUTING_CONTINUE)
         {
-            rv = continue_routing(pPacket);
+            rv = continue_routing(std::move(packet));
         }
     }
 
     return rv;
 }
 
-int CacheFilterSession::client_reply_post_process(GWBUF* pData,
-                                                  const mxs::ReplyRoute& down,
+int CacheFilterSession::client_reply_post_process(const mxs::ReplyRoute& down,
                                                   const mxs::Reply& reply)
 {
     switch (m_state)
@@ -567,7 +565,14 @@ void CacheFilterSession::invalidate_handler(cache_result_t result)
 
 bool CacheFilterSession::clientReply(GWBUF&& data, const mxs::ReplyRoute& down, const mxs::Reply& reply)
 {
-    GWBUF* pData = mxs::gwbuf_to_gwbufptr(std::move(data));
+    if (m_res)
+    {
+        m_res.append(data);
+    }
+    else
+    {
+        m_res = std::move(data);
+    }
 
     if (reply.state() == mxs::ReplyState::LOAD_DATA)
     {
@@ -577,8 +582,6 @@ bool CacheFilterSession::clientReply(GWBUF&& data, const mxs::ReplyRoute& down, 
     {
         m_load_active = false;
     }
-
-    m_res = m_res ? gwbuf_append(m_res, pData) : pData;
 
     if (m_state == CACHE_EXPECTING_RESPONSE)
     {
@@ -617,22 +620,16 @@ bool CacheFilterSession::clientReply(GWBUF&& data, const mxs::ReplyRoute& down, 
 
                     cache_result_t result =
                         m_sCache->invalidate(invalidation_words,
-                                             [sWeak, pData, down, reply](cache_result_t res) {
-                                                 std::shared_ptr<CacheFilterSession> sThis = sWeak.lock();
+                                             [sWeak, down, reply](cache_result_t res) {
+                        std::shared_ptr<CacheFilterSession> sThis = sWeak.lock();
 
-                                                 if (sThis)
-                                                 {
-                                                     sThis->invalidate_handler(res);
+                        if (sThis)
+                        {
+                            sThis->invalidate_handler(res);
 
-                                                     sThis->client_reply_post_process(pData, down, reply);
-                                                 }
-                                                 else
-                                                 {
-                                                    // Ok, so the session was terminated before
-                                                    // we got a reply.
-                                                     gwbuf_free(pData);
-                                                 }
-                                             });
+                            sThis->client_reply_post_process(down, reply);
+                        }
+                    });
 
                     if (CACHE_RESULT_IS_PENDING(result))
                     {
@@ -661,7 +658,7 @@ bool CacheFilterSession::clientReply(GWBUF&& data, const mxs::ReplyRoute& down, 
 
     if (post_process)
     {
-        rv = client_reply_post_process(pData, down, reply);
+        rv = client_reply_post_process(down, reply);
     }
 
     return rv;
@@ -714,7 +711,7 @@ void CacheFilterSession::handle_expecting_use_response(const mxs::Reply& reply)
     }
     else
     {
-        mxb_assert(mxs_mysql_get_command(*m_res) == MYSQL_REPLY_OK);
+        mxb_assert(mariadb::get_command(m_res) == MYSQL_REPLY_OK);
         // In case m_zUseDb could not be allocated in routeQuery(), we will
         // in fact reset the default db here. That's ok as it will prevent broken
         // entries in the cache.
@@ -789,8 +786,7 @@ void CacheFilterSession::prepare_response()
 {
     mxb_assert(m_res);
     mxb_assert(!m_next_response);
-    m_next_response = m_res;
-    m_res = NULL;
+    m_next_response = std::exchange(m_res, GWBUF());
 }
 
 /**
@@ -798,13 +794,12 @@ void CacheFilterSession::prepare_response()
  */
 int CacheFilterSession::flush_response(const mxs::ReplyRoute& down, const mxs::Reply& reply)
 {
-    GWBUF* next_response = m_next_response;
-    m_next_response = nullptr;
+    GWBUF next_response = std::exchange(m_next_response, GWBUF());
     int rv = 1;
 
     if (next_response)
     {
-        rv = FilterSession::clientReply(mxs::gwbufptr_to_gwbuf(next_response), down, reply);
+        rv = FilterSession::clientReply(std::move(next_response), down, reply);
         ready_for_another_call();
     }
 
@@ -816,7 +811,7 @@ int CacheFilterSession::flush_response(const mxs::ReplyRoute& down, const mxs::R
  */
 void CacheFilterSession::reset_response_state()
 {
-    m_res = NULL;
+    m_res.clear();
 }
 
 /**
@@ -893,7 +888,7 @@ void CacheFilterSession::store_and_prepare_response(const mxs::ReplyRoute& down,
  *
  * @return Enum value indicating appropriate action.
  */
-CacheFilterSession::cache_action_t CacheFilterSession::get_cache_action(GWBUF* pPacket)
+CacheFilterSession::cache_action_t CacheFilterSession::get_cache_action(const GWBUF& packet)
 {
     cache_action_t action = CACHE_IGNORE;
 
@@ -901,7 +896,7 @@ CacheFilterSession::cache_action_t CacheFilterSession::get_cache_action(GWBUF* p
 
     if (m_use || m_populate)
     {
-        uint32_t type_mask = parser().get_trx_type_mask(*pPacket); // Note, only trx-related type mask
+        uint32_t type_mask = parser().get_trx_type_mask(packet); // Note, only trx-related type mask
 
         const char* zPrimary_reason = NULL;
         const char* zSecondary_reason = "";
@@ -990,7 +985,7 @@ CacheFilterSession::cache_action_t CacheFilterSession::get_cache_action(GWBUF* p
             }
             else
             {
-                auto statement_type = get_statement_type(parser().get_sql(*pPacket));
+                auto statement_type = get_statement_type(parser().get_sql(packet));
 
                 switch (statement_type)
                 {
@@ -999,7 +994,7 @@ CacheFilterSession::cache_action_t CacheFilterSession::get_cache_action(GWBUF* p
                     {
                         // Note that the type mask must be obtained a new. A few lines
                         // above we only got the transaction state related type mask.
-                        type_mask = parser().get_type_mask(*pPacket);
+                        type_mask = parser().get_type_mask(packet);
 
                         if (Parser::type_mask_contains(type_mask, mxs::sql::TYPE_USERVAR_READ))
                         {
@@ -1011,12 +1006,12 @@ CacheFilterSession::cache_action_t CacheFilterSession::get_cache_action(GWBUF* p
                             action = CACHE_IGNORE;
                             zPrimary_reason = "system variables are read";
                         }
-                        else if (uses_non_cacheable_function(parser(), pPacket))
+                        else if (uses_non_cacheable_function(parser(), packet))
                         {
                             action = CACHE_IGNORE;
                             zPrimary_reason = "uses non-cacheable function";
                         }
-                        else if (uses_non_cacheable_variable(parser(), pPacket))
+                        else if (uses_non_cacheable_variable(parser(), packet))
                         {
                             action = CACHE_IGNORE;
                             zPrimary_reason = "uses non-cacheable variable";
@@ -1037,11 +1032,11 @@ CacheFilterSession::cache_action_t CacheFilterSession::get_cache_action(GWBUF* p
                             m_invalidate_now = true;
                         }
 
-                        Parser::Result result = parser().parse(*pPacket, Parser::COLLECT_TABLES);
+                        Parser::Result result = parser().parse(packet, Parser::COLLECT_TABLES);
 
                         if (result == Parser::Result::PARSED)
                         {
-                            update_table_names(pPacket);
+                            update_table_names(packet);
                         }
                         else
                         {
@@ -1117,7 +1112,7 @@ CacheFilterSession::cache_action_t CacheFilterSession::get_cache_action(GWBUF* p
         if (log_decisions())
         {
             // At this point we know it's a query.
-            std::string_view sql = parser().get_sql(*pPacket);
+            std::string_view sql = parser().get_sql(packet);
             const char* pSql = sql.data();
             int length = sql.length();
             const int max_length = 40;
@@ -1151,11 +1146,11 @@ CacheFilterSession::cache_action_t CacheFilterSession::get_cache_action(GWBUF* p
     return action;
 }
 
-void CacheFilterSession::update_table_names(GWBUF* pPacket)
+void CacheFilterSession::update_table_names(const GWBUF& packet)
 {
     // In case of BEGIN INSERT ...; INSERT ...; COMMIT m_tables may already contain data.
 
-    std::vector<mxs::Parser::TableName> names = parser().get_table_names(*pPacket);
+    std::vector<mxs::Parser::TableName> names = parser().get_table_names(packet);
 
     for (auto& name : names)
     {
@@ -1188,31 +1183,31 @@ void CacheFilterSession::update_table_names(GWBUF* pPacket)
 /**
  * Routes a COM_QUERY packet.
  *
- * @param pPacket  A contiguous COM_QUERY packet.
+ * @param packet  A contiguous COM_QUERY packet.
  *
  * @return ROUTING_ABORT if the processing of the packet should be aborted
  *         (as the data is obtained from the cache) or
  *         ROUTING_CONTINUE if the normal processing should continue.
  */
-CacheFilterSession::routing_action_t CacheFilterSession::route_COM_QUERY(GWBUF* pPacket)
+CacheFilterSession::routing_action_t CacheFilterSession::route_COM_QUERY(GWBUF&& packet)
 {
-    MXB_AT_DEBUG(uint8_t * pData = static_cast<uint8_t*>(GWBUF_DATA(pPacket)));
-    mxb_assert((int)MYSQL_GET_COMMAND(pData) == MXS_COM_QUERY);
+    MXB_AT_DEBUG(uint8_t * pData = packet.data());
+    mxb_assert(mariadb::get_command(pData) == MXS_COM_QUERY);
 
     routing_action_t routing_action = ROUTING_CONTINUE;
-    cache_action_t cache_action = get_cache_action(pPacket);
+    cache_action_t cache_action = get_cache_action(packet);
 
     if (cache_action != CACHE_IGNORE)
     {
-        std::shared_ptr<CacheRules> sRules = m_sCache->should_store(parser(), m_zDefaultDb, pPacket);
+        std::shared_ptr<CacheRules> sRules = m_sCache->should_store(parser(), m_zDefaultDb, packet);
 
         if (sRules)
         {
-            cache_result_t result = m_sCache->get_key(user(), host(), m_zDefaultDb, pPacket, &m_key);
+            cache_result_t result = m_sCache->get_key(user(), host(), m_zDefaultDb, packet, &m_key);
 
             if (CACHE_RESULT_IS_OK(result))
             {
-                routing_action = route_SELECT(cache_action, *sRules.get(), pPacket);
+                routing_action = route_SELECT(cache_action, *sRules.get(), std::move(packet));
             }
             else
             {
@@ -1235,7 +1230,7 @@ CacheFilterSession::routing_action_t CacheFilterSession::route_COM_QUERY(GWBUF* 
  *
  * @param cache_action  The desired action.
  * @param rules         The current rules.
- * @param pPacket       A contiguous COM_QUERY packet containing a SELECT.
+ * @param packet        A contiguous COM_QUERY packet containing a SELECT.
  *
  * @return ROUTING_ABORT if the processing of the packet should be aborted
  *         (as the data is obtained from the cache) or
@@ -1243,7 +1238,7 @@ CacheFilterSession::routing_action_t CacheFilterSession::route_COM_QUERY(GWBUF* 
  */
 CacheFilterSession::routing_action_t CacheFilterSession::route_SELECT(cache_action_t cache_action,
                                                                       const CacheRules& rules,
-                                                                      GWBUF* pPacket)
+                                                                      GWBUF&& packet)
 {
     routing_action_t routing_action = ROUTING_CONTINUE;
 
@@ -1251,52 +1246,46 @@ CacheFilterSession::routing_action_t CacheFilterSession::route_SELECT(cache_acti
     {
         std::weak_ptr<CacheFilterSession> sWeak {m_sThis};
 
-        auto cb = [sWeak, pPacket](cache_result_t result, GWBUF* pResponse) {
+        auto cb = [sWeak, sBuffer = std::make_shared<GWBUF>(std::move(packet))](cache_result_t result, GWBUF&& response) {
                 std::shared_ptr<CacheFilterSession> sThis = sWeak.lock();
 
                 if (sThis)
                 {
-                    auto action = sThis->get_value_handler(pPacket, result, pResponse);
+                    auto action = sThis->get_value_handler(result);
 
                     if (action == ROUTING_CONTINUE)
                     {
-                        sThis->continue_routing(pPacket);
+                        sThis->continue_routing(std::move(*sBuffer));
                     }
                     else
                     {
-                        mxb_assert(pResponse);
+                        mxb_assert(!response.empty());
                         // State is ROUTING_ABORT, which implies that pResponse contains the
                         // needed response. All we need to do is to send it to the client.
 
                         mxs::ReplyRoute down;
                         mxs::Reply reply;
 
-                        sThis->m_up->clientReply(mxs::gwbufptr_to_gwbuf(pResponse), down, reply);
+                        sThis->m_up->clientReply(std::move(response), down, reply);
                         sThis->ready_for_another_call();
                     }
-                }
-                else
-                {
-                    // Ok, so the session was terminated before we got a reply.
-                    gwbuf_free(pPacket);
-                    gwbuf_free(pResponse);
                 }
             };
 
         uint32_t flags = CACHE_FLAGS_INCLUDE_STALE;
-        GWBUF* pResponse;
+        GWBUF response;
 
-        cache_result_t result = m_sCache->get_value(m_key, flags, m_soft_ttl, m_hard_ttl, &pResponse, cb);
+        cache_result_t result = m_sCache->get_value(m_key, flags, m_soft_ttl, m_hard_ttl, &response, cb);
 
         if (!CACHE_RESULT_IS_PENDING(result))
         {
-            routing_action = get_value_handler(pPacket, result, pResponse);
+            routing_action = get_value_handler(result);
 
             if (routing_action == ROUTING_ABORT)
             {
                 // All set, arrange for the response to be delivered when
                 // we return from the routeQuery() processing.
-                set_response(mxs::gwbufptr_to_gwbuf(pResponse));
+                set_response(std::move(response));
                 ready_for_another_call();
             }
         }
@@ -1619,9 +1608,7 @@ void CacheFilterSession::del_value_handler(cache_result_t result)
     prepare_response();
 }
 
-CacheFilterSession::routing_action_t CacheFilterSession::get_value_handler(GWBUF* pPacket,
-                                                                           cache_result_t result,
-                                                                           GWBUF* pResponse)
+CacheFilterSession::routing_action_t CacheFilterSession::get_value_handler(cache_result_t result)
 {
     routing_action_t routing_action = ROUTING_CONTINUE;
 
@@ -1640,9 +1627,6 @@ CacheFilterSession::routing_action_t CacheFilterSession::get_value_handler(GWBUF
                 {
                     MXB_NOTICE("Cache data is stale, fetching fresh from server.");
                 }
-
-                // As we don't use the response it must be freed.
-                gwbuf_free(pResponse);
 
                 m_refreshing = true;
                 routing_action = ROUTING_CONTINUE;
@@ -1705,25 +1689,24 @@ CacheFilterSession::routing_action_t CacheFilterSession::get_value_handler(GWBUF
         }
 
         m_state = CACHE_EXPECTING_NOTHING;
-        gwbuf_free(pPacket);
     }
 
     return routing_action;
 }
 
-int CacheFilterSession::continue_routing(GWBUF* pPacket)
+int CacheFilterSession::continue_routing(GWBUF&& packet)
 {
     if (m_invalidate && m_state == CACHE_EXPECTING_RESPONSE)
     {
-        Parser::Result parse_result = parser().parse(*pPacket, Parser::COLLECT_TABLES);
+        Parser::Result parse_result = parser().parse(packet, Parser::COLLECT_TABLES);
 
         if (parse_result == Parser::Result::PARSED)
         {
-            update_table_names(pPacket);
+            update_table_names(packet);
         }
         else
         {
-            std::string_view sql = parser().get_sql(*pPacket);
+            std::string_view sql = parser().get_sql(packet);
             const char* pSql = sql.data();
             int len = sql.length();
 
@@ -1735,12 +1718,12 @@ int CacheFilterSession::continue_routing(GWBUF* pPacket)
         }
     }
 
-    if (!protocol_data().will_respond(*pPacket))
+    if (!protocol_data().will_respond(packet))
     {
         m_processing = false;
     }
 
-    return FilterSession::routeQuery(mxs::gwbufptr_to_gwbuf(pPacket));
+    return FilterSession::routeQuery(std::move(packet));
 }
 
 void CacheFilterSession::ready_for_another_call()

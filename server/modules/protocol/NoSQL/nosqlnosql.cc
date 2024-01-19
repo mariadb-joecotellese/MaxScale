@@ -134,7 +134,7 @@ State NoSQL::handle_request(GWBUF* pRequest)
 
         m_pCurrent_request = nullptr;
 
-        gwbuf_free(pRequest);
+        delete pRequest;
     }
     else
     {
@@ -370,13 +370,13 @@ void NoSQL::flush_response(Command::Response& response)
             MXB_NOTICE("Storing NoSQL response, invalidated by changes in: '%s'", table.c_str());
         }
 
-        auto rv = m_pCache_filter_session->put_value(key, invalidation_words, response.get(), nullptr);
+        auto rv = m_pCache_filter_session->put_value(key, invalidation_words, *response.get(), nullptr);
 
         mxb_assert(!CACHE_RESULT_IS_PENDING(rv));
         mxb_assert(CACHE_RESULT_IS_OK(rv) || CACHE_RESULT_IS_OUT_OF_RESOURCES(rv));
     }
 
-    m_pDcb->writeq_append(mxs::gwbufptr_to_gwbuf(response.release()));
+    m_pDcb->writeq_append(nosql::gwbufptr_to_gwbuf(response.release()));
 }
 
 }

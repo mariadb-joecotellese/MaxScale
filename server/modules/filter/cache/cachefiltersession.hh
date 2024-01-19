@@ -71,10 +71,10 @@ public:
      */
     cache_result_t get_value(const CacheKey& key,
                              uint32_t flags,
-                             GWBUF** ppValue,
-                             const std::function<void (cache_result_t, GWBUF*)>& cb) const
+                             GWBUF* pValue,
+                             const std::function<void (cache_result_t, GWBUF&&)>& cb) const
     {
-        return m_sCache->get_value(key, flags, m_soft_ttl, m_hard_ttl, ppValue, cb);
+        return m_sCache->get_value(key, flags, m_soft_ttl, m_hard_ttl, pValue, cb);
     }
 
     /**
@@ -82,10 +82,10 @@ public:
      */
     cache_result_t put_value(const CacheKey& key,
                              const std::vector<std::string>& invalidation_words,
-                             const GWBUF* pValue,
+                             const GWBUF& value,
                              const std::function<void (cache_result_t)>& cb) const
     {
-        return m_sCache->put_value(key, invalidation_words, pValue, cb);
+        return m_sCache->put_value(key, invalidation_words, value, cb);
     }
 
     /**
@@ -163,9 +163,9 @@ private:
         return action & CACHE_POPULATE ? true : false;
     }
 
-    cache_action_t get_cache_action(GWBUF* pPacket);
+    cache_action_t get_cache_action(const GWBUF& packet);
 
-    void update_table_names(GWBUF* pPacket);
+    void update_table_names(const GWBUF& packet);
 
     enum routing_action_t
     {
@@ -173,8 +173,8 @@ private:
         ROUTING_CONTINUE,   /**< Continue normal routing activity. */
     };
 
-    routing_action_t route_COM_QUERY(GWBUF* pPacket);
-    routing_action_t route_SELECT(cache_action_t action, const CacheRules& rules, GWBUF* pPacket);
+    routing_action_t route_COM_QUERY(GWBUF&& packet);
+    routing_action_t route_SELECT(cache_action_t action, const CacheRules& rules, GWBUF&& packet);
 
     char* set_cache_populate(const char* zName,
                              const char* pValue_begin,
@@ -212,14 +212,13 @@ private:
                            const mxs::ReplyRoute& down,
                            const mxs::Reply& reply);
     void             del_value_handler(cache_result_t result);
-    routing_action_t get_value_handler(GWBUF* pPacket, cache_result_t result, GWBUF* pResponse);
+    routing_action_t get_value_handler(cache_result_t result);
     void             invalidate_handler(cache_result_t result);
-    int              client_reply_post_process(GWBUF* pPacket,
-                                               const mxs::ReplyRoute& down,
+    int              client_reply_post_process(const mxs::ReplyRoute& down,
                                                const mxs::Reply& reply);
     void clear_cache();
 
-    int continue_routing(GWBUF* pPacket);
+    int continue_routing(GWBUF&& packet);
 
     void ready_for_another_call();
 
@@ -236,8 +235,8 @@ private:
     SCacheFilterSession     m_sThis;          /**< Shared pointer to this. */
     cache_session_state_t   m_state;          /**< What state is the session in, what data is expected. */
     SSessionCache           m_sCache;         /**< The cache instance the session is associated with. */
-    GWBUF*                  m_res;            /**< The response buffer. */
-    GWBUF*                  m_next_response;  /**< The next response routed to the client. */
+    GWBUF                   m_res;            /**< The response buffer. */
+    GWBUF                   m_next_response;  /**< The next response routed to the client. */
     CacheKey                m_key;            /**< Key storage. */
     char*                   m_zDefaultDb;     /**< The default database. */
     char*                   m_zUseDb;         /**< Pending default database. Needs server response. */

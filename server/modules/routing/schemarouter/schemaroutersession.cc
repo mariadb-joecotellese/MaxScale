@@ -225,17 +225,13 @@ bool SchemaRouterSession::routeQuery(GWBUF&& packet)
     }
 
     bool ret = false;
-    const auto& info = m_qc.update_route_info(packet);
+    const auto& info = m_qc.update_and_commit_route_info(packet);
     uint8_t command = info.command();
     uint32_t type = info.type_mask();
     mxs::sql::OpCode op = parser().get_operation(packet);
     enum route_target route_target = TARGET_UNDEFINED;
 
-    if (is_ps(command, type, op))
-    {
-        manage_ps(packet);
-    }
-    else if (m_qc.target_is_all(info.target()))
+    if (!is_ps(command, type, op) && m_qc.target_is_all(info.target()))
     {
         route_target = TARGET_ALL;
     }
@@ -311,7 +307,7 @@ bool SchemaRouterSession::routeQuery(GWBUF&& packet)
     else
     {
         MXB_ERROR("Could not find valid server for %s, closing connection.",
-                  mariadb::cmd_to_string(mxs_mysql_get_command(packet)));
+                  mariadb::cmd_to_string(packet));
     }
 
     return ret;
@@ -492,7 +488,7 @@ std::pair<bool, std::string> extract_database(const Parser& parser, const GWBUF&
 {
     bool ok = true;
     std::string rval;
-    uint8_t command = mxs_mysql_get_command(buf);
+    uint8_t command = mariadb::get_command(buf);
 
     if (command == MXS_COM_QUERY && parser.get_operation(const_cast<GWBUF&>(buf)) == mxs::sql::OP_CHANGE_DB)
     {
@@ -1023,7 +1019,7 @@ mxs::Target* SchemaRouterSession::get_shard_target(const GWBUF& buffer, uint32_t
 {
     mxs::Target* rval = NULL;
     mxs::sql::OpCode op = mxs::sql::OP_UNDEFINED;
-    uint8_t command = mxs_mysql_get_command(buffer);
+    uint8_t command = mariadb::get_command(buffer);
 
     if (command == MXS_COM_QUERY)
     {
@@ -1147,17 +1143,16 @@ mxs::Target* SchemaRouterSession::get_query_target(const GWBUF& buffer)
 mxs::Target* SchemaRouterSession::get_ps_target(const GWBUF& buffer, uint32_t qtype, mxs::sql::OpCode op)
 {
     mxs::Target* rval = NULL;
-    uint8_t command = mxs_mysql_get_command(buffer);
-    GWBUF* bufptr = const_cast<GWBUF*>(&buffer);
+    uint8_t command = mariadb::get_command(buffer);
 
     if (Parser::type_mask_contains(qtype, mxs::sql::TYPE_PREPARE_NAMED_STMT))
     {
         // If pStmt is null, the PREPARE was malformed. In that case it can be routed to any backend to get
         // a proper error response. Also returns null if preparing from a variable. This is a limitation.
-        GWBUF* pStmt = parser().get_preparable_stmt(*bufptr);
+        GWBUF* pStmt = parser().get_preparable_stmt(buffer);
         if (pStmt)
         {
-            std::string_view stmt = parser().get_prepare_name(*bufptr);
+            std::string_view stmt = parser().get_prepare_name(buffer);
 
             if ((rval = get_location(parser().get_table_names(*pStmt))))
             {
@@ -1165,39 +1160,6 @@ mxs::Target* SchemaRouterSession::get_ps_target(const GWBUF& buffer, uint32_t qt
                 m_shard.add_statement(stmt, rval);
             }
         }
-    }
-    else if (op == mxs::sql::OP_EXECUTE)
-    {
-        std::string_view stmt = parser().get_prepare_name(*bufptr);
-        mxs::Target* ps_target = m_shard.get_statement(stmt);
-        if (ps_target)
-        {
-            rval = ps_target;
-            MXB_INFO("Executing named statement %.*s on server %s",
-                     (int)stmt.length(), stmt.data(), rval->name());
-        }
-    }
-    else if (Parser::type_mask_contains(qtype, mxs::sql::TYPE_DEALLOC_PREPARE))
-    {
-        std::string_view stmt = parser().get_prepare_name(*bufptr);
-        if ((rval = m_shard.get_statement(stmt)))
-        {
-            MXB_INFO("Closing named statement %.*s on server %s",
-                     (int)stmt.length(), stmt.data(), rval->name());
-            m_shard.remove_statement(stmt);
-        }
-    }
-    else if (Parser::type_mask_contains(qtype, mxs::sql::TYPE_PREPARE_STMT))
-    {
-        rval = get_location(parser().get_table_names(*bufptr));
-
-        if (rval)
-        {
-            mxb_assert(buffer.id() != 0);
-            m_shard.add_statement(buffer.id(), rval);
-        }
-
-        MXB_INFO("Prepare statement on server %s", rval ? rval->name() : "<no target found>");
     }
     else if (mxs_mysql_is_ps_command(command))
     {
@@ -1210,6 +1172,40 @@ mxs::Target* SchemaRouterSession::get_ps_target(const GWBUF& buffer, uint32_t qt
             m_shard.remove_statement(id);
         }
     }
+    else if (op == mxs::sql::OP_EXECUTE)
+    {
+        std::string_view stmt = parser().get_prepare_name(buffer);
+        mxs::Target* ps_target = m_shard.get_statement(stmt);
+        if (ps_target)
+        {
+            rval = ps_target;
+            MXB_INFO("Executing named statement %.*s on server %s",
+                     (int)stmt.length(), stmt.data(), rval->name());
+        }
+    }
+    else if (Parser::type_mask_contains(qtype, mxs::sql::TYPE_DEALLOC_PREPARE))
+    {
+        std::string_view stmt = parser().get_prepare_name(buffer);
+        if ((rval = m_shard.get_statement(stmt)))
+        {
+            MXB_INFO("Closing named statement %.*s on server %s",
+                     (int)stmt.length(), stmt.data(), rval->name());
+            m_shard.remove_statement(stmt);
+        }
+    }
+    else if (Parser::type_mask_contains(qtype, mxs::sql::TYPE_PREPARE_STMT))
+    {
+        rval = get_location(parser().get_table_names(buffer));
+
+        if (rval)
+        {
+            mxb_assert(buffer.id() != 0);
+            m_shard.add_statement(buffer.id(), rval);
+        }
+
+        MXB_INFO("Prepare statement on server %s", rval ? rval->name() : "<no target found>");
+    }
+
     return rval;
 }
 
@@ -1226,25 +1222,5 @@ std::string SchemaRouterSession::get_cache_key() const
     }
 
     return key;
-}
-
-void SchemaRouterSession::manage_ps(GWBUF& buffer)
-{
-    const auto& info = m_qc.current_route_info();
-    uint8_t command = info.command();
-    uint32_t type = info.type_mask();
-
-    if (command == MXS_COM_STMT_CLOSE)
-    {
-        m_qc.ps_erase(&buffer);
-    }
-    else if (type & (mxs::sql::TYPE_PREPARE_NAMED_STMT | mxs::sql::TYPE_PREPARE_STMT))
-    {
-        m_qc.ps_store(&buffer, buffer.id());
-    }
-    else if (type & mxs::sql::TYPE_DEALLOC_PREPARE)
-    {
-        m_qc.ps_erase(&buffer);
-    }
 }
 }

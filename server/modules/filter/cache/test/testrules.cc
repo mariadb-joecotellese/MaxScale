@@ -29,25 +29,6 @@ using namespace std;
 #endif
 #include <maxbase/assert.hh>
 
-GWBUF* create_gwbuf(const char* s)
-{
-    size_t query_len = strlen(s);
-    size_t payload_len = query_len + 1;
-    size_t gwbuf_len = MYSQL_HEADER_LEN + payload_len;
-
-    GWBUF* gwbuf = gwbuf_alloc(gwbuf_len);
-    mxb_assert(gwbuf);
-
-    *((unsigned char*)((char*)GWBUF_DATA(gwbuf))) = payload_len;
-    *((unsigned char*)((char*)GWBUF_DATA(gwbuf) + 1)) = (payload_len >> 8);
-    *((unsigned char*)((char*)GWBUF_DATA(gwbuf) + 2)) = (payload_len >> 16);
-    *((unsigned char*)((char*)GWBUF_DATA(gwbuf) + 3)) = 0x00;
-    *((unsigned char*)((char*)GWBUF_DATA(gwbuf) + 4)) = 0x03;
-    memcpy((char*)GWBUF_DATA(gwbuf) + MYSQL_HEADER_LEN + 1, s, query_len);
-
-    return gwbuf;
-}
-
 class CacheRules::Tester
 {
 public:
@@ -401,9 +382,9 @@ int CacheRules::Tester::test_store()
             mxb_assert(!pRules->m_store_rules.empty());
             CacheRule* pRule = pRules->m_store_rules.front().get();
 
-            GWBUF* pPacket = create_gwbuf(test_case.query);
+            GWBUF packet = mariadb::create_query(test_case.query);
 
-            bool matches = pRules->should_store(parser, test_case.default_db, pPacket);
+            bool matches = pRules->should_store(parser, test_case.default_db, packet);
 
             if (matches != test_case.matches)
             {
@@ -418,8 +399,6 @@ int CacheRules::Tester::test_store()
                        test_case.matches ? "A match" : "Not a match",
                        matches ? "A match" : "Not a match");
             }
-
-            gwbuf_free(pPacket);
         }
     }
 
@@ -490,21 +469,6 @@ const int n_array_test_cases = sizeof(array_test_cases) / sizeof(array_test_case
 
 typedef CacheRules::SCacheRules SCacheRules;
 
-struct ShouldStore
-{
-    ShouldStore(GWBUF* buf)
-        : pStmt(buf)
-    {
-    }
-
-    bool operator()(SCacheRules sRules)
-    {
-        return sRules->should_store(MariaDBParser::get(), NULL, pStmt);
-    }
-
-    GWBUF* pStmt;
-};
-
 int CacheRules::Tester::test_array_store()
 {
     int errors = 0;
@@ -520,9 +484,10 @@ int CacheRules::Tester::test_array_store()
 
             cout << tc.zStmt << endl;
 
-            GWBUF* pStmt = create_gwbuf(tc.zStmt);
-            auto it = std::find_if(rules.begin(), rules.end(), ShouldStore(pStmt));
-            gwbuf_free(pStmt);
+            GWBUF stmt = mariadb::create_query(tc.zStmt);
+            auto it = std::find_if(rules.begin(), rules.end(), [&](SCacheRules sR){
+                return sR->should_store(MariaDBParser::get(), NULL, stmt);
+            });
 
             int index = (it == rules.end()) ? -1 : std::distance(rules.begin(), it);
 

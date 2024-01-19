@@ -154,12 +154,12 @@ void InMemoryStorage::get_limits(Limits* pLimits)
     *pLimits = this_unit.default_limits;
 }
 
-cache_result_t InMemoryStorage::get_head(CacheKey* pKey, GWBUF** ppHead)
+cache_result_t InMemoryStorage::get_head(CacheKey* pKey, GWBUF* pHead)
 {
     return CACHE_RESULT_OUT_OF_RESOURCES;
 }
 
-cache_result_t InMemoryStorage::get_tail(CacheKey* pKey, GWBUF** ppHead)
+cache_result_t InMemoryStorage::get_tail(CacheKey* pKey, GWBUF* pHead)
 {
     return CACHE_RESULT_OUT_OF_RESOURCES;
 }
@@ -191,7 +191,7 @@ cache_result_t InMemoryStorage::do_get_value(Token* pToken,
                                              uint32_t flags,
                                              uint32_t soft_ttl,
                                              uint32_t hard_ttl,
-                                             GWBUF** ppResult)
+                                             GWBUF* pResult)
 {
     mxb_assert(!pToken);
 
@@ -234,23 +234,13 @@ cache_result_t InMemoryStorage::do_get_value(Token* pToken,
         else if (!is_soft_stale || include_stale)
         {
             size_t length = entry.value.size();
+            *pResult = GWBUF(entry.value.data(), length);
 
-            *ppResult = gwbuf_alloc(length);
+            result = CACHE_RESULT_OK;
 
-            if (*ppResult)
+            if (is_soft_stale)
             {
-                memcpy(GWBUF_DATA(*ppResult), entry.value.data(), length);
-
-                result = CACHE_RESULT_OK;
-
-                if (is_soft_stale)
-                {
-                    result |= CACHE_RESULT_STALE;
-                }
-            }
-            else
-            {
-                result = CACHE_RESULT_OUT_OF_RESOURCES;
+                result |= CACHE_RESULT_STALE;
             }
         }
         else
@@ -270,7 +260,7 @@ cache_result_t InMemoryStorage::do_get_value(Token* pToken,
 cache_result_t InMemoryStorage::do_put_value(Token* pToken,
                                              const CacheKey& key,
                                              const std::vector<std::string>& invalidation_words,
-                                             const GWBUF* pValue)
+                                             const GWBUF& value)
 {
     mxb_assert(!pToken);
 
@@ -282,7 +272,7 @@ cache_result_t InMemoryStorage::do_put_value(Token* pToken,
         return CACHE_RESULT_OUT_OF_RESOURCES;
     }
 
-    size_t size = pValue->length();
+    size_t size = value.length();
 
     Entries::iterator i = m_entries.find(key);
     Entry* pEntry;
@@ -317,7 +307,7 @@ cache_result_t InMemoryStorage::do_put_value(Token* pToken,
 
     m_stats.size += size;
 
-    const uint8_t* pData = GWBUF_DATA(pValue);
+    const uint8_t* pData = value.data();
 
     copy(pData, pData + size, pEntry->value.begin());
     pEntry->time = Cache::time_ms();

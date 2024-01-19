@@ -46,7 +46,7 @@ public:
     cache_result_t get_key(const std::string& user,
                            const std::string& host,
                            const char* zDefault_db,
-                           const GWBUF* pQuery,
+                           const GWBUF& query,
                            CacheKey* pKey) const override final;
 
     cache_result_t get_value(Token* pToken,
@@ -54,13 +54,13 @@ public:
                              uint32_t flags,
                              uint32_t soft_ttl,
                              uint32_t hard_ttl,
-                             GWBUF** ppValue,
-                             const std::function<void (cache_result_t, GWBUF*)>& cb) const override final;
+                             GWBUF* pValue,
+                             const std::function<void (cache_result_t, GWBUF&&)>& cb) const override final;
 
     cache_result_t put_value(Token* pToken,
                              const CacheKey& key,
                              const std::vector<std::string>& invalidation_words,
-                             const GWBUF* pValue,
+                             const GWBUF& value,
                              const std::function<void (cache_result_t)>& cb) override final;
 
     cache_result_t del_value(Token* pToken,

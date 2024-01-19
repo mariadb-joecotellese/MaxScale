@@ -57,7 +57,7 @@ protected:
                                 uint32_t flags,
                                 uint32_t soft_ttl,
                                 uint32_t hard_ttl,
-                                GWBUF** ppValue);
+                                GWBUF* pValue);
 
     /**
      * @see Storage::put_value
@@ -65,7 +65,7 @@ protected:
     cache_result_t do_put_value(Token* pToken,
                                 const CacheKey& key,
                                 const std::vector<std::string>& invalidation_words,
-                                const GWBUF* pValue);
+                                const GWBUF& value);
 
     /**
      * @see Storage::del_value
@@ -87,14 +87,12 @@ protected:
     /**
      * @see Storage::get_head
      */
-    cache_result_t do_get_head(CacheKey* pKey,
-                               GWBUF** ppValue);
+    cache_result_t do_get_head(CacheKey* pKey, GWBUF* pValue);
 
     /**
      * @see Storage::get_tail
      */
-    cache_result_t do_get_tail(CacheKey* pKey,
-                               GWBUF** ppValue);
+    cache_result_t do_get_tail(CacheKey* pKey, GWBUF* ppValue);
 
     /**
      * @see Storage::getSize
@@ -121,13 +119,13 @@ private:
                                 uint32_t flags,
                                 uint32_t soft_ttl,
                                 uint32_t hard_ttl,
-                                GWBUF** ppValue);
+                                GWBUF* pValue);
 
     cache_result_t peek_value(const CacheKey& key,
                               uint32_t flags,
-                              GWBUF** ppValue)
+                              GWBUF* pValue)
     {
-        return access_value(APPROACH_PEEK, key, flags, CACHE_USE_CONFIG_TTL, CACHE_USE_CONFIG_TTL, ppValue);
+        return access_value(APPROACH_PEEK, key, flags, CACHE_USE_CONFIG_TTL, CACHE_USE_CONFIG_TTL, pValue);
     }
 
     /**
@@ -284,9 +282,9 @@ private:
     void  remove_node(Node* pNode) const;
     void  move_to_head(Node* pNode) const;
 
-    cache_result_t get_existing_node(NodesByKey::iterator& i, const GWBUF* pvalue, Node** ppNode);
+    cache_result_t get_existing_node(NodesByKey::iterator& i, const GWBUF& value, Node** ppNode);
     cache_result_t get_new_node(const CacheKey& key,
-                                const GWBUF* pValue,
+                                const GWBUF& value,
                                 NodesByKey::iterator* pI,
                                 Node** ppNode);
 

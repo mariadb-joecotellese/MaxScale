@@ -45,9 +45,9 @@ public:
      */
     std::shared_ptr<CacheRules> should_store(const mxs::Parser& parser,
                                              const char* zDefaultDb,
-                                             const GWBUF* pQuery)
+                                             const GWBUF& query)
     {
-        return m_cache.should_store(parser, zDefaultDb, pQuery);
+        return m_cache.should_store(parser, zDefaultDb, query);
     }
 
     /**
@@ -72,10 +72,10 @@ public:
     cache_result_t get_key(const std::string& user,
                            const std::string& host,
                            const char* zDefault_db,
-                           const GWBUF* pQuery,
+                           const GWBUF& query,
                            CacheKey* pKey) const
     {
-        return m_cache.get_key(user, host, zDefault_db, pQuery, pKey);
+        return m_cache.get_key(user, host, zDefault_db, query, pKey);
     }
 
     /**
@@ -85,10 +85,10 @@ public:
                              uint32_t flags,
                              uint32_t soft_ttl,
                              uint32_t hard_ttl,
-                             GWBUF** ppValue,
-                             const std::function<void (cache_result_t, GWBUF*)>& cb) const
+                             GWBUF* pValue,
+                             const std::function<void (cache_result_t, GWBUF&&)>& cb) const
     {
-        return m_cache.get_value(token(), key, flags, soft_ttl, hard_ttl, ppValue, cb);
+        return m_cache.get_value(token(), key, flags, soft_ttl, hard_ttl, pValue, cb);
     }
 
     /**
@@ -96,10 +96,10 @@ public:
      */
     cache_result_t put_value(const CacheKey& key,
                              const std::vector<std::string>& invalidation_words,
-                             const GWBUF* pValue,
+                             const GWBUF& value,
                              const std::function<void (cache_result_t)>& cb)
     {
-        return m_cache.put_value(token(), key, invalidation_words, pValue, cb);
+        return m_cache.put_value(token(), key, invalidation_words, value, cb);
     }
 
     /**

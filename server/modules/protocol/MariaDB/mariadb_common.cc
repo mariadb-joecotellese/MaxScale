@@ -47,7 +47,7 @@ bool only_one_packet(const GWBUF& buffer)
 
 bool MYSQL_IS_ERROR_PACKET(const uint8_t* header)
 {
-    return MYSQL_GET_COMMAND(header) == MYSQL_REPLY_ERR;
+    return mariadb::get_command(header) == MYSQL_REPLY_ERR;
 }
 
 // Lookup table for the set of valid commands
@@ -305,11 +305,6 @@ bool mxs_mysql_is_ps_command(uint8_t cmd)
            || cmd == MXS_COM_STMT_RESET;
 }
 
-uint8_t mxs_mysql_get_command(const GWBUF& buffer)
-{
-    return buffer.length() > MYSQL_HEADER_LEN ? buffer[MYSQL_HEADER_LEN] : (uint8_t)MXS_COM_UNDEFINED;
-}
-
 uint32_t mxs_mysql_extract_ps_id(const GWBUF& buffer)
 {
     uint32_t rval = 0;
@@ -349,7 +344,7 @@ std::string MYSQL_session::user_and_host() const
 
 bool MYSQL_session::will_respond(const GWBUF& buffer) const
 {
-    return mxs_mysql_command_will_respond(mxs_mysql_get_command(buffer));
+    return mxs_mysql_command_will_respond(mariadb::get_command(buffer));
 }
 
 bool MYSQL_session::can_recover_state() const
@@ -720,6 +715,14 @@ GWBUF create_query(std::string_view query)
     return rval;
 }
 
+GWBUF create_packet(uint8_t seq, const void* ptr, size_t len)
+{
+    size_t total_len = MYSQL_HEADER_LEN + len;
+    GWBUF rval(total_len);
+    auto dest = mariadb::write_header(rval.data(), len, seq);
+    memcpy(dest, ptr, len);
+    return rval;
+}
 /**
  * Split the buffer into complete and partial packets.
  *

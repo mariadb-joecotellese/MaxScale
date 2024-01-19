@@ -210,7 +210,7 @@ std::optional<std::string> RWSplitSession::handle_routing_failure(GWBUF&& buffer
     {
         return mxb::string_printf(
             "Could not find valid server for target type %s (%s: %s), closing connection. %s",
-            route_target_to_string(plan.route_target), mariadb::cmd_to_string(buffer.data()[4]),
+            route_target_to_string(plan.route_target), mariadb::cmd_to_string(buffer),
             get_sql_string(buffer).c_str(), get_verbose_status().c_str());
     }
 
@@ -554,9 +554,6 @@ void RWSplitSession::route_session_write(GWBUF&& buffer)
 
         if (command == MXS_COM_STMT_CLOSE)
         {
-            // Remove the command from the PS mapping
-            m_qc.ps_erase(&buffer);
-
             auto stmt_id = route_info().stmt_id();
             auto it = std::find(m_exec_map.begin(), m_exec_map.end(), ExecInfo {stmt_id});
 
@@ -564,18 +561,6 @@ void RWSplitSession::route_session_write(GWBUF&& buffer)
             {
                 m_exec_map.erase(it);
             }
-        }
-        else if (Parser::type_mask_contains(type, mxs::sql::TYPE_PREPARE_NAMED_STMT)
-                 || Parser::type_mask_contains(type, mxs::sql::TYPE_PREPARE_STMT))
-        {
-            mxb_assert(buffer.id() != 0
-                       || Parser::type_mask_contains(type, mxs::sql::TYPE_PREPARE_NAMED_STMT));
-            m_qc.ps_store(&buffer, buffer.id());
-        }
-        else if (Parser::type_mask_contains(type, mxs::sql::TYPE_DEALLOC_PREPARE))
-        {
-            mxb_assert(!mxs_mysql_is_ps_command(route_info().command()));
-            m_qc.ps_erase(&buffer);
         }
 
         m_current_query.buffer = std::move(buffer);
@@ -878,7 +863,7 @@ void RWSplitSession::handle_got_target(GWBUF&& buffer, RWBackend* target, route_
         return;
     }
 
-    uint8_t cmd = mxs_mysql_get_command(buffer);
+    uint8_t cmd = mariadb::get_command(buffer);
 
     // Attempt a causal read only when the query is routed to a slave
     bool is_causal_read = !is_locked_to_master() && target->is_slave() && should_do_causal_read();
@@ -1006,14 +991,6 @@ void RWSplitSession::observe_ps_command(GWBUF& buffer, RWBackend* target, uint8_
         }
 
         MXB_INFO("%s on %s", mariadb::cmd_to_string(cmd), target->name());
-    }
-    else if (cmd == MXS_COM_STMT_PREPARE)
-    {
-        // This is here to avoid a debug assertion in the ps_store_response call that is hit when we're locked
-        // to the master due to strict_multi_stmt or strict_sp_calls and the user executes a prepared
-        // statement. The previous PS ID is tracked in ps_store and asserted to be the same in
-        // ps_store_result.
-        m_qc.ps_store(&buffer, buffer.id());
     }
 }
 

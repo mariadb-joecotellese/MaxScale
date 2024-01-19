@@ -115,8 +115,8 @@ public:
                              uint32_t flags,
                              uint32_t soft_ttl,
                              uint32_t hard_ttl,
-                             GWBUF** ppValue,
-                             std::function<void (cache_result_t, GWBUF*)> cb)
+                             GWBUF* pValue,
+                             std::function<void (cache_result_t, GWBUF&&)> cb)
     {
         if (!connected())
         {
@@ -150,7 +150,7 @@ public:
 
                 char* pData = memcached_get(sThis->m_pMemc, mkey.data(), mkey.size(), &nData, &stored, &mrv);
 
-                GWBUF* pValue = nullptr;
+                GWBUF value;
                 cache_result_t rv;
 
                 if (memcached_success(mrv))
@@ -169,8 +169,7 @@ public:
                         }
                         else if (!is_soft_stale || include_stale)
                         {
-                            pValue = mxs::gwbuf_to_gwbufptr(GWBUF(
-                                reinterpret_cast<const uint8_t*>(pData), nData));
+                            value = GWBUF(reinterpret_cast<const uint8_t*>(pData), nData);
 
                             rv = CACHE_RESULT_OK;
 
@@ -212,7 +211,7 @@ public:
                     }
                 }
 
-                sThis->m_pWorker->execute([sThis, rv, pValue, cb]() {
+                sThis->m_pWorker->execute([sThis, rv, sBuffer = std::make_shared<GWBUF>(std::move(value)), cb]() {
                         if (sThis.use_count() > 1) // The session is still alive
                         {
                             if (rv == CACHE_RESULT_ERROR)
@@ -220,11 +219,7 @@ public:
                                 sThis->connection_broken();
                             }
 
-                            cb(rv, pValue);
-                        }
-                        else
-                        {
-                            gwbuf_free(pValue);
+                            cb(rv, std::move(*sBuffer));
                         }
                     }, mxb::Worker::EXECUTE_QUEUED);
             }, "memcached-get");
@@ -234,7 +229,7 @@ public:
 
     cache_result_t put_value(const CacheKey& key,
                              const std::vector<std::string>& invalidation_words,
-                             const GWBUF* pValue,
+                             const GWBUF& value,
                              const std::function<void (cache_result_t)>& cb)
     {
         if (!connected())
@@ -245,16 +240,15 @@ public:
 
         vector<char> mkey = key.to_vector();
 
-        GWBUF* pClone = gwbuf_clone_shallow(const_cast<GWBUF*>(pValue));
-        MXB_ABORT_IF_NULL(pClone);
+        auto sClone = std::make_shared<GWBUF>(value.shallow_clone());
 
         auto sThis = get_shared();
 
-        mxs::thread_pool().execute([sThis, mkey, pClone, cb]() {
+        mxs::thread_pool().execute([sThis, mkey, sClone, cb]() {
                 const uint32_t flags = Cache::time_ms();
                 memcached_return_t mrv = memcached_set(sThis->m_pMemc, mkey.data(), mkey.size(),
-                                                       reinterpret_cast<const char*>(GWBUF_DATA(pClone)),
-                                                       pClone->length(), sThis->m_mcd_ttl, flags);
+                                                       reinterpret_cast<const char*>(sClone->data()),
+                                                       sClone->length(), sThis->m_mcd_ttl, flags);
                 cache_result_t rv;
 
                 if (memcached_success(mrv))
@@ -269,13 +263,7 @@ public:
                     rv = CACHE_RESULT_ERROR;
                 }
 
-                sThis->m_pWorker->execute([sThis, pClone, rv, cb]() {
-                        // TODO: So as not to trigger an assert in buffer.cc, we need to delete
-                        // TODO: the gwbuf in the same worker where it was allocated. This means
-                        // TODO: that potentially a very large buffer is kept around for longer
-                        // TODO: than necessary. Perhaps time to stop tracking buffer ownership.
-                        gwbuf_free(pClone);
-
+                sThis->m_pWorker->execute([sThis, rv, cb]() {
                         if (sThis.use_count() > 1) // The session is still alive
                         {
                             if (rv == CACHE_RESULT_ERROR)
@@ -597,23 +585,23 @@ cache_result_t MemcachedStorage::get_value(Storage::Token* pToken,
                                            uint32_t flags,
                                            uint32_t soft_ttl,
                                            uint32_t hard_ttl,
-                                           GWBUF** ppValue,
-                                           const std::function<void (cache_result_t, GWBUF*)>& cb)
+                                           GWBUF* pValue,
+                                           const std::function<void (cache_result_t, GWBUF&&)>& cb)
 {
     mxb_assert(pToken);
 
-    return static_cast<MemcachedToken*>(pToken)->get_value(key, flags, soft_ttl, hard_ttl, ppValue, cb);
+    return static_cast<MemcachedToken*>(pToken)->get_value(key, flags, soft_ttl, hard_ttl, pValue, cb);
 }
 
 cache_result_t MemcachedStorage::put_value(Token* pToken,
                                            const CacheKey& key,
                                            const std::vector<std::string>& invalidation_words,
-                                           const GWBUF* pValue,
+                                           const GWBUF& value,
                                            const std::function<void (cache_result_t)>& cb)
 {
     mxb_assert(pToken);
 
-    return static_cast<MemcachedToken*>(pToken)->put_value(key, invalidation_words, pValue, cb);
+    return static_cast<MemcachedToken*>(pToken)->put_value(key, invalidation_words, value, cb);
 }
 
 cache_result_t MemcachedStorage::del_value(Token* pToken,
@@ -639,12 +627,12 @@ cache_result_t MemcachedStorage::clear(Token* pToken)
     return CACHE_RESULT_ERROR;
 }
 
-cache_result_t MemcachedStorage::get_head(CacheKey* pKey, GWBUF** ppHead)
+cache_result_t MemcachedStorage::get_head(CacheKey* pKey, GWBUF* pHead)
 {
     return CACHE_RESULT_ERROR;
 }
 
-cache_result_t MemcachedStorage::get_tail(CacheKey* pKey, GWBUF** ppHead)
+cache_result_t MemcachedStorage::get_tail(CacheKey* pKey, GWBUF* pHead)
 {
     return CACHE_RESULT_ERROR;
 }

@@ -155,10 +155,10 @@ json_t* CachePT::get_info(uint32_t what) const
 cache_result_t CachePT::get_key(const std::string& user,
                                 const std::string& host,
                                 const char* zDefault_db,
-                                const GWBUF* pQuery,
+                                const GWBUF& query,
                                 CacheKey* pKey) const
 {
-    return worker_cache().get_key(user, host, zDefault_db, pQuery, pKey);
+    return worker_cache().get_key(user, host, zDefault_db, query, pKey);
 }
 
 cache_result_t CachePT::get_value(Token* pToken,
@@ -166,19 +166,19 @@ cache_result_t CachePT::get_value(Token* pToken,
                                   uint32_t flags,
                                   uint32_t soft_ttl,
                                   uint32_t hard_ttl,
-                                  GWBUF** ppValue,
-                                  const std::function<void (cache_result_t, GWBUF*)>& cb) const
+                                  GWBUF* pValue,
+                                  const std::function<void (cache_result_t, GWBUF&&)>& cb) const
 {
-    return worker_cache().get_value(pToken, key, flags, soft_ttl, hard_ttl, ppValue, cb);
+    return worker_cache().get_value(pToken, key, flags, soft_ttl, hard_ttl, pValue, cb);
 }
 
 cache_result_t CachePT::put_value(Token* pToken,
                                   const CacheKey& key,
                                   const std::vector<std::string>& invalidation_words,
-                                  const GWBUF* pValue,
+                                  const GWBUF& value,
                                   const std::function<void (cache_result_t)>& cb)
 {
-    return worker_cache().put_value(pToken, key, invalidation_words, pValue, cb);
+    return worker_cache().put_value(pToken, key, invalidation_words, value, cb);
 }
 
 cache_result_t CachePT::del_value(Token* pToken,

@@ -26,24 +26,6 @@ using namespace std;
 namespace
 {
 
-GWBUF* create_gwbuf(const string& s)
-{
-    size_t len = s.length();
-    size_t payload_len = len + 1;
-    size_t gwbuf_len = MYSQL_HEADER_LEN + payload_len;
-
-    GWBUF* pBuf = gwbuf_alloc(gwbuf_len);
-
-    *((unsigned char*)((char*)GWBUF_DATA(pBuf))) = payload_len;
-    *((unsigned char*)((char*)GWBUF_DATA(pBuf) + 1)) = (payload_len >> 8);
-    *((unsigned char*)((char*)GWBUF_DATA(pBuf) + 2)) = (payload_len >> 16);
-    *((unsigned char*)((char*)GWBUF_DATA(pBuf) + 3)) = 0x00;
-    *((unsigned char*)((char*)GWBUF_DATA(pBuf) + 4)) = 0x03;
-    memcpy((char*)GWBUF_DATA(pBuf) + 5, s.c_str(), len);
-
-    return pBuf;
-}
-
 int mxs_2727()
 {
     int rv = 0;
@@ -69,10 +51,9 @@ int mxs_2727()
     mxb_assert(created);
 
     CacheKey key;
-    GWBUF* pSelect = create_gwbuf("SELECT * FROM t");
+    GWBUF select = mariadb::create_query("SELECT * FROM t");
 
-    cache_result_t result = pCache->get_key(string(), string(), "test", pSelect, &key);
-    gwbuf_free(pSelect);
+    cache_result_t result = pCache->get_key(string(), string(), "test", select, &key);
 
     if (!CACHE_RESULT_IS_OK(result))
     {
@@ -85,7 +66,7 @@ int mxs_2727()
     GWBUF buffer(value.data(), value.size());
 
     vector<string> invalidation_words;
-    result = pCache->put_value(sToken.get(), key, invalidation_words, &buffer);
+    result = pCache->put_value(sToken.get(), key, invalidation_words, buffer);
 
     if (!CACHE_RESULT_IS_OK(result))
     {
@@ -99,7 +80,7 @@ int mxs_2727()
     buffer = GWBUF(value.data(), value.size());
 
     // This will crash without the MXS-2727 fix.
-    result = pCache->put_value(sToken.get(), key, invalidation_words, &buffer);
+    result = pCache->put_value(sToken.get(), key, invalidation_words, buffer);
 
     // Expected to fail, as the value does not fit into the cache.
     if (CACHE_RESULT_IS_OK(result))
