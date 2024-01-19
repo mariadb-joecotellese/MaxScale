@@ -109,7 +109,11 @@ private:
     bool rewire_service(const std::set<std::string>& from_targets, const std::set<std::string>& to_targets);
     bool rewire_service_for_comparison();
     bool rewire_service_for_normalcy();
+
+    bool reset_replication(const SERVER& server);
     bool stop_replication(const SERVER& server);
+
+    void reset_replication();
 
     enum ReplicationStatus
     {

@@ -40,6 +40,8 @@ public:
     int64_t explain_difference;
     int64_t max_execution_time_difference;
 
+    bool reset_replication;
+
     SERVICE* pService;
 
     static mxs::config::Specification* specification();

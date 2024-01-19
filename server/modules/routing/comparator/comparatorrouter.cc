@@ -434,6 +434,48 @@ bool ComparatorRouter::rewire_service_for_normalcy()
     return rv;
 }
 
+bool ComparatorRouter::reset_replication(const SERVER& server)
+{
+    bool rv = false;
+
+    mxq::MariaDB mdb;
+
+    const auto& sConfig = m_config.pService->config();
+
+    auto& settings = mdb.connection_settings();
+    settings.user = sConfig->user;
+    settings.password = sConfig->password;
+
+    if (mdb.open(server.address(), server.port()))
+    {
+        if (mdb.cmd("RESET SLAVE"))
+        {
+            if (mdb.cmd("START SLAVE"))
+            {
+                // TODO: It should be checked that it indeed started.
+                rv = true;
+            }
+            else
+            {
+                MXB_ERROR("Could not start replication on %s:%d, error: %s",
+                          server.address(), server.port(), mdb.error());
+            }
+        }
+        else
+        {
+            MXB_ERROR("Could not reset replication on %s:%d, error: %s",
+                      server.address(), server.port(), mdb.error());
+        }
+    }
+    else
+    {
+        MXB_ERROR("Could not open connection to %s:%d, error: %s",
+                  server.address(), server.port(), mdb.error());
+    }
+
+    return rv;
+}
+
 bool ComparatorRouter::stop_replication(const SERVER& server)
 {
     bool rv = false;
@@ -465,6 +507,27 @@ bool ComparatorRouter::stop_replication(const SERVER& server)
     }
 
     return rv;
+}
+
+void ComparatorRouter::reset_replication()
+{
+    // TODO: For now it should be ensured that the immediate
+    // TODO: children are all servers.
+    std::vector<SERVER*> servers = m_service.reachable_servers();
+
+    for (SERVER* pServer : servers)
+    {
+        if (pServer == m_config.pMain)
+        {
+            continue;
+        }
+
+        if (!reset_replication(*pServer))
+        {
+            MXB_ERROR("Could not reset replication of '%s'. "
+                      "Manual intervention is needed.", pServer->name());
+        }
+    }
 }
 
 namespace
@@ -702,6 +765,11 @@ void ComparatorRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
+        if (m_config.reset_replication)
+        {
+            reset_replication();
+        }
+
         if (rewire_service_for_normalcy())
         {
             restart_and_resume();
