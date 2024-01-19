@@ -62,8 +62,8 @@ static modulecmd_arg_type_t command_prepare_argv[] =
 static int command_prepare_argc = MXS_ARRAY_NELEMS(command_prepare_argv);
 
 bool check_prepare_prerequisites(const SERVICE& service,
-                                 const SERVER& primary,
-                                 const SERVER& replica)
+                                 const SERVER& main,
+                                 const SERVER& other)
 {
     bool rv = false;
 
@@ -75,7 +75,7 @@ bool check_prepare_prerequisites(const SERVICE& service,
     settings.user = sConfig->user;
     settings.password = sConfig->password;
 
-    if (mdb.open(replica.address(), replica.port()))
+    if (mdb.open(other.address(), other.port()))
     {
         auto sResult = mdb.query("SHOW SLAVE STATUS");
 
@@ -87,7 +87,7 @@ bool check_prepare_prerequisites(const SERVICE& service,
                 int master_port = sResult->get_int("Master_Port");
 
                 // TODO: One may be expressed using an IP and the other using a hostname.
-                if (master_host == primary.address() && master_port == primary.port())
+                if (master_host == main.address() && master_port == main.port())
                 {
                     auto slave_io_state = sResult->get_string("Slave_IO_State");
 
@@ -100,28 +100,28 @@ bool check_prepare_prerequisites(const SERVICE& service,
                     {
                         MXB_ERROR("Server '%s' is configured to replicate from %s:%d, "
                                   "but is currently not replicating.",
-                                  replica.name(), master_host.c_str(), master_port);
+                                  other.name(), master_host.c_str(), master_port);
                     }
                 }
                 else
                 {
                     MXB_ERROR("Server '%s' replicates from %s:%d and not from '%s' (%s:%d).",
-                              replica.name(),
+                              other.name(),
                               master_host.c_str(), master_port,
-                              primary.name(), primary.address(), primary.port());
+                              main.name(), main.address(), main.port());
 
                 }
             }
             else
             {
-                MXB_ERROR("Server %s does not replicate from any server.", replica.name());
+                MXB_ERROR("Server %s does not replicate from any server.", other.name());
             }
         }
     }
     else
     {
         MXB_ERROR("Could not connect to server at %s:%d: %s",
-                  replica.address(), replica.port(), mdb.error());
+                  other.address(), other.port(), mdb.error());
     }
 
     return rv;
@@ -129,8 +129,8 @@ bool check_prepare_prerequisites(const SERVICE& service,
 
 Service* create_comparator_service(const string& name,
                                    const SERVICE& service,
-                                   const SERVER& primary,
-                                   const SERVER& replica)
+                                   const SERVER& main,
+                                   const SERVER& other)
 {
     auto& sValues = service.config();
 
@@ -138,14 +138,14 @@ Service* create_comparator_service(const string& name,
     json_object_set_new(pParameters, CN_USER, json_string(sValues->user.c_str()));
     json_object_set_new(pParameters, CN_PASSWORD, json_string(sValues->password.c_str()));
     json_object_set_new(pParameters, CN_SERVICE, json_string(service.name()));
-    json_object_set_new(pParameters, "main", json_string(primary.name()));
+    json_object_set_new(pParameters, "main", json_string(main.name()));
 
     json_t* pAttributes = json_object();
     json_object_set_new(pAttributes, CN_ROUTER, json_string(MXB_MODULE_NAME));
     json_object_set_new(pAttributes, CN_PARAMETERS, pParameters);
 
     json_t* pServers_data = json_array();
-    for (const string& server : { primary.name(), replica.name() })
+    for (const string& server : { main.name(), other.name() })
     {
         json_t* pServer_data = json_object();
         json_object_set_new(pServer_data, CN_ID, json_string(server.c_str()));
@@ -191,8 +191,8 @@ Service* create_comparator_service(const string& name,
 }
 
 Service* create_comparator_service(const SERVICE& service,
-                                   const SERVER& primary,
-                                   const SERVER& replica)
+                                   const SERVER& main,
+                                   const SERVER& other)
 {
     Service* pComparator_service = nullptr;
 
@@ -207,7 +207,7 @@ Service* create_comparator_service(const SERVICE& service,
     }
     else
     {
-        pComparator_service = create_comparator_service(name, service, primary, replica);
+        pComparator_service = create_comparator_service(name, service, main, other);
     }
 
     return pComparator_service;
@@ -218,19 +218,19 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     bool rv = false;
 
     Service* pService = static_cast<Service*>(pArgs->argv[0].value.service);
-    SERVER* pPrimary = pArgs->argv[1].value.server;
-    SERVER* pReplica = pArgs->argv[2].value.server;
+    SERVER* pMain = pArgs->argv[1].value.server;
+    SERVER* pOther = pArgs->argv[2].value.server;
 
     vector<mxs::Target*> targets = pService->get_children();
     auto end = targets.end();
 
-    auto it = std::find(targets.begin(), end, pPrimary);
+    auto it = std::find(targets.begin(), end, pMain);
 
     if (it != end)
     {
-        if (check_prepare_prerequisites(*pService, *pPrimary, *pReplica))
+        if (check_prepare_prerequisites(*pService, *pMain, *pOther))
         {
-            Service* pComparator_service = create_comparator_service(*pService, *pPrimary, *pReplica);
+            Service* pComparator_service = create_comparator_service(*pService, *pMain, *pOther);
 
             if (pComparator_service)
             {
@@ -238,7 +238,7 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
                 auto s = mxb::string_printf("Comparator service '%s' created. Server '%s' ready "
                                             "to be evaluated.",
                                             pComparator_service->name(),
-                                            pReplica->name());
+                                            pOther->name());
                 json_object_set_new(pOutput, "status", json_string(s.c_str()));
                 *ppOutput = pOutput;
 
@@ -248,7 +248,7 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     }
     else
     {
-        MXB_ERROR("'%s' is not a server of service '%s'.", pPrimary->name(), pService->name());
+        MXB_ERROR("'%s' is not a server of service '%s'.", pMain->name(), pService->name());
     }
 
     return rv;
