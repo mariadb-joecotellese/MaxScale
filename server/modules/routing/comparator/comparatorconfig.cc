@@ -41,6 +41,14 @@ namespace comparator
 
 Specification specification(MXB_MODULE_NAME, config::Specification::ROUTER);
 
+config::ParamEnum<ComparisonKind> comparison_kind(
+    &specification, "comparison_kind", "Is the comparison read-write or read-only",
+    {
+        {ComparisonKind::READ_ONLY, "read_only"},
+        {ComparisonKind::READ_WRITE, "read_write"},
+            },
+    ComparisonKind::READ_WRITE, config::Param::AT_STARTUP);
+
 config::ParamPercent explain_difference(
     &specification,
     "explain_difference",
@@ -79,11 +87,6 @@ config::ParamEnum<ReportAction> report(
             },
     ReportAction::REPORT_ALWAYS, config::Param::AT_RUNTIME);
 
-config::ParamBool reset_replication(
-    &specification, "reset_replication", "Reset the replication at stop",
-    true,
-    config::Param::AT_RUNTIME);
-
 config::ParamService service(
     &specification, "service", "The service the Comparator service is installed for",
     config::Param::Kind::MANDATORY);
@@ -114,7 +117,7 @@ ComparatorConfig::ComparatorConfig(const char* zName, ComparatorRouter* pInstanc
 
     add_native(&ComparatorConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
     add_native(&ComparatorConfig::explain_difference, &comparator::explain_difference);
-    add_native(&ComparatorConfig::reset_replication, &comparator::reset_replication);
+    add_native(&ComparatorConfig::comparison_kind, &comparator::comparison_kind);
 }
 
 bool ComparatorConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)

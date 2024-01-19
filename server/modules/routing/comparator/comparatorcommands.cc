@@ -56,7 +56,8 @@ static modulecmd_arg_type_t command_prepare_argv[] =
 {
     {MODULECMD_ARG_SERVICE, "Service name"},
     {MODULECMD_ARG_SERVER,  "Main server name"},
-    {MODULECMD_ARG_SERVER,  "Other server name"}
+    {MODULECMD_ARG_SERVER,  "Other server name"},
+    {MODULECMD_ARG_STRING,  "'read_only' or 'read_write'"}
 };
 
 static int command_prepare_argc = MXS_ARRAY_NELEMS(command_prepare_argv);
@@ -130,7 +131,8 @@ bool check_prepare_prerequisites(const SERVICE& service,
 Service* create_comparator_service(const string& name,
                                    const SERVICE& service,
                                    const SERVER& main,
-                                   const SERVER& other)
+                                   const SERVER& other,
+                                   const char* zComparison_kind)
 {
     auto& sValues = service.config();
 
@@ -139,6 +141,7 @@ Service* create_comparator_service(const string& name,
     json_object_set_new(pParameters, CN_PASSWORD, json_string(sValues->password.c_str()));
     json_object_set_new(pParameters, CN_SERVICE, json_string(service.name()));
     json_object_set_new(pParameters, "main", json_string(main.name()));
+    json_object_set_new(pParameters, "comparison_kind", json_string(zComparison_kind));
 
     json_t* pAttributes = json_object();
     json_object_set_new(pAttributes, CN_ROUTER, json_string(MXB_MODULE_NAME));
@@ -192,7 +195,8 @@ Service* create_comparator_service(const string& name,
 
 Service* create_comparator_service(const SERVICE& service,
                                    const SERVER& main,
-                                   const SERVER& other)
+                                   const SERVER& other,
+                                   const char* zComparison_kind)
 {
     Service* pComparator_service = nullptr;
 
@@ -207,19 +211,48 @@ Service* create_comparator_service(const SERVICE& service,
     }
     else
     {
-        pComparator_service = create_comparator_service(name, service, main, other);
+        pComparator_service = create_comparator_service(name, service, main, other, zComparison_kind);
     }
 
     return pComparator_service;
 }
 
+bool get_comparison_kind(const char* zComparison_kind, ComparisonKind* pComparison_kind)
+{
+    bool rv = true;
+
+    if (strcmp(zComparison_kind, "read_only") == 0)
+    {
+        *pComparison_kind = ComparisonKind::READ_ONLY;
+    }
+    else if (strcmp(zComparison_kind, "read_write") == 0)
+    {
+        *pComparison_kind = ComparisonKind::READ_WRITE;
+    }
+    else
+    {
+        MXB_ERROR("'%s' is not a valid value. Valid values are: 'read_only', 'read_write'",
+                  zComparison_kind);
+        rv = false;
+    }
+
+    return rv;
+}
+
 bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
-    bool rv = false;
-
     Service* pService = static_cast<Service*>(pArgs->argv[0].value.service);
     SERVER* pMain = pArgs->argv[1].value.server;
     SERVER* pOther = pArgs->argv[2].value.server;
+    const char* zComparison_kind = pArgs->argv[3].value.string;
+    ComparisonKind comparison_kind;
+
+    if (!get_comparison_kind(zComparison_kind, &comparison_kind))
+    {
+        return false;
+    }
+
+    bool rv = true;
 
     vector<mxs::Target*> targets = pService->get_children();
     auto end = targets.end();
@@ -228,9 +261,36 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
     if (it != end)
     {
-        if (check_prepare_prerequisites(*pService, *pMain, *pOther))
+        switch (comparison_kind)
         {
-            Service* pComparator_service = create_comparator_service(*pService, *pMain, *pOther);
+        case ComparisonKind::READ_WRITE:
+            if (!status_is_master(pMain->status()))
+            {
+                MXB_ERROR("'read_write' comparison specified, but '%s' is not the primary.",
+                          pMain->name());
+                rv = false;
+            }
+            break;
+
+        case ComparisonKind::READ_ONLY:
+            if (!status_is_slave(pMain->status()))
+            {
+                MXB_ERROR("'read_only' comparison specified, but '%s' is not a replica.",
+                          pMain->name());
+                rv = false;
+            }
+            break;
+        }
+
+        if (rv)
+        {
+            rv = check_prepare_prerequisites(*pService, *pMain, *pOther);
+        }
+
+        if (rv)
+        {
+            Service* pComparator_service = create_comparator_service(*pService, *pMain, *pOther,
+                                                                     zComparison_kind);
 
             if (pComparator_service)
             {
@@ -249,6 +309,7 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     else
     {
         MXB_ERROR("'%s' is not a server of service '%s'.", pMain->name(), pService->name());
+        rv = false;
     }
 
     return rv;

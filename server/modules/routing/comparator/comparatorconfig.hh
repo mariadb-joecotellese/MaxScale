@@ -10,16 +10,22 @@
 #include <maxscale/ccdefs.hh>
 #include <maxscale/config2.hh>
 
-enum ErrorAction
+enum class ErrorAction
 {
     ERRACT_IGNORE,
     ERRACT_CLOSE,
 };
 
-enum ReportAction
+enum class ReportAction
 {
     REPORT_ALWAYS,
     REPORT_ON_DISCREPANCY,
+};
+
+enum class ComparisonKind
+{
+    READ_ONLY,
+    READ_WRITE
 };
 
 class ComparatorRouter;
@@ -34,13 +40,12 @@ public:
 
     mxs::Target* pMain;
 
+    ComparisonKind                  comparison_kind;
     mxs::config::Enum<ErrorAction>  on_error;
     mxs::config::Enum<ReportAction> report;
 
     int64_t explain_difference;
     int64_t max_execution_time_difference;
-
-    bool reset_replication;
 
     SERVICE* pService;
 

@@ -700,9 +700,16 @@ void ComparatorRouter::setup(const RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
-        set_sync_state(SyncState::STOPPING_REPLICATION);
+        ReplicationStatus rstatus = ReplicationStatus::STOPPED;
 
-        switch (stop_replication())
+        if (m_config.comparison_kind == ComparisonKind::READ_WRITE)
+        {
+            set_sync_state(SyncState::STOPPING_REPLICATION);
+
+            rstatus = stop_replication();
+        }
+
+        switch (rstatus)
         {
         case ReplicationStatus::STOPPED:
             if (rewire_service_for_comparison())
@@ -779,7 +786,7 @@ void ComparatorRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
-        if (m_config.reset_replication)
+        if (m_config.comparison_kind == ComparisonKind::READ_WRITE)
         {
             reset_replication();
         }
