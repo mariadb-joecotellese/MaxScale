@@ -93,7 +93,7 @@ void ComparatorOtherBackend::ready(const ComparatorExplainResult& explain_result
 
 void ComparatorOtherBackend::execute_pending_explains()
 {
-    if (!m_multi_part_in_process)
+    if (!extraordinary_in_process())
     {
         while (!m_pending_explains.empty())
         {

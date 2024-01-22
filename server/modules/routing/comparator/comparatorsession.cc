@@ -69,7 +69,7 @@ bool ComparatorSession::routeQuery(GWBUF&& packet)
 
     if (m_sMain->in_use())
     {
-        bool expecting_response = m_sMain->multi_part_in_process()
+        bool expecting_response = m_sMain->extraordinary_in_process()
             ? false : protocol_data().will_respond(packet);
         mxs::Backend::response_type type = expecting_response
             ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::NO_RESPONSE;

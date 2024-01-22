@@ -38,9 +38,12 @@ public:
         m_pParser_helper = &m_sQc->parser().helper();
     }
 
-    bool multi_part_in_process() const
+    bool extraordinary_in_process() const
     {
-        return m_multi_part_in_process;
+        mxb_assert(m_sQc);
+        const auto& ri = m_sQc->current_route_info();
+
+        return ri.load_data_active() || ri.multi_part_packet();
     }
 
     void process_result(const GWBUF& buffer, const mxs::Reply& reply)
@@ -81,7 +84,6 @@ protected:
 protected:
     std::unique_ptr<mariadb::QueryClassifier> m_sQc;
     const mxs::Parser::Helper*                m_pParser_helper { nullptr };
-    bool                                      m_multi_part_in_process { false };
     std::deque<SResult>                       m_results;
 };
 
@@ -99,11 +101,9 @@ public:
         mxb_assert(m_sQc);
         m_sQc->update_and_commit_route_info(buffer);
 
-        bool multi_part = ph().is_multi_part_packet(buffer);
-
         ++m_stats.nRequest_packets;
 
-        if (!m_multi_part_in_process)
+        if (!extraordinary_in_process())
         {
             ++m_stats.nRequests;
 
@@ -119,8 +119,6 @@ public:
                 }
             }
         }
-
-        m_multi_part_in_process = multi_part;
 
         return Backend::write(std::move(buffer), type);
     }
