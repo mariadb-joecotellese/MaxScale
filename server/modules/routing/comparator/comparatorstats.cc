@@ -20,7 +20,8 @@ void ComparatorStats::fill_json(json_t* pJson) const
     json_object_set_new(pJson, "total_duration", json_integer(ms.count()));
     json_object_set_new(pJson, "request_packets", json_integer(this->nRequest_packets));
     json_object_set_new(pJson, "requests", json_integer(this->nRequests));
-    json_object_set_new(pJson, "responding_requests", json_integer(this->nResponding_requests));
+    json_object_set_new(pJson, "requests_explainable", json_integer(this->nRequests_explainable));
+    json_object_set_new(pJson, "requests_responding", json_integer(this->nRequests_responding));
     json_object_set_new(pJson, "responses", json_integer(this->nResponses));
 }
 

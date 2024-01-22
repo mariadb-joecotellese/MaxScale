@@ -122,7 +122,8 @@ void ComparatorOtherBackend::execute(const std::shared_ptr<ComparatorExplainResu
     // EXPLAIN requests should be exluded.
     --m_stats.nRequest_packets;
     --m_stats.nRequests;
-    --m_stats.nResponding_requests;
+    --m_stats.nRequests_explainable;
+    --m_stats.nRequests_responding;
 }
 
 /**

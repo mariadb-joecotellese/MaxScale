@@ -93,9 +93,6 @@ public:
     {
         bool multi_part = ph().is_multi_part_packet(buffer);
 
-        // TODO: Write should return void, since there is nothing that can be done if the writing fails.
-        bool rv = Backend::write(std::move(buffer), type);
-
         ++m_stats.nRequest_packets;
 
         if (!m_multi_part_in_process)
@@ -104,13 +101,20 @@ public:
 
             if (type != NO_RESPONSE)
             {
-                ++m_stats.nResponding_requests;
+                ++m_stats.nRequests_responding;
+
+                auto sql = ph().get_sql(buffer);
+
+                if (!sql.empty())
+                {
+                    ++m_stats.nRequests_explainable;
+                }
             }
         }
 
         m_multi_part_in_process = multi_part;
 
-        return rv;
+        return Backend::write(std::move(buffer), type);
     }
 
     void finish_result(const mxs::Reply& reply) override
@@ -150,19 +154,13 @@ public:
 
     SResult prepare(const GWBUF& packet);
 
-    const std::string& sql() const
-    {
-        return m_sql;
-    }
-
     uint8_t command() const
     {
         return m_command;
     }
 
 private:
-    std::string m_sql;
-    uint8_t     m_command { 0 };
+    uint8_t m_command { 0 };
 };
 
 

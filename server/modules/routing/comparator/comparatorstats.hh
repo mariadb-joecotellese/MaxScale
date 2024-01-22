@@ -16,7 +16,8 @@ struct ComparatorStats
     std::chrono::nanoseconds total_duration { 0 };
     int64_t                  nRequest_packets { 0 };
     int64_t                  nRequests { 0 };
-    int64_t                  nResponding_requests { 0 };
+    int64_t                  nRequests_responding { 0 };
+    int64_t                  nRequests_explainable { 0 };
     int64_t                  nResponses { 0 };
 
     ComparatorStats& operator += (const ComparatorStats& rhs)
@@ -24,7 +25,8 @@ struct ComparatorStats
         this->total_duration += rhs.total_duration;
         this->nRequest_packets += rhs.nRequest_packets;
         this->nRequests += rhs.nRequests;
-        this->nResponding_requests += rhs.nResponding_requests;
+        this->nRequests_explainable += rhs.nRequests_explainable;
+        this->nRequests_responding += rhs.nRequests_responding;
         this->nResponses += rhs.nResponses;
 
         return *this;
