@@ -9,6 +9,7 @@
 #include <deque>
 #include <maxscale/backend.hh>
 #include <maxscale/buffer.hh>
+#include <maxscale/queryclassifier.hh>
 #include "comparatorbackend.hh"
 #include "comparatorresult.hh"
 #include "comparatorstats.hh"

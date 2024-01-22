@@ -12,6 +12,7 @@
 #include <maxbase/checksum.hh>
 #include <maxscale/backend.hh>
 #include <maxscale/parser.hh>
+#include <maxscale/queryclassifier.hh>
 #include <maxscale/router.hh>
 #include "comparatorresult.hh"
 #include "comparatorstats.hh"
@@ -31,9 +32,10 @@ public:
     using Result = ComparatorResult;
     using SResult = std::shared_ptr<Result>;
 
-    void set_parser_helper(const mxs::Parser::Helper* pHelper)
+    void set_query_classifier(std::unique_ptr<mariadb::QueryClassifier>&& sQc)
     {
-        m_pParser_helper = pHelper;
+        m_sQc = std::move(sQc);
+        m_pParser_helper = &m_sQc->parser().helper();
     }
 
     bool multi_part_in_process() const
@@ -41,10 +43,12 @@ public:
         return m_multi_part_in_process;
     }
 
-    void process_result(const GWBUF& buffer)
+    void process_result(const GWBUF& buffer, const mxs::Reply& reply)
     {
-        mxb_assert(!m_results.empty());
+        mxb_assert(m_sQc);
+        m_sQc->update_from_reply(reply);
 
+        mxb_assert(!m_results.empty());
         m_results.front()->process(buffer);
     }
 
@@ -75,9 +79,10 @@ protected:
     }
 
 protected:
-    const mxs::Parser::Helper* m_pParser_helper { nullptr };
-    bool                       m_multi_part_in_process { false };
-    std::deque<SResult>        m_results;
+    std::unique_ptr<mariadb::QueryClassifier> m_sQc;
+    const mxs::Parser::Helper*                m_pParser_helper { nullptr };
+    bool                                      m_multi_part_in_process { false };
+    std::deque<SResult>                       m_results;
 };
 
 template<class Stats>
@@ -91,6 +96,9 @@ public:
 
     bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override
     {
+        mxb_assert(m_sQc);
+        m_sQc->update_and_commit_route_info(buffer);
+
         bool multi_part = ph().is_multi_part_packet(buffer);
 
         ++m_stats.nRequest_packets;

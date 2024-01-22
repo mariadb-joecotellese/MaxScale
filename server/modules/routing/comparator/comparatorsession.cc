@@ -9,6 +9,8 @@
 #include "comparatorrouter.hh"
 
 using namespace maxscale;
+using mariadb::QueryClassifier;
+using std::unique_ptr;
 
 namespace
 {
@@ -36,13 +38,15 @@ ComparatorSession::ComparatorSession(MXS_SESSION* pSession,
     , m_others(std::move(others))
     , m_router(*pRouter)
 {
-    const auto& ph = parser().helper();
+    unique_ptr<QueryClassifier> sQc;
 
-    m_sMain->set_parser_helper(&ph);
+    sQc = std::make_unique<QueryClassifier>(parser(), pSession);
+    m_sMain->set_query_classifier(std::move(sQc));
 
     for (auto& sOther : m_others)
     {
-        sOther->set_parser_helper(&ph);
+        sQc = std::make_unique<QueryClassifier>(parser(), pSession);
+        sOther->set_query_classifier(std::move(sQc));
         sOther->set_result_handler(this);
     }
 }
@@ -109,7 +113,7 @@ bool ComparatorSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down,
 {
     auto* pBackend = static_cast<ComparatorBackend*>(down.endpoint()->get_userdata());
 
-    pBackend->process_result(packet);
+    pBackend->process_result(packet, reply);
 
     if (reply.is_complete())
     {
