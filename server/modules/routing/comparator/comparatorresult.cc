@@ -44,7 +44,7 @@ std::string_view ComparatorMainResult::sql() const
 {
     if (m_sql.empty())
     {
-        m_sql = backend().ph().get_sql(m_packet);
+        m_sql = backend().phelper().get_sql(m_packet);
     }
 
     return m_sql;
@@ -54,10 +54,20 @@ uint8_t ComparatorMainResult::command() const
 {
     if (m_command == 0)
     {
-        m_command = backend().ph().get_command(m_packet);
+        m_command = backend().phelper().get_command(m_packet);
     }
 
     return m_command;
+}
+
+std::string_view ComparatorMainResult::canonical() const
+{
+    if (m_canonical.empty())
+    {
+        m_canonical = backend().parser().get_canonical(m_packet);
+    }
+
+    return m_canonical;
 }
 
 std::chrono::nanoseconds ComparatorMainResult::close(const mxs::Reply& reply)

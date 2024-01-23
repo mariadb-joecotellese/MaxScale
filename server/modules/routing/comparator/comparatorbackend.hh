@@ -35,7 +35,8 @@ public:
     void set_query_classifier(std::unique_ptr<mariadb::QueryClassifier>&& sQc)
     {
         m_sQc = std::move(sQc);
-        m_pParser_helper = &m_sQc->parser().helper();
+        m_pParser = &m_sQc->parser();
+        m_pParser_helper = &m_pParser->helper();
     }
 
     bool extraordinary_in_process() const
@@ -69,7 +70,13 @@ public:
         return m_results.size();
     }
 
-    const mxs::Parser::Helper& ph() const
+    const mxs::Parser& parser() const
+    {
+        mxb_assert(m_pParser);
+        return *m_pParser;
+    }
+
+    const mxs::Parser::Helper& phelper() const
     {
         mxb_assert(m_pParser_helper);
         return *m_pParser_helper;
@@ -83,6 +90,7 @@ protected:
 
 protected:
     std::unique_ptr<mariadb::QueryClassifier> m_sQc;
+    const mxs::Parser*                        m_pParser { nullptr };
     const mxs::Parser::Helper*                m_pParser_helper { nullptr };
     std::deque<SResult>                       m_results;
 };
@@ -111,7 +119,7 @@ public:
             {
                 ++m_stats.nRequests_responding;
 
-                auto sql = ph().get_sql(buffer);
+                auto sql = phelper().get_sql(buffer);
 
                 if (!sql.empty())
                 {

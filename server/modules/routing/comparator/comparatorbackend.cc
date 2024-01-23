@@ -109,7 +109,7 @@ void ComparatorOtherBackend::execute(const std::shared_ptr<ComparatorExplainResu
 
     m_results.emplace_back(std::move(sExplain_result));
 
-    GWBUF packet = ph().create_packet(sql);
+    GWBUF packet = phelper().create_packet(sql);
     packet.set_type(GWBUF::TYPE_COLLECT_ROWS);
 
     write(std::move(packet), mxs::Backend::EXPECT_RESPONSE);

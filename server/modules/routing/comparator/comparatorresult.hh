@@ -100,6 +100,8 @@ public:
 
     uint8_t command() const;
 
+    std::string_view canonical() const;
+
     bool is_explainable() const
     {
         return !sql().empty();
@@ -129,6 +131,7 @@ private:
     GWBUF                            m_packet;
     mutable std::string_view         m_sql;
     mutable uint32_t                 m_command {0};
+    mutable std::string_view         m_canonical;
     std::set<ComparatorOtherResult*> m_dependents;
 };
 
@@ -163,6 +166,11 @@ public:
     uint8_t command() const
     {
         return m_sMain_result->command();
+    }
+
+    std::string_view canonical() const
+    {
+        return m_sMain_result->canonical();
     }
 
     bool is_explainable() const
