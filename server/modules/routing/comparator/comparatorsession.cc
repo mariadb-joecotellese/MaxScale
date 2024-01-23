@@ -216,7 +216,8 @@ void ComparatorSession::ready(const ComparatorExplainResult& explain_result,
     {
         auto& main_result = explain_result.other_result().main_result();
 
-        MXB_WARNING("EXPLAIN of '%s' failed: %s", main_result.sql().c_str(), error.c_str());
+        auto sql = main_result.sql();
+        MXB_WARNING("EXPLAIN of '%.*s' failed: %s", (int)sql.length(), sql.data(), error.c_str());
     }
     else
     {
@@ -230,7 +231,8 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
     const auto& main_result = other_result.main_result();
 
     json_t* pJson = json_object();
-    json_object_set_new(pJson, "query", json_string(main_result.sql().c_str()));
+    auto sql = main_result.sql();
+    json_object_set_new(pJson, "query", json_stringn(sql.data(), sql.length()));
     json_object_set_new(pJson, "command", json_string(mariadb::cmd_to_string(main_result.command())));
     json_object_set_new(pJson, "session", json_integer(m_pSession->id()));
     json_object_set_new(pJson, "query_id", json_integer(++m_num_queries));

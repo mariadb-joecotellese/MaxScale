@@ -92,23 +92,17 @@ class ComparatorOtherResult;
 class ComparatorMainResult final : public ComparatorResult
 {
 public:
-    ComparatorMainResult(ComparatorMainBackend* pBackend, std::string_view sql, uint8_t command);
+    ComparatorMainResult(ComparatorMainBackend* pBackend, const GWBUF& packet);
 
     ~ComparatorMainResult() override = default;
 
-    const std::string& sql() const
-    {
-        return m_sql;
-    }
+    std::string_view sql() const;
 
-    uint8_t command() const
-    {
-        return m_command;
-    }
+    uint8_t command() const;
 
     bool is_explainable() const
     {
-        return !m_sql.empty();
+        return !sql().empty();
     }
 
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
@@ -132,8 +126,9 @@ private:
     }
 
 private:
-    std::string                      m_sql;
-    uint8_t                          m_command;
+    GWBUF                            m_packet;
+    mutable std::string_view         m_sql;
+    mutable uint32_t                 m_command {0};
     std::set<ComparatorOtherResult*> m_dependents;
 };
 
@@ -160,7 +155,7 @@ public:
         return *m_sMain_result.get();
     }
 
-    const std::string& sql() const
+    std::string_view sql() const
     {
         return m_sMain_result->sql();
     }

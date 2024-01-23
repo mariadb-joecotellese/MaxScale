@@ -69,16 +69,16 @@ public:
         return m_results.size();
     }
 
-protected:
-    ComparatorBackend(mxs::Endpoint* pEndpoint)
-        : mxs::Backend(pEndpoint)
-    {
-    }
-
     const mxs::Parser::Helper& ph() const
     {
         mxb_assert(m_pParser_helper);
         return *m_pParser_helper;
+    }
+
+protected:
+    ComparatorBackend(mxs::Endpoint* pEndpoint)
+        : mxs::Backend(pEndpoint)
+    {
     }
 
 protected:

@@ -16,10 +16,7 @@
 
 ComparatorMainBackend::SResult ComparatorMainBackend::prepare(const GWBUF& packet)
 {
-    std::string_view sql = ph().get_sql(packet);
-    uint8_t command = ph().get_command(packet);
-
-    auto sMain_result = std::make_shared<ComparatorMainResult>(this, sql, command);
+    auto sMain_result = std::make_shared<ComparatorMainResult>(this, packet);
 
     m_results.push_back(sMain_result);
 

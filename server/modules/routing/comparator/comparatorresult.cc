@@ -34,13 +34,30 @@ std::chrono::nanoseconds ComparatorResult::close(const mxs::Reply& reply)
 /**
  * ComparatorMainResult
  */
-ComparatorMainResult::ComparatorMainResult(ComparatorMainBackend* pBackend,
-                                           std::string_view sql,
-                                           uint8_t command)
+ComparatorMainResult::ComparatorMainResult(ComparatorMainBackend* pBackend, const GWBUF& packet)
     : ComparatorResult(pBackend)
-    , m_sql(sql)
-    , m_command(command)
+    , m_packet(packet.shallow_clone())
 {
+}
+
+std::string_view ComparatorMainResult::sql() const
+{
+    if (m_sql.empty())
+    {
+        m_sql = backend().ph().get_sql(m_packet);
+    }
+
+    return m_sql;
+}
+
+uint8_t ComparatorMainResult::command() const
+{
+    if (m_command == 0)
+    {
+        m_command = backend().ph().get_command(m_packet);
+    }
+
+    return m_command;
 }
 
 std::chrono::nanoseconds ComparatorMainResult::close(const mxs::Reply& reply)
