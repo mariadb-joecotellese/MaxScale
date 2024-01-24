@@ -96,6 +96,11 @@ public:
 
     ~ComparatorMainResult() override = default;
 
+    int64_t id() const
+    {
+        return m_id;
+    }
+
     std::string_view sql() const;
 
     uint8_t command() const;
@@ -128,6 +133,7 @@ private:
     }
 
 private:
+    const int64_t                    m_id;
     GWBUF                            m_packet;
     mutable std::string_view         m_sql;
     mutable uint32_t                 m_command {0};
@@ -156,6 +162,11 @@ public:
     {
         mxb_assert(m_sMain_result);
         return *m_sMain_result.get();
+    }
+
+    int64_t id() const
+    {
+        return m_sMain_result->id();
     }
 
     std::string_view sql() const

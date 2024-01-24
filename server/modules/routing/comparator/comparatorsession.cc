@@ -235,7 +235,7 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
     json_object_set_new(pJson, "query", json_stringn(sql.data(), sql.length()));
     json_object_set_new(pJson, "command", json_string(mariadb::cmd_to_string(main_result.command())));
     json_object_set_new(pJson, "session", json_integer(m_pSession->id()));
-    json_object_set_new(pJson, "query_id", json_integer(++m_num_queries));
+    json_object_set_new(pJson, "query_id", json_integer(main_result.id()));
 
     json_t* pMain = generate_json(main_result);
     json_t* pOther = generate_json(other_result);

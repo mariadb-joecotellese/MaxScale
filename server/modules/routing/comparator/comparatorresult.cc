@@ -8,6 +8,16 @@
 #include <vector>
 #include "comparatorbackend.hh"
 
+namespace
+{
+
+struct ThisUnit
+{
+    std::atomic<int64_t> id { 1 };
+} this_unit;
+
+}
+
 /**
  * ComparatorResult
  */
@@ -36,6 +46,7 @@ std::chrono::nanoseconds ComparatorResult::close(const mxs::Reply& reply)
  */
 ComparatorMainResult::ComparatorMainResult(ComparatorMainBackend* pBackend, const GWBUF& packet)
     : ComparatorResult(pBackend)
+    , m_id(this_unit.id++)
     , m_packet(packet.shallow_clone())
 {
 }
