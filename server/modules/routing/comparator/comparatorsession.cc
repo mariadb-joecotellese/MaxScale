@@ -156,9 +156,14 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
     std::chrono::nanoseconds delta = (main_duration * config.max_execution_time_difference) / 100;
     std::chrono::nanoseconds other_duration = other_result.duration();
 
-    auto report = config.report.get();
+    auto report_action = config.report.get();
+    bool report = false;
 
-    if (report != ReportAction::REPORT_ALWAYS)
+    if (report_action == ReportAction::REPORT_ALWAYS)
+    {
+        report = true;
+    }
+    else
     {
         std::string main_checksum = main_result.checksum().hex();
 
@@ -167,42 +172,47 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
 
         if (is_checksum_discrepancy(other_result, main_checksum))
         {
-            report = ReportAction::REPORT_ALWAYS;
+            report = true;
         }
         else if (is_execution_time_discrepancy(other_duration, min_duration, max_duration))
         {
-            report = ReportAction::REPORT_ALWAYS;
+            report = true;
         }
     }
 
     ComparatorOtherBackend::Action rv = ComparatorOtherBackend::CONTINUE;
 
-    if (other_result.is_explainable())
+    if (report && other_result.is_explainable())
     {
-        if (report == ReportAction::REPORT_ALWAYS)
+        if (report_action == ReportAction::REPORT_ALWAYS)
         {
             rv = ComparatorOtherBackend::EXPLAIN;
         }
-        else
+        else if (config.explain_difference != 0)
         {
-            if (config.explain_difference != 0)
-            {
-                delta = (main_duration * config.max_execution_time_difference) / 100;
+            delta = (main_duration * config.max_execution_time_difference) / 100;
 
-                if (other_duration > main_duration + delta)
-                {
-                    rv = ComparatorOtherBackend::EXPLAIN;
-                }
+            if (other_duration > main_duration + delta)
+            {
+                rv = ComparatorOtherBackend::EXPLAIN;
             }
         }
     }
 
-    if (report == ReportAction::REPORT_ALWAYS)
+    if (rv == ComparatorOtherBackend::EXPLAIN)
     {
-        if (rv != ComparatorOtherBackend::EXPLAIN)
+        auto hash = other_result.hash();
+        std::vector<int64_t> ids;
+
+        if (m_router.explain_registry().is_explained(hash, other_result.id(), &ids))
         {
-            generate_report(other_result);
+            generate_already_explained_report(other_result, ids);
+            rv = ComparatorOtherBackend::CONTINUE;
         }
+    }
+    else if (report)
+    {
+        generate_report(other_result);
     }
 
     return rv;
@@ -221,28 +231,40 @@ void ComparatorSession::ready(const ComparatorExplainResult& explain_result,
     }
     else
     {
-        generate_report(explain_result.other_result(), json);
+        generate_report_with_explain(explain_result, json);
     }
 }
 
-void ComparatorSession::generate_report(const ComparatorOtherResult& other_result,
-                                        std::string_view explain_json)
+void ComparatorSession::generate_report(const ComparatorOtherResult& other_result)
 {
-    const auto& main_result = other_result.main_result();
+    generate_report(other_result, nullptr, nullptr);
+}
 
-    json_t* pJson = json_object();
-    auto sql = main_result.sql();
-    json_object_set_new(pJson, "query", json_stringn(sql.data(), sql.length()));
-    json_object_set_new(pJson, "command", json_string(mariadb::cmd_to_string(main_result.command())));
-    json_object_set_new(pJson, "session", json_integer(m_pSession->id()));
-    json_object_set_new(pJson, "query_id", json_integer(main_result.id()));
+void ComparatorSession::generate_already_explained_report(const ComparatorOtherResult& result,
+                                                          const std::vector<int64_t>& ids)
+{
+    json_t* pExplain = json_array();
 
-    json_t* pMain = generate_json(main_result);
-    json_t* pOther = generate_json(other_result);
+    for (auto id : ids)
+    {
+        json_array_append_new(pExplain, json_integer(id));
+    }
+
+    generate_report(result, "explained_by", pExplain);
+}
+
+void ComparatorSession::generate_report_with_explain(const ComparatorExplainResult& result,
+                                                     std::string_view explain_json)
+{
+    const char* zExplain = nullptr;
+    json_t* pExplain = nullptr;
+
     if (!explain_json.empty())
     {
+        zExplain = "explain";
+
         json_error_t error;
-        json_t* pExplain = json_loadb(explain_json.data(), explain_json.length(), 0, &error);
+        pExplain = json_loadb(explain_json.data(), explain_json.length(), 0, &error);
 
         if (!pExplain)
         {
@@ -251,8 +273,31 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
 
             pExplain = json_stringn(explain_json.data(), explain_json.length());
         }
+    }
 
-        json_object_set_new(pOther, "explain", pExplain);
+    generate_report(result.other_result(), zExplain, pExplain);
+}
+
+void ComparatorSession::generate_report(const ComparatorOtherResult& other_result,
+                                        const char* zExplain,
+                                        json_t* pExplain)
+{
+    const auto& main_result = other_result.main_result();
+
+    json_t* pJson = json_object();
+    auto sql = main_result.sql();
+    json_object_set_new(pJson, "id", json_integer(main_result.id()));
+    json_object_set_new(pJson, "session", json_integer(m_pSession->id()));
+    json_object_set_new(pJson, "command", json_string(mariadb::cmd_to_string(main_result.command())));
+    json_object_set_new(pJson, "query", json_stringn(sql.data(), sql.length()));
+
+    json_t* pMain = generate_json(main_result);
+    json_t* pOther = generate_json(other_result);
+
+    if (zExplain)
+    {
+        mxb_assert(pExplain);
+        json_object_set_new(pOther, zExplain, pExplain);
     }
 
     json_t* pArr = json_array();

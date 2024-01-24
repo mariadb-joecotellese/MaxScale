@@ -7,6 +7,7 @@
 #include "comparatorresult.hh"
 #include <vector>
 #include "comparatorbackend.hh"
+#include "comparatorexplainregistry.hh"
 
 namespace
 {
@@ -79,6 +80,16 @@ std::string_view ComparatorMainResult::canonical() const
     }
 
     return m_canonical;
+}
+
+const std::string& ComparatorMainResult::hash() const
+{
+    if (m_hash.empty())
+    {
+        m_hash = ComparatorExplainRegistry::hash_for(canonical());
+    }
+
+    return m_hash;
 }
 
 std::chrono::nanoseconds ComparatorMainResult::close(const mxs::Reply& reply)

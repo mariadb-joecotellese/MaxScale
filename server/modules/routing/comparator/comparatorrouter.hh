@@ -13,6 +13,7 @@
 #include <maxscale/protocol/mariadb/module_names.hh>
 #include <maxscale/service.hh>
 #include "comparatorconfig.hh"
+#include "comparatorexplainregistry.hh"
 #include "comparatorexporter.hh"
 #include "comparatorstats.hh"
 
@@ -89,6 +90,11 @@ public:
 
     void collect(const ComparatorSessionStats& stats);
 
+    ComparatorExplainRegistry& explain_registry()
+    {
+        return m_explain_registry;
+    }
+
 private:
     void set_state(ComparatorState comparator_state,
                    SyncState sync_state = SyncState::NOT_APPLICABLE);
@@ -148,4 +154,5 @@ private:
     mutable std::shared_mutex               m_exporters_rwlock;
     Stats                                   m_stats;
     std::mutex                              m_stats_lock;
+    ComparatorExplainRegistry               m_explain_registry;
 };

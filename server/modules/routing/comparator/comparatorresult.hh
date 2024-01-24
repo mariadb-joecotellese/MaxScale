@@ -107,6 +107,8 @@ public:
 
     std::string_view canonical() const;
 
+    const std::string& hash() const;
+
     bool is_explainable() const
     {
         return !sql().empty();
@@ -138,6 +140,7 @@ private:
     mutable std::string_view         m_sql;
     mutable uint32_t                 m_command {0};
     mutable std::string_view         m_canonical;
+    mutable std::string              m_hash;
     std::set<ComparatorOtherResult*> m_dependents;
 };
 
@@ -182,6 +185,11 @@ public:
     std::string_view canonical() const
     {
         return m_sMain_result->canonical();
+    }
+
+    const std::string& hash() const
+    {
+        return m_sMain_result->hash();
     }
 
     bool is_explainable() const
