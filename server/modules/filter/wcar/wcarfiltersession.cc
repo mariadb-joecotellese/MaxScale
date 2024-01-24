@@ -31,8 +31,17 @@ WcarFilterSession::WcarFilterSession(MXS_SESSION* pSession, SERVICE* pService, c
 
         m_query_event.sCanonical = std::make_shared<std::string>("use " + maria_ses.current_db);
         m_query_event.session_id = m_pSession->id();
-        m_query_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
-        m_query_event.end_time = m_query_event.start_time;      // Hm...
+        m_query_event.flags = 0;
+
+        // start_time==end_time means closing-event, an artificial
+        // event needed in replay. This "real" event needs to
+        // have differing start and end times. TODO: might have to
+        // do something special since it certainly isn't going to take
+        // 1ns when this is actually executed in replay.
+        auto now = mxb::Clock::now(mxb::NowType::EPollTick);
+        m_query_event.start_time = now - 1ns;
+        m_query_event.end_time = now;
+
         pShared_data->send_update(m_query_event);
     }
 }
@@ -43,6 +52,7 @@ WcarFilterSession::~WcarFilterSession()
     // Non empty canonical to avoid checking, with a message for debug.
     closing_event.sCanonical = std::make_shared<std::string>("Close session");
     closing_event.session_id = m_pSession->id();
+    closing_event.flags = 0;
     closing_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
     closing_event.end_time = closing_event.start_time;
 
@@ -73,6 +83,7 @@ bool WcarFilterSession::routeQuery(GWBUF&& buffer)
     {
         m_query_event.session_id = m_pSession->id();
         m_query_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
+        m_query_event.flags = parser().get_type_mask(buffer);
     }
 
     return mxs::FilterSession::routeQuery(std::move(buffer));

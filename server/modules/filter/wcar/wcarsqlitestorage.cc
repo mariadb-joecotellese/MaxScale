@@ -23,7 +23,8 @@ static const char SQL_CREATE_EVENT_TBL[] =
     "create table event ("
     "event_id int primary key"
     ", can_id int references canonical(can_id)"
-    ", connection_id"
+    ", session_id int"
+    ", flags int"
     ", start_time int"
     ", end_time int"
     ")";
@@ -48,7 +49,7 @@ static auto CREATE_TABLES_SQL =
 };
 
 static const char SQL_CANONICAL_INSERT[] = "insert into canonical values(?, ?, ?)";
-static const char SQL_EVENT_INSERT[] = "insert into event values(?, ?, ?, ?, ?)";
+static const char SQL_EVENT_INSERT[] = "insert into event values(?, ?, ?, ?, ?, ?)";
 static const char SQL_CANONICAL_ARGUMENT_INSERT[] = "insert into argument values(?, ?, ?)";
 
 static const fs::path FILE_EXTENSION = "sqlite";
@@ -136,6 +137,7 @@ void SqliteStorage::insert_event(const QueryEvent& qevent, int64_t can_id)
     sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, qevent.event_id);
     sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, can_id);
     sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, qevent.session_id);
+    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, qevent.flags);
 
     static_assert(sizeof(mxb::Duration) == sizeof(int64_t));
 
@@ -262,7 +264,7 @@ Storage::Iterator SqliteStorage::begin()
         m_pEvent_read_stmt = nullptr;
     }
 
-    std::string event_query = "select event_id, can_id, connection_id, start_time, end_time from event ";
+    std::string event_query = "select event_id, can_id, session_id, flags, start_time, end_time from event ";
     if (m_sort_by_start_time)
     {
         event_query += "order by start_time";
@@ -364,7 +366,8 @@ QueryEvent SqliteStorage::next_event()
     int idx = -1;
     auto event_id = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
     auto can_id = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
-    auto connection_id = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
+    auto session_id = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
+    auto flags = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
     auto start_time_64 = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
     auto end_time_64 = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
 
@@ -376,7 +379,8 @@ QueryEvent SqliteStorage::next_event()
 
     return QueryEvent{make_shared<std::string>(std::move(canonical)),
                       std::move(can_args),
-                      connection_id,
+                      session_id,
+                      uint64_t(flags),
                       start_time,
                       end_time,
                       event_id};

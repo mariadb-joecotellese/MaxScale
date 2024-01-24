@@ -14,10 +14,12 @@ struct QueryEvent
 {
     /* shared_ptr at this level because every kind of storage benefits
      * from the shared_ptr for caching.
+     * The flags member has type_mask in lower 32 bits, upper 32 bits are for future use
      */
     std::shared_ptr<std::string> sCanonical;
     maxsimd::CanonicalArgs       canonical_args;
     int64_t                      session_id;
+    uint64_t                     flags;
     mxb::TimePoint               start_time;
     mxb::TimePoint               end_time;
     int64_t                      event_id = -1; // managed by storage

@@ -140,6 +140,8 @@ void BoostStorage::save_event(int64_t can_id, const QueryEvent& qevent)
 {
     (*m_sEvent_oa) & can_id;
     (*m_sEvent_oa) & qevent.event_id;
+    (*m_sEvent_oa) & qevent.session_id;
+    (*m_sEvent_oa) & qevent.flags;
 
     int nargs = qevent.canonical_args.size();
     (*m_sEvent_oa) & nargs;
@@ -148,7 +150,6 @@ void BoostStorage::save_event(int64_t can_id, const QueryEvent& qevent)
         (*m_sEvent_oa) & a.pos;
         (*m_sEvent_oa) & a.value;
     }
-    (*m_sEvent_oa) & qevent.session_id;
 
     mxb::Duration start_time_dur = qevent.start_time.time_since_epoch();
     mxb::Duration end_time_dur = qevent.end_time.time_since_epoch();
@@ -198,6 +199,8 @@ void BoostStorage::preload_more_events()
 
             (*m_sEvent_ia) & can_id;
             (*m_sEvent_ia) & qevent.event_id;
+            (*m_sEvent_ia) & qevent.session_id;
+            (*m_sEvent_ia) & qevent.flags;
 
             int nargs;
             (*m_sEvent_ia) & nargs;
@@ -209,8 +212,6 @@ void BoostStorage::preload_more_events()
                 (*m_sEvent_ia) & value;
                 qevent.canonical_args.emplace_back(pos, std::move(value));
             }
-
-            (*m_sEvent_ia) & qevent.session_id;
 
             int64_t start_time_int;
             int64_t end_time_int;
