@@ -81,6 +81,8 @@ bool ComparatorSession::routeQuery(GWBUF&& packet)
             sMain_result = m_sMain->prepare(packet);
         }
 
+        auto nMain_backlog = m_sMain->nBacklog();
+
         if (m_sMain->write(packet.shallow_clone(), type))
         {
             if (type == mxs::Backend::EXPECT_RESPONSE)
@@ -92,13 +94,42 @@ bool ComparatorSession::routeQuery(GWBUF&& packet)
             {
                 if (sOther->in_use())
                 {
-                    if (type != mxs::Backend::NO_RESPONSE)
+                    bool write_to_other = true;
+
+                    if (!sOther->extraordinary_in_process())
                     {
-                        mxb_assert(sMain_result);
-                        sOther->prepare(sMain_result);
+                        // Nothing funky in process.
+
+                        auto nOther_backlog = sOther->nBacklog();
+
+                        if (nMain_backlog - nOther_backlog > m_router.config().max_request_lag)
+                        {
+                            auto qi = parser().helper().get_query_info(packet);
+
+                            using P = mxs::Parser;
+                            const auto W = mxs::sql::TYPE_WRITE;
+
+                            if (qi.op == sql::OpCode::OP_SELECT            // A SELECT,
+                                && qi.query                                // a regular one (not a PS),
+                                && !P::type_mask_contains(qi.type_mask, W) // not FOR UPDATE, and
+                                && !qi.multi_part_packet)                  // not multi part.
+                            {
+                                // Ok, so a vanilla SELECT. Let's skip due to the lag.
+                                write_to_other = false;
+                            }
+                        }
                     }
 
-                    sOther->write(packet.shallow_clone(), type);
+                    if (write_to_other)
+                    {
+                        if (type != mxs::Backend::NO_RESPONSE)
+                        {
+                            mxb_assert(sMain_result);
+                            sOther->prepare(sMain_result);
+                        }
+
+                        sOther->write(packet.shallow_clone(), type);
+                    }
                 }
             }
 
