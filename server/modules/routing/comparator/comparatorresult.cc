@@ -82,9 +82,9 @@ std::string_view ComparatorMainResult::canonical() const
     return m_canonical;
 }
 
-const std::string& ComparatorMainResult::hash() const
+ComparatorResult::Hash ComparatorMainResult::hash() const
 {
-    if (m_hash.empty())
+    if (m_hash == 0)
     {
         m_hash = ComparatorExplainRegistry::hash_for(canonical());
     }

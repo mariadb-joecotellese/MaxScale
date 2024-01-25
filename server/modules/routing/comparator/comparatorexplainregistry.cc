@@ -6,20 +6,27 @@
 #include "comparatorexplainregistry.hh"
 #include <maxbase/checksum.hh>
 
+namespace
+{
+
+struct ThisUnit
+{
+    mxb::xxHasher hash;
+} this_unit;
+
+}
+
 ComparatorExplainRegistry::ComparatorExplainRegistry()
 {
 }
 
 //static
-std::string ComparatorExplainRegistry::hash_for(std::string_view canonical_sql)
+ComparatorExplainRegistry::Hash ComparatorExplainRegistry::hash_for(std::string_view canonical_sql)
 {
-    const uint8_t* p = reinterpret_cast<const uint8_t*>(canonical_sql.data());
-    size_t len = canonical_sql.length();
-
-    return mxb::checksum<mxb::xxHash>(p, len);
+    return this_unit.hash(canonical_sql);
 }
 
-bool ComparatorExplainRegistry::is_explained(const std::string& hash, int64_t id, Ids* pIds)
+bool ComparatorExplainRegistry::is_explained(Hash hash, int64_t id, Ids* pIds)
 {
     bool rv = false;
 

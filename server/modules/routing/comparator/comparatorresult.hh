@@ -22,6 +22,8 @@ class ComparatorOtherBackend;
 class ComparatorResult
 {
 public:
+    using Hash = ComparatorHash;
+
     ComparatorResult(const ComparatorResult&) = delete;
     ComparatorResult& operator=(const ComparatorResult&) = delete;
 
@@ -107,7 +109,7 @@ public:
 
     std::string_view canonical() const;
 
-    const std::string& hash() const;
+    Hash hash() const;
 
     bool is_explainable() const
     {
@@ -140,7 +142,7 @@ private:
     mutable std::string_view         m_sql;
     mutable uint32_t                 m_command {0};
     mutable std::string_view         m_canonical;
-    mutable std::string              m_hash;
+    mutable Hash                     m_hash {0};
     std::set<ComparatorOtherResult*> m_dependents;
 };
 
@@ -187,7 +189,7 @@ public:
         return m_sMain_result->canonical();
     }
 
-    const std::string& hash() const
+    Hash hash() const
     {
         return m_sMain_result->hash();
     }

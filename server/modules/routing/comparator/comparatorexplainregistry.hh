@@ -11,6 +11,7 @@
 class ComparatorExplainRegistry final
 {
 public:
+    using Hash = ComparatorHash;
     using Ids = std::vector<int64_t>;
 
     ComparatorExplainRegistry(const ComparatorExplainRegistry&) = delete;
@@ -43,7 +44,7 @@ public:
      *
      * @return The hash used when book-keeping that statement.
      */
-    static std::string hash_for(std::string_view canonical_sql);
+    static Hash hash_for(std::string_view canonical_sql);
 
     /**
      * Has an SQL statement identified using @c hash been explained.
@@ -59,10 +60,10 @@ public:
      *            queries that EXPLAINed it.
      *            False otherwise, in which case @c *pIds in untouched.
      */
-    bool is_explained(const std::string& hash, int64_t id, Ids* pIds);
+    bool is_explained(Hash hash, int64_t id, Ids* pIds);
 
 private:
-    using IdsByHash = std::unordered_map<std::string, Ids>;
+    using IdsByHash = std::unordered_map<Hash, Ids>;
 
     std::atomic<size_t>       m_nExplain_iterations { DEFAULT_EXPLAIN_ITERATIONS };
     mutable std::shared_mutex m_explained_lock;
