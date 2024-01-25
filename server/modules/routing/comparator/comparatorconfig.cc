@@ -80,6 +80,16 @@ config::ParamPercent max_execution_time_difference(
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max
     config::Param::AT_RUNTIME);
 
+config::ParamSize max_request_lag(
+    &specification,
+    "max_request_lag",
+    "How many requests an 'other' server may lag behind the 'main' server "
+    "before SELECTs are not sent to 'other' in order to reduce the lag.",
+    std::numeric_limits<config::ParamCount::value_type>::max(), // Default
+    0, // Min
+    std::numeric_limits<config::ParamCount::value_type>::max(), // Max,
+    config::Param::AT_RUNTIME);
+
 config::ParamEnum<ErrorAction> on_error(
     &specification, "on_error", "What to do when a non-main connection fails",
     {
@@ -128,6 +138,7 @@ ComparatorConfig::ComparatorConfig(const char* zName, ComparatorRouter* pInstanc
     add_native(&ComparatorConfig::explain_difference, &comparator::explain_difference);
     add_native(&ComparatorConfig::explain_iterations, &comparator::explain_iterations);
     add_native(&ComparatorConfig::comparison_kind, &comparator::comparison_kind);
+    add_native(&ComparatorConfig::max_request_lag, &comparator::max_request_lag);
 }
 
 bool ComparatorConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)

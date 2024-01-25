@@ -49,6 +49,7 @@ public:
     int64_t explain_difference;
     int64_t max_execution_time_difference;
     int64_t explain_iterations;
+    int64_t max_request_lag;
 
     SERVICE* pService;
 
