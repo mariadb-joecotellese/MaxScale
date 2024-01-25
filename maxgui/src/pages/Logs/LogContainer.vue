@@ -101,25 +101,21 @@ export default {
             latest_logs: state => state.maxscale.latest_logs,
             prev_log_link: state => state.maxscale.prev_log_link,
             prev_logs: state => state.maxscale.prev_logs,
-            log_date_range: state => state.maxscale.log_date_range,
+            log_filter: state => state.maxscale.log_filter,
         }),
-        ...mapGetters({ getChosenLogLevels: 'maxscale/getChosenLogLevels' }),
+        ...mapGetters({ logDateRangeTimestamp: 'maxscale/logDateRangeTimestamp' }),
+        priorities() {
+            return this.log_filter.priorities
+        },
     },
     watch: {
         prev_logs(val) {
             this.prevLogData = val
         },
-        getChosenLogLevels: {
+        log_filter: {
             deep: true,
             async handler(v) {
-                if (v.length) await this.handleFetchLogs()
-                else this.logs = []
-            },
-        },
-        log_date_range: {
-            deep: true,
-            async handler() {
-                await this.handleFetchLogs()
+                if (!this.$typy(v).isEmptyObject) await this.handleFetchLogs()
             },
         },
     },
@@ -158,7 +154,11 @@ export default {
             }
             this.isFetching = false
         },
-        async fetchAndPrependPrevLogs() {
+        /**
+         * @param {boolean} [param.loop] - if true, it loops the request until getting some logs in case
+         * prevLogData is an empty array.
+         */
+        async fetchAndPrependPrevLogs({ loop = false } = {}) {
             if (!this.prev_log_link) {
                 this.finished = true
                 return
@@ -171,7 +171,7 @@ export default {
                 this.prevLogData = [] // clear logs as it has been prepended to logs
             }
             // loop until getting some logs
-            else await this.fetchAndPrependPrevLogs()
+            else if (loop) await this.fetchAndPrependPrevLogs({ loop })
         },
         /**
          * This function opens websocket connection to get real-time logs
@@ -215,10 +215,9 @@ export default {
         async onTotop() {
             if (this.isFetching || this.finished) return
             this.isFetching = true
-            await this.fetchAndPrependPrevLogs()
+            await this.fetchAndPrependPrevLogs({ loop: true })
             this.isFetching = false
         },
-
         /* if scrolled position is at bottom position before new logs are appended,
          * scroll to bottom to see latest data. Otherwise, how notification button
          * (let user controls scroll to bottom)
@@ -253,12 +252,12 @@ export default {
         },
         /**
          * If the `timestamp` falls within the current date, the condition evaluates to true,
-         * even the `timestamp` is greater than log_date_range `to` value.
+         * even the `timestamp` is greater than logDateRangeTimestamp `to` value.
          * @param {number} timestamp unix timestamp in seconds
          * @returns {boolean}
          */
         isBetweenTimeRange(timestamp) {
-            const [from, to] = this.log_date_range
+            const [from, to] = this.logDateRangeTimestamp
             return timestamp >= from && (timestamp <= to || isToday(fromUnixTime(to)))
         },
         /**
@@ -266,10 +265,7 @@ export default {
          * @returns {boolean}
          */
         isMatchedFilter({ attributes: { priority, unix_timestamp } }) {
-            return (
-                this.isBetweenTimeRange(unix_timestamp) &&
-                this.getChosenLogLevels.includes(priority)
-            )
+            return this.isBetweenTimeRange(unix_timestamp) && this.priorities.includes(priority)
         },
         /**
          * @param {Array} ids - ids of new items to be prepended

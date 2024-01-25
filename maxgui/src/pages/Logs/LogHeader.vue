@@ -1,62 +1,49 @@
 <template>
-    <div class="d-flex flex-row align-center">
+    <div class="log-header d-flex flex-row align-center flex-wrap">
         <span class="mxs-color-helper text-grayed-out d-flex mr-2 align-self-end">
             {{ $mxs_t('logSource') }}: {{ log_source }}
         </span>
         <v-spacer />
-        <div class="mr-2">
-            <label class="field__label mxs-color-helper text-small-text d-block">
-                {{ $mxs_t('timeFrame') }}
-            </label>
-            <date-range-picker v-model="dateRange" :height="28" />
-        </div>
-        <mxs-filter-list v-model="hiddenLogLevels" :items="allLogLevels" :maxHeight="400">
-            <template v-slot:activator="{ data: { on, attrs } }">
-                <div v-bind="attrs" :style="{ width: '220px' }" v-on="on">
-                    <label class="field__label mxs-color-helper text-small-text d-block">
-                        {{ $mxs_t('logLevels') }}
-                    </label>
-                    <v-select
-                        :value="getChosenLogLevels"
-                        :items="MAXSCALE_LOG_LEVELS"
-                        outlined
-                        class="vuetify-input--override v-select--mariadb error--text__bottom"
-                        :menu-props="{
-                            contentClass: 'v-select--menu-mariadb',
-                            contentClass: 'v-select--menu-mariadb',
-                            bottom: true,
-                            offsetY: true,
-                        }"
-                        dense
-                        :height="28"
-                        attach
-                        hide-details
-                        readonly
-                        multiple
-                        :placeholder="$mxs_t('selectLogLevels')"
-                    >
-                        <template v-slot:prepend-inner>
-                            <v-icon size="16" class="mr-1 color--inherit">
-                                $vuetify.icons.mxs_filter
-                            </v-icon>
-                        </template>
-                        <template v-slot:selection="{ item, index }">
-                            <template v-if="index === 0">
-                                <span class="v-select__selection v-select__selection--comma">
-                                    {{ allLogLevelsChosen ? 'All' : item }}
-                                </span>
-                            </template>
-                            <span
-                                v-if="index === 1 && !allLogLevelsChosen"
-                                class="v-select__selection v-select__selection--comma mxs-color-helper text-caption text-grayed-out "
-                            >
-                                (+{{ getChosenLogLevels.length - 1 }} {{ $mxs_t('others') }})
-                            </span>
-                        </template>
-                    </v-select>
-                </div>
-            </template>
-        </mxs-filter-list>
+
+        <template v-for="item in filterAttrs">
+            <date-range-picker
+                v-if="item.key === 'date_range'"
+                :key="item.key"
+                v-model="item.value"
+                v-bind="item.props"
+            />
+            <v-text-field
+                v-else-if="item.key === 'session_id'"
+                :key="item.key"
+                v-model="item.value"
+                class="vuetify-input--override mr-2"
+                outlined
+                dense
+                :placeholder="$mxs_t('filterBySessionId')"
+                hide-details
+                v-bind="item.props"
+            />
+            <mxs-filter-list
+                v-else
+                :key="item.key"
+                v-model="item.value"
+                activatorClass="mr-2 font-weight-regular"
+                changeColorOnActive
+                :activatorProps="filterActivatorBtnProps"
+                v-bind="item.props"
+            />
+        </template>
+
+        <v-btn
+            small
+            class="ml-2 text-capitalize font-weight-medium"
+            outlined
+            depressed
+            color="primary"
+            @click="applyFilter"
+        >
+            {{ $mxs_t('filter') }}
+        </v-btn>
     </div>
 </template>
 
@@ -74,45 +61,89 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
-import { mapMutations, mapState, mapGetters } from 'vuex'
+import { mapMutations, mapState, mapActions } from 'vuex'
 export default {
     name: 'log-header',
+    data() {
+        return {
+            allModuleIds: [],
+            filterAttrs: [],
+        }
+    },
     computed: {
         ...mapState({
             MAXSCALE_LOG_LEVELS: state => state.app_config.MAXSCALE_LOG_LEVELS,
+            MXS_OBJ_TYPES: state => state.app_config.MXS_OBJ_TYPES,
             log_source: state => state.maxscale.log_source,
-            hidden_log_levels: state => state.maxscale.hidden_log_levels,
-            log_date_range: state => state.maxscale.log_date_range,
+            all_obj_ids: state => state.maxscale.all_obj_ids,
         }),
-        ...mapGetters({ getChosenLogLevels: 'maxscale/getChosenLogLevels' }),
-        allLogLevels() {
-            return this.MAXSCALE_LOG_LEVELS
-        },
-        hiddenLogLevels: {
-            get() {
-                return this.hidden_log_levels
-            },
-            set(v) {
-                this.SET_HIDDEN_LOG_LEVELS(v)
-            },
-        },
-        dateRange: {
-            get() {
-                return this.log_date_range
-            },
-            set(v) {
-                this.SET_LOG_DATE_RANGE(v)
-            },
-        },
-        allLogLevelsChosen() {
-            return this.getChosenLogLevels.length === this.MAXSCALE_LOG_LEVELS.length
+        filterActivatorBtnProps() {
+            return { small: true, outlined: true, color: 'primary' }
         },
     },
+    async created() {
+        await this.init()
+    },
     methods: {
-        ...mapMutations({
-            SET_HIDDEN_LOG_LEVELS: 'maxscale/SET_HIDDEN_LOG_LEVELS',
-            SET_LOG_DATE_RANGE: 'maxscale/SET_LOG_DATE_RANGE',
-        }),
+        ...mapMutations({ SET_LOG_FILTER: 'maxscale/SET_LOG_FILTER' }),
+        ...mapActions({ fetchAllMxsObjIds: 'maxscale/fetchAllMxsObjIds' }),
+        async init() {
+            await this.fetchAllMxsObjIds()
+            await this.fetchModuleIds()
+            this.filterAttrs = [
+                {
+                    key: 'session_id',
+                    value: '',
+                    props: { height: 28 },
+                },
+                {
+                    key: 'obj_ids',
+                    value: [],
+                    props: {
+                        items: this.all_obj_ids,
+                        label: this.$mxs_tc('objects', 2),
+                        maxHeight: 500,
+                    },
+                },
+                {
+                    key: 'module_ids',
+                    value: [],
+                    props: {
+                        items: this.allModuleIds,
+                        label: this.$mxs_tc('module', 2),
+                        maxHeight: 500,
+                    },
+                },
+                {
+                    key: 'priorities',
+                    value: [],
+                    props: {
+                        items: this.MAXSCALE_LOG_LEVELS,
+                        label: this.$mxs_t('priorities'),
+                        hideSelectAll: true,
+                        hideSearch: true,
+                    },
+                },
+                {
+                    key: 'date_range',
+                    value: [],
+                    props: { height: 28 },
+                },
+            ]
+        },
+        async fetchModuleIds() {
+            const { $helpers, $http } = this
+            // use an uid to ensure the result includes only ids
+            const [, res] = await $helpers.to(
+                $http.get(`/maxscale/modules?load=all&fields[modules]=${$helpers.uuidv1()}`)
+            )
+            this.allModuleIds = res.data.data.map(item => item.id)
+        },
+        applyFilter() {
+            this.SET_LOG_FILTER(
+                this.filterAttrs.reduce((res, item) => ((res[item.key] = item.value), res), {})
+            )
+        },
     },
 }
 </script>

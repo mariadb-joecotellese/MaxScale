@@ -11,8 +11,9 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
-import { APP_CONFIG } from '@rootSrc/utils/constants'
+import { TIME_REF_POINTS } from '@rootSrc/utils/constants'
 import { t } from 'typy'
+import { parseDateStr } from '@rootSrc/utils/helpers'
 
 const PAGE_CURSOR_REG = /page\[cursor\]=([^&]+)/
 function getPageCursorParam(url) {
@@ -34,8 +35,13 @@ export default {
         prev_log_link: null,
         prev_logs: [],
         log_source: null,
-        hidden_log_levels: [],
-        log_date_range: [],
+        log_filter: {
+            session_id: '',
+            obj_ids: [],
+            module_ids: [],
+            priorities: [],
+            date_range: [TIME_REF_POINTS.START_OF_TODAY, TIME_REF_POINTS.NOW],
+        },
     },
     mutations: {
         SET_ALL_OBJ_IDS(state, payload) {
@@ -74,11 +80,8 @@ export default {
         SET_PREV_LOGS(state, payload) {
             state.prev_logs = payload
         },
-        SET_HIDDEN_LOG_LEVELS(state, payload) {
-            state.hidden_log_levels = payload
-        },
-        SET_LOG_DATE_RANGE(state, payload) {
-            state.log_date_range = payload
+        SET_LOG_FILTER(state, payload) {
+            state.log_filter = payload
         },
     },
     actions: {
@@ -273,16 +276,22 @@ export default {
                     return []
             }
         },
-        getChosenLogLevels: state =>
-            APP_CONFIG.MAXSCALE_LOG_LEVELS.filter(type => !state.hidden_log_levels.includes(type)),
-        logPriorityParam: (state, getters) => `priority=${getters.getChosenLogLevels.join(',')}`,
-        logDateRangeParam: state => {
-            const [from, to] = state.log_date_range
+        logPriorityParam: state =>
+            state.log_filter.priorities.length
+                ? `priority=${state.log_filter.priorities.join(',')}`
+                : '',
+        logDateRangeTimestamp: state =>
+            state.log_filter.date_range.map(v => parseDateStr({ v, toTimestamp: true })),
+        logDateRangeParam: (state, getters) => {
+            const [from, to] = getters.logDateRangeTimestamp
             if (from && to) return `filter=attributes/unix_timestamp=and(ge(${from}),le(${to}))`
             return ''
         },
-        logsParams: ({ logs_page_size }, { logPriorityParam, logDateRangeParam }) =>
-            `page[size]=${logs_page_size}&${logPriorityParam}&${logDateRangeParam}`,
+        logsParams: ({ logs_page_size }, { logPriorityParam, logDateRangeParam }) => {
+            let params = [`page[size]=${logs_page_size}`, logDateRangeParam]
+            if (logPriorityParam) params.push(logPriorityParam)
+            return params.join('&')
+        },
         prevPageCursorParam: state => getPageCursorParam(decodeURIComponent(state.prev_log_link)),
         prevLogsParams: (state, getters) => `${getters.prevPageCursorParam}&${getters.logsParams}`,
     },
