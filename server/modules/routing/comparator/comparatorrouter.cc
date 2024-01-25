@@ -155,6 +155,8 @@ bool ComparatorRouter::post_configure()
         rv = update_exporters();
     }
 
+    m_explain_registry.set_explain_iterations(m_config.explain_iterations);
+
     return rv;
 }
 

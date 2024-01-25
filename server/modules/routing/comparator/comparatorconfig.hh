@@ -28,6 +28,8 @@ enum class ComparisonKind
     READ_WRITE
 };
 
+const int64_t DEFAULT_EXPLAIN_ITERATIONS = 2;
+
 class ComparatorRouter;
 
 class ComparatorConfig : public mxs::config::Configuration
@@ -46,6 +48,7 @@ public:
 
     int64_t explain_difference;
     int64_t max_execution_time_difference;
+    int64_t explain_iterations;
 
     SERVICE* pService;
 

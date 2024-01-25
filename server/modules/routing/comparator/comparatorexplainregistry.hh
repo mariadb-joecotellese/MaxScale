@@ -6,12 +6,11 @@
 #include "comparatordefs.hh"
 #include <shared_mutex>
 #include <unordered_map>
+#include "comparatorconfig.hh"
 
 class ComparatorExplainRegistry final
 {
 public:
-    static const int DEFAULT_EXPLANATIONS = 5;
-
     using Ids = std::vector<int64_t>;
 
     ComparatorExplainRegistry(const ComparatorExplainRegistry&) = delete;
@@ -23,20 +22,20 @@ public:
     /**
      * Specify how many times a statement should be explained.
      *
-     * @param nExplanations  The number of times a particular kind
-     *                       of statement should be explained.
+     * @param nExplain_iterations  The number of times a particular kind
+     *                             of statement should be explained.
      */
-    void set_required_explanations(size_t nExplanations)
+    void set_explain_iterations(size_t nExplain_iterations)
     {
-        m_nExplanations = nExplanations;
+        m_nExplain_iterations = nExplain_iterations;
     }
 
     /**
      * @return The number of times a problematic statement should be explained.
      */
-    size_t required_explanations() const
+    size_t explain_iterations() const
     {
-        return m_nExplanations;
+        return m_nExplain_iterations;
     }
 
     /**
@@ -65,7 +64,7 @@ public:
 private:
     using IdsByHash = std::unordered_map<std::string, Ids>;
 
-    std::atomic<size_t>       m_nExplanations { DEFAULT_EXPLANATIONS };
+    std::atomic<size_t>       m_nExplain_iterations { DEFAULT_EXPLAIN_ITERATIONS };
     mutable std::shared_mutex m_explained_lock;
     mutable IdsByHash         m_explained;
 };

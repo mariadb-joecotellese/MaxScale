@@ -59,6 +59,15 @@ config::ParamPercent explain_difference(
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max
     config::Param::AT_RUNTIME);
 
+config::ParamSize explain_iterations(
+    &specification,
+    "explain_iterations",
+    "In case a statement is reported, on how many occurrences should EXPLAIN be executed.",
+    DEFAULT_EXPLAIN_ITERATIONS, // Default
+    0, // Min
+    std::numeric_limits<config::ParamCount::value_type>::max(), // Max
+    config::Param::AT_RUNTIME);
+
 config::ParamTarget main(
     &specification, "main", "Server from which responses are returned",
     config::Param::Kind::MANDATORY, config::Param::AT_RUNTIME);
@@ -117,6 +126,7 @@ ComparatorConfig::ComparatorConfig(const char* zName, ComparatorRouter* pInstanc
 
     add_native(&ComparatorConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
     add_native(&ComparatorConfig::explain_difference, &comparator::explain_difference);
+    add_native(&ComparatorConfig::explain_iterations, &comparator::explain_iterations);
     add_native(&ComparatorConfig::comparison_kind, &comparator::comparison_kind);
 }
 
