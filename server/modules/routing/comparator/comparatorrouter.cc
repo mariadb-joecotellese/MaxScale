@@ -29,6 +29,11 @@ ComparatorRouter::ComparatorRouter(SERVICE* pService)
 {
 }
 
+ComparatorRouter::~ComparatorRouter()
+{
+    summary(Summary::SAVE, nullptr);
+}
+
 // static
 const char* ComparatorRouter::to_string(ComparatorState comparator_state)
 {
@@ -137,6 +142,7 @@ bool ComparatorRouter::post_configure()
 {
     bool rv= true;
 
+    m_service_name = m_config.pService->name();
     m_stats.post_configure(m_config);
 
     for (const mxs::Target* pTarget : m_service.get_children())
@@ -289,7 +295,7 @@ bool ComparatorRouter::summary(Summary summary, json_t** ppOutput)
     path += "/";
     path += MXB_MODULE_NAME;
     path += "/";
-    path += m_config.pService->name();
+    path += m_service_name;
     path += "/summary_";
 
     time_t now = time(nullptr);

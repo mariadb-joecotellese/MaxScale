@@ -46,7 +46,7 @@ public:
     ComparatorRouter(const ComparatorRouter&) = delete;
     ComparatorRouter& operator=(const ComparatorRouter&) = delete;
 
-    ~ComparatorRouter() = default;
+    ~ComparatorRouter();
     static ComparatorRouter*  create(SERVICE* pService);
     mxs::RouterSession* newSession(MXS_SESSION* pSession, const mxs::Endpoints& endpoints) override;
     json_t*             diagnostics() const override;
@@ -145,6 +145,7 @@ private:
 
     using SExporter = std::shared_ptr<ComparatorExporter>;
 
+    std::string                             m_service_name;
     ComparatorState                         m_comparator_state { ComparatorState::PREPARED };
     SyncState                               m_sync_state { SyncState::NOT_APPLICABLE };
     ComparatorConfig                        m_config;
