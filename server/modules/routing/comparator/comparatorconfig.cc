@@ -104,7 +104,7 @@ config::ParamEnum<ReportAction> report(
         {ReportAction::REPORT_ALWAYS, "always"},
         {ReportAction::REPORT_ON_DISCREPANCY, "on_discrepancy"},
             },
-    ReportAction::REPORT_ALWAYS, config::Param::AT_RUNTIME);
+    ReportAction::REPORT_ON_DISCREPANCY, config::Param::AT_RUNTIME);
 
 config::ParamService service(
     &specification, "service", "The service the Comparator service is installed for",

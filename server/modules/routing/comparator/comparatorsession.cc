@@ -15,14 +15,14 @@ using std::unique_ptr;
 namespace
 {
 
-bool is_checksum_discrepancy(const ComparatorResult& result, const std::string& main_checksum)
+inline bool is_checksum_discrepancy(const ComparatorResult& result, mxb::CRC32 main_checksum)
 {
-    return result.checksum().hex() != main_checksum;
+    return result.checksum() != main_checksum;
 }
 
-bool is_execution_time_discrepancy(const std::chrono::nanoseconds& duration,
-                                   const std::chrono::nanoseconds& min,
-                                   const std::chrono::nanoseconds& max)
+inline bool is_execution_time_discrepancy(const std::chrono::nanoseconds& duration,
+                                          const std::chrono::nanoseconds& min,
+                                          const std::chrono::nanoseconds& max)
 {
     return duration < min || duration > max;
 }
@@ -197,18 +197,19 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
     }
     else
     {
-        std::string main_checksum = main_result.checksum().hex();
-
-        std::chrono::nanoseconds min_duration = main_duration - delta;
-        std::chrono::nanoseconds max_duration = main_duration + delta;
-
-        if (is_checksum_discrepancy(other_result, main_checksum))
+        if (is_checksum_discrepancy(other_result, main_result.checksum()))
         {
             report = true;
         }
-        else if (is_execution_time_discrepancy(other_duration, min_duration, max_duration))
+        else
         {
-            report = true;
+            std::chrono::nanoseconds min_duration = main_duration - delta;
+            std::chrono::nanoseconds max_duration = main_duration + delta;
+
+            if (is_execution_time_discrepancy(other_duration, min_duration, max_duration))
+            {
+                report = true;
+            }
         }
     }
 
