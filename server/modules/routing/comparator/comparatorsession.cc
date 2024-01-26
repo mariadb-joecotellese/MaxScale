@@ -115,6 +115,7 @@ bool ComparatorSession::routeQuery(GWBUF&& packet)
                                 && !qi.multi_part_packet)                  // not multi part.
                             {
                                 // Ok, so a vanilla SELECT. Let's skip due to the lag.
+                                sOther->bump_requests_skipped();
                                 write_to_other = false;
                             }
                         }

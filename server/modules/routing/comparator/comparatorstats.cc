@@ -50,6 +50,7 @@ json_t* ComparatorOtherStats::to_json() const
 
     json_t* pData = json_object();
     fill_json(pData);
+    json_object_set_new(pData, "requests_skipped", json_integer(this->nRequests_skipped));
 
     json_t* pExplain = json_object();
 

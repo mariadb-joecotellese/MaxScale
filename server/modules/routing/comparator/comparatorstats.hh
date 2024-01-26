@@ -54,6 +54,7 @@ struct ComparatorOtherStats final : ComparatorStats
     std::chrono::nanoseconds explain_duration { 0 };
     int64_t                  nExplain_requests { 0 };
     int64_t                  nExplain_responses { 0 };
+    int64_t                  nRequests_skipped { 0 };
     int64_t                  nFaster { 0 };
     int64_t                  nSlower { 0 };
 
@@ -64,6 +65,7 @@ struct ComparatorOtherStats final : ComparatorStats
         this->explain_duration += rhs.explain_duration;
         this->nExplain_requests += rhs.nExplain_requests;
         this->nExplain_responses += rhs.nExplain_responses;
+        this->nRequests_skipped += rhs.nRequests_skipped;
         this->nFaster += rhs.nFaster;
         this->nSlower += rhs.nSlower;
 

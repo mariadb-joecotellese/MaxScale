@@ -210,6 +210,11 @@ public:
     {
     }
 
+    void bump_requests_skipped()
+    {
+        ++m_stats.nRequests_skipped;
+    }
+
     void set_result_handler(Handler* pHandler)
     {
         m_pHandler = pHandler;
