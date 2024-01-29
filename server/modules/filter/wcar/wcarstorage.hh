@@ -22,7 +22,7 @@ struct QueryEvent
     uint64_t                     flags;
     mxb::TimePoint               start_time;
     mxb::TimePoint               end_time;
-    int64_t                      event_id = -1; // managed by storage
+    int64_t                      event_id;
 };
 
 /** Abstract Storage for QueryEvents.
@@ -79,12 +79,10 @@ public:
 
 protected:
     int64_t            next_can_id();
-    int64_t            next_event_id();
     virtual QueryEvent next_event() = 0;
 
 private:
     int64_t m_can_id_generator{0};
-    int64_t m_event_id_generator{0};
 };
 
 inline void Storage::move_values_from(Storage& other)
@@ -98,11 +96,6 @@ inline void Storage::move_values_from(Storage& other)
 inline int64_t Storage::next_can_id()
 {
     return ++m_can_id_generator;
-}
-
-inline int64_t Storage::next_event_id()
-{
-    return ++m_event_id_generator;
 }
 
 inline Storage::Iterator::Iterator(Storage* pStorage, QueryEvent&& event)

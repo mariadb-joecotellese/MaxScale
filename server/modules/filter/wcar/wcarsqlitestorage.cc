@@ -231,11 +231,6 @@ void SqliteStorage::add_query_event(QueryEvent&& qevent)
         insert_canonical(hash, can_id, *qevent.sCanonical);
     }
 
-    if (qevent.event_id == -1)
-    {
-        qevent.event_id = next_event_id();
-    }
-
     insert_event(qevent, can_id);
 
     if (!qevent.canonical_args.empty())

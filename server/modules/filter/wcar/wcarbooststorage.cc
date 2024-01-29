@@ -83,7 +83,6 @@ void BoostStorage::add_query_event(QueryEvent&& qevent)
         m_canonicals.emplace(hash, CanonicalEntry {can_id, qevent.sCanonical});
     }
 
-    qevent.event_id = next_event_id();
     save_event(can_id, qevent);
 }
 

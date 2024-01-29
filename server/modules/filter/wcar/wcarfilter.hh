@@ -50,6 +50,8 @@ public:
         return *m_sRecorder;
     }
 
+    int64_t get_next_event_id() const;
+
 private:
     WcarFilter(const std::string& name);
     bool post_configure();
@@ -59,4 +61,5 @@ private:
     WcarConfig                    m_config;
     std::unique_ptr<Storage>      m_sStorage;
     std::unique_ptr<WcarRecorder> m_sRecorder;
+    mutable std::atomic<int64_t>  m_event_id{1};
 };

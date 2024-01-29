@@ -41,6 +41,7 @@ WcarFilterSession::WcarFilterSession(MXS_SESSION* pSession, SERVICE* pService, c
         auto now = mxb::Clock::now(mxb::NowType::EPollTick);
         m_query_event.start_time = now - 1ns;
         m_query_event.end_time = now;
+        m_query_event.event_id = m_filter.get_next_event_id();
 
         pShared_data->send_update(m_query_event);
     }
@@ -55,6 +56,7 @@ WcarFilterSession::~WcarFilterSession()
     closing_event.flags = 0;
     closing_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
     closing_event.end_time = closing_event.start_time;
+    closing_event.event_id = m_filter.get_next_event_id();
 
     auto* pWorker = mxs::RoutingWorker::get_current();
     auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
@@ -98,6 +100,7 @@ bool WcarFilterSession::clientReply(GWBUF&& buffer,
         auto* pWorker = mxs::RoutingWorker::get_current();
         auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
         m_query_event.end_time = mxb::Clock::now(mxb::NowType::EPollTick);
+        m_query_event.event_id = m_filter.get_next_event_id();
         pShared_data->send_update(m_query_event);
     }
 

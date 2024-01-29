@@ -31,7 +31,6 @@ void InmemoryStorage::add_query_event(QueryEvent&& qevent)
         m_canonicals.emplace(hash, qevent.sCanonical);
     }
 
-    qevent.event_id = next_event_id();
     m_events.emplace_back(std::move(qevent));
 }
 

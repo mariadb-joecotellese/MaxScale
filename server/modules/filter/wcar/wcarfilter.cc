@@ -83,3 +83,8 @@ json_t* WcarFilter::diagnostics() const
 {
     return m_config.to_json();
 }
+
+int64_t WcarFilter::get_next_event_id() const
+{
+    return m_event_id.fetch_add(1, std::memory_order_relaxed);
+}
