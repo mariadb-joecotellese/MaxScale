@@ -3,8 +3,8 @@ add_library(comparator SHARED
   comparatorbackend.cc
   comparatorcommands.cc
   comparatorconfig.cc
-  comparatorexplainregistry.cc
   comparatorexporter.cc
+  comparatorregistry.cc
   comparatorresult.cc
   comparatorrouter.cc
   comparatorsession.cc

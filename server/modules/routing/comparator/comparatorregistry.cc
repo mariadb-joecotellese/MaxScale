@@ -3,7 +3,7 @@
  *
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
-#include "comparatorexplainregistry.hh"
+#include "comparatorregistry.hh"
 #include <maxbase/checksum.hh>
 
 namespace
@@ -16,17 +16,17 @@ struct ThisUnit
 
 }
 
-ComparatorExplainRegistry::ComparatorExplainRegistry()
+ComparatorRegistry::ComparatorRegistry()
 {
 }
 
 //static
-ComparatorExplainRegistry::Hash ComparatorExplainRegistry::hash_for(std::string_view canonical_sql)
+ComparatorRegistry::Hash ComparatorRegistry::hash_for(std::string_view canonical_sql)
 {
     return this_unit.hash(canonical_sql);
 }
 
-bool ComparatorExplainRegistry::is_explained(Hash hash, int64_t id, Ids* pIds)
+bool ComparatorRegistry::is_explained(Hash hash, int64_t id, Ids* pIds)
 {
     bool rv = false;
 

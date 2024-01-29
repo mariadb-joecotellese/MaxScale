@@ -8,17 +8,17 @@
 #include <unordered_map>
 #include "comparatorconfig.hh"
 
-class ComparatorExplainRegistry final
+class ComparatorRegistry final
 {
 public:
     using Hash = ComparatorHash;
     using Ids = std::vector<int64_t>;
 
-    ComparatorExplainRegistry(const ComparatorExplainRegistry&) = delete;
-    ComparatorExplainRegistry& operator=(const ComparatorExplainRegistry&);
+    ComparatorRegistry(const ComparatorRegistry&) = delete;
+    ComparatorRegistry& operator=(const ComparatorRegistry&);
 
-    ComparatorExplainRegistry();
-    ~ComparatorExplainRegistry() = default;
+    ComparatorRegistry();
+    ~ComparatorRegistry() = default;
 
     /**
      * Specify how many times a statement should be explained.

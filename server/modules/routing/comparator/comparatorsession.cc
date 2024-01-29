@@ -237,7 +237,7 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
         auto hash = other_result.hash();
         std::vector<int64_t> ids;
 
-        if (m_router.explain_registry().is_explained(hash, other_result.id(), &ids))
+        if (m_router.registry().is_explained(hash, other_result.id(), &ids))
         {
             generate_already_explained_report(other_result, ids);
             rv = ComparatorOtherBackend::CONTINUE;

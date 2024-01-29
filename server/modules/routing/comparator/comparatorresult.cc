@@ -7,7 +7,7 @@
 #include "comparatorresult.hh"
 #include <vector>
 #include "comparatorbackend.hh"
-#include "comparatorexplainregistry.hh"
+#include "comparatorregistry.hh"
 
 namespace
 {
@@ -86,7 +86,7 @@ ComparatorResult::Hash ComparatorMainResult::hash() const
 {
     if (m_hash == 0)
     {
-        m_hash = ComparatorExplainRegistry::hash_for(canonical());
+        m_hash = ComparatorRegistry::hash_for(canonical());
     }
 
     return m_hash;
