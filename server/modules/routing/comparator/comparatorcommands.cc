@@ -148,10 +148,10 @@ Service* create_comparator_service(const string& name,
     json_object_set_new(pAttributes, CN_PARAMETERS, pParameters);
 
     json_t* pServers_data = json_array();
-    for (const string& server : { main.name(), other.name() })
+    for (const char* zName : { main.name(), other.name() })
     {
         json_t* pServer_data = json_object();
-        json_object_set_new(pServer_data, CN_ID, json_string(server.c_str()));
+        json_object_set_new(pServer_data, CN_ID, json_string(zName));
         json_object_set_new(pServer_data, CN_TYPE, json_string(CN_SERVERS));
 
         json_array_append_new(pServers_data, pServer_data);
