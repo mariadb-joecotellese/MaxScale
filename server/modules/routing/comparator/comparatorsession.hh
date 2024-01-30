@@ -46,6 +46,9 @@ private:
                std::string_view json) override;
 
 private:
+    bool should_report(const ComparatorOtherResult& result) const;
+    bool should_explain(const ComparatorOtherResult& result) const;
+
     void generate_report(const ComparatorOtherResult& result);
     void generate_already_explained_report(const ComparatorOtherResult& result,
                                            const std::vector<int64_t>& ids);
