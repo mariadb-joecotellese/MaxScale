@@ -26,17 +26,35 @@ public:
      * @param nExplain_iterations  The number of times a particular kind
      *                             of statement should be explained.
      */
-    void set_explain_iterations(size_t nExplain_iterations)
+    void set_max_entries(size_t nMax_entries)
     {
-        m_nExplain_iterations = nExplain_iterations;
+        m_nMax_entries = nMax_entries;
     }
 
     /**
      * @return The number of times a problematic statement should be explained.
      */
-    size_t explain_iterations() const
+    size_t max_entries() const
     {
-        return m_nExplain_iterations;
+        return m_nMax_entries;
+    }
+
+    /**
+     * Specify the period over which max entries is applied.
+     *
+     * @param period The period.
+     */
+    void set_period(std::chrono::milliseconds period)
+    {
+        m_period = period;
+    }
+
+    /**
+     * @return The current period.
+     */
+    std::chrono::milliseconds period() const
+    {
+        return m_period;
     }
 
     /**
@@ -65,7 +83,8 @@ public:
 private:
     using IdsByHash = std::unordered_map<Hash, Ids>;
 
-    std::atomic<size_t>       m_nExplain_iterations { DEFAULT_EXPLAIN_ITERATIONS };
+    std::atomic<size_t>       m_nMax_entries { DEFAULT_ENTRIES };
     mutable std::shared_mutex m_explained_lock;
     mutable IdsByHash         m_explained;
+    std::chrono::milliseconds m_period { 0 };
 };

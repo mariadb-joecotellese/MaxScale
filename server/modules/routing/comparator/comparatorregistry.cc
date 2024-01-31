@@ -30,7 +30,7 @@ bool ComparatorRegistry::is_explained(Hash hash, int64_t id, Ids* pIds)
 {
     bool rv = false;
 
-    size_t nExplain_iterations = 0;
+    size_t nMax_entries = 0;
 
     std::shared_lock shared_lock(m_explained_lock);
 
@@ -38,9 +38,9 @@ bool ComparatorRegistry::is_explained(Hash hash, int64_t id, Ids* pIds)
 
     if (it != m_explained.end())
     {
-        nExplain_iterations = it->second.size();
+        nMax_entries = it->second.size();
 
-        if (nExplain_iterations >= m_nExplain_iterations)
+        if (nMax_entries >= m_nMax_entries)
         {
             *pIds = it->second;
             rv = true;
@@ -62,14 +62,14 @@ bool ComparatorRegistry::is_explained(Hash hash, int64_t id, Ids* pIds)
         if (it == m_explained.end())
         {
             Ids& ids = m_explained[hash];
-            ids.reserve(m_nExplain_iterations);
+            ids.reserve(m_nMax_entries);
             ids.push_back(id);
         }
         else
         {
-            nExplain_iterations = it->second.size();
+            nMax_entries = it->second.size();
 
-            if (nExplain_iterations >= m_nExplain_iterations)
+            if (nMax_entries >= m_nMax_entries)
             {
                 *pIds = it->second;
                 rv = true;
@@ -85,7 +85,7 @@ bool ComparatorRegistry::is_explained(Hash hash, int64_t id, Ids* pIds)
                 // of effect.
                 it->second.push_back(id);
 
-                if (nExplain_iterations + 1 == m_nExplain_iterations)
+                if (nMax_entries + 1 == m_nMax_entries)
                 {
                     // Final EXPLAIN, ensure the vector is exactly sized.
                     it->second.shrink_to_fit();

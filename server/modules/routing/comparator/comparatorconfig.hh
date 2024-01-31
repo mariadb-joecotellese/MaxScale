@@ -28,7 +28,7 @@ enum class ComparisonKind
     READ_WRITE
 };
 
-const int64_t DEFAULT_EXPLAIN_ITERATIONS = 2;
+const int64_t DEFAULT_ENTRIES = 2;
 
 class ComparatorRouter;
 
@@ -46,9 +46,11 @@ public:
     mxs::config::Enum<ErrorAction>  on_error;
     mxs::config::Enum<ReportAction> report;
 
-    int64_t max_execution_time_difference;
-    int64_t explain_iterations;
-    int64_t max_request_lag;
+    int64_t                   max_execution_time_difference;
+    int64_t                   entries;
+    std::chrono::milliseconds period;
+
+    int64_t                   max_request_lag;
 
     SERVICE* pService;
 
