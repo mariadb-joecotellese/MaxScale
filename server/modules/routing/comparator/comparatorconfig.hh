@@ -10,16 +10,16 @@
 #include <maxscale/ccdefs.hh>
 #include <maxscale/config2.hh>
 
-enum class ErrorAction
+enum class OnError
 {
-    ERRACT_IGNORE,
-    ERRACT_CLOSE,
+    IGNORE,
+    CLOSE,
 };
 
-enum class ReportAction
+enum class Report
 {
-    REPORT_ALWAYS,
-    REPORT_ON_DISCREPANCY,
+    ALWAYS,
+    ON_DISCREPANCY,
 };
 
 enum class ComparisonKind
@@ -28,7 +28,13 @@ enum class ComparisonKind
     READ_WRITE
 };
 
-const int64_t DEFAULT_ENTRIES = 2;
+constexpr const ComparisonKind            DEFAULT_COMPARISON_KIND { ComparisonKind::READ_WRITE };
+constexpr const int64_t                   DEFAULT_ENTRIES { 2 };
+constexpr const int64_t                   DEFAULT_MAX_EXECUTION_TIME_DIFFERENCE { 10 };
+constexpr const int64_t                   DEFAULT_MAX_REQUEST_LAG { 10 };
+constexpr const OnError                   DEFAULT_ON_ERROR { OnError::IGNORE };
+constexpr const std::chrono::milliseconds DEFAULT_PERIOD { 60 * 60 * 1000 };
+constexpr const Report                    DEFAULT_REPORT { Report::ON_DISCREPANCY };
 
 class ComparatorRouter;
 
@@ -42,15 +48,15 @@ public:
 
     mxs::Target* pMain;
 
-    ComparisonKind                  comparison_kind;
-    mxs::config::Enum<ErrorAction>  on_error;
-    mxs::config::Enum<ReportAction> report;
+    ComparisonKind             comparison_kind;
+    mxs::config::Enum<OnError> on_error;
+    mxs::config::Enum<Report>  report;
 
-    int64_t                   max_execution_time_difference;
-    int64_t                   entries;
-    std::chrono::milliseconds period;
+    int64_t                    max_execution_time_difference;
+    int64_t                    entries;
+    std::chrono::milliseconds  period;
 
-    int64_t                   max_request_lag;
+    int64_t                    max_request_lag;
 
     SERVICE* pService;
 

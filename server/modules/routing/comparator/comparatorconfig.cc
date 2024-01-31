@@ -42,12 +42,15 @@ namespace comparator
 Specification specification(MXB_MODULE_NAME, config::Specification::ROUTER);
 
 config::ParamEnum<ComparisonKind> comparison_kind(
-    &specification, "comparison_kind", "Is the comparison read-write or read-only",
+    &specification,
+    "comparison_kind",
+    "Is the comparison read-write or read-only",
     {
         {ComparisonKind::READ_ONLY, "read_only"},
         {ComparisonKind::READ_WRITE, "read_write"},
             },
-    ComparisonKind::READ_WRITE, config::Param::AT_STARTUP);
+    DEFAULT_COMPARISON_KIND,
+    config::Param::AT_STARTUP);
 
 config::ParamSize entries(
     &specification,
@@ -59,13 +62,18 @@ config::ParamSize entries(
     config::Param::AT_RUNTIME);
 
 config::ParamTarget main(
-    &specification, "main", "Server from which responses are returned",
-    config::Param::Kind::MANDATORY, config::Param::AT_RUNTIME);
+    &specification,
+    "main",
+    "Server from which responses are returned",
+    config::Param::Kind::MANDATORY,
+    config::Param::AT_RUNTIME);
 
 config::ParamPercent max_execution_time_difference(
-    &specification, "max_execution_time_difference", "Maximum allowed execution time difference, "
-    "specified in percent, between the main and an other server before the result is logged.",
-    10, // Default
+    &specification,
+    "max_execution_time_difference",
+    "Maximum allowed execution time difference, specified in percent, "
+    "between the main and an other server before the result is logged.",
+    DEFAULT_MAX_EXECUTION_TIME_DIFFERENCE, // Default
     0, // Min
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max
     config::Param::AT_RUNTIME);
@@ -75,36 +83,44 @@ config::ParamSize max_request_lag(
     "max_request_lag",
     "How many requests an 'other' server may lag behind the 'main' server "
     "before SELECTs are not sent to 'other' in order to reduce the lag.",
-    std::numeric_limits<config::ParamCount::value_type>::max(), // Default
+    DEFAULT_MAX_REQUEST_LAG, // Default
     0, // Min
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max,
     config::Param::AT_RUNTIME);
 
-config::ParamEnum<ErrorAction> on_error(
-    &specification, "on_error", "What to do when a non-main connection fails",
+config::ParamEnum<OnError> on_error(
+    &specification,
+    "on_error",
+    "What to do when a non-main connection fails",
     {
-        {ErrorAction::ERRACT_IGNORE, "ignore"},
-        {ErrorAction::ERRACT_CLOSE, "close"},
+        {OnError::IGNORE, "ignore"},
+        {OnError::CLOSE, "close"},
             },
-    ErrorAction::ERRACT_IGNORE, config::Param::AT_RUNTIME);
+    DEFAULT_ON_ERROR,
+    config::Param::AT_RUNTIME);
 
-config::ParamEnum<ReportAction> report(
-    &specification, "report", "When to generate the report for an SQL command",
+config::ParamEnum<Report> report(
+    &specification,
+    "report",
+    "When to generate the report for an SQL command",
     {
-        {ReportAction::REPORT_ALWAYS, "always"},
-        {ReportAction::REPORT_ON_DISCREPANCY, "on_discrepancy"},
+        {Report::ALWAYS, "always"},
+        {Report::ON_DISCREPANCY, "on_discrepancy"},
             },
-    ReportAction::REPORT_ON_DISCREPANCY, config::Param::AT_RUNTIME);
+    DEFAULT_REPORT,
+    config::Param::AT_RUNTIME);
 
 config::ParamService service(
-    &specification, "service", "The service the Comparator service is installed for",
+    &specification,
+    "service",
+    "The service the Comparator service is installed for",
     config::Param::Kind::MANDATORY);
 
 config::ParamDuration<std::chrono::milliseconds> period(
     &specification,
     "period",
     "Specifies the period during which at most 'entries' number of entries are logged.",
-    std::chrono::milliseconds {},
+    DEFAULT_PERIOD,
     config::Param::AT_RUNTIME);
 }
 

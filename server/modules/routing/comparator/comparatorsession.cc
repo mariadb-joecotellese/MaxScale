@@ -175,7 +175,7 @@ bool ComparatorSession::handleError(mxs::ErrorType type,
     pBackend->close();
 
     // We can continue as long as the main connection isn't dead
-    bool ok = m_router.config().on_error.get() == ErrorAction::ERRACT_IGNORE && pBackend != m_sMain.get();
+    bool ok = m_router.config().on_error.get() == OnError::IGNORE && pBackend != m_sMain.get();
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
@@ -224,7 +224,7 @@ bool ComparatorSession::should_report(const ComparatorOtherResult& other_result)
 {
     const auto& config = m_router.config();
 
-    bool rv = (config.report.get() == ReportAction::REPORT_ALWAYS);
+    bool rv = (config.report.get() == Report::ALWAYS);
 
     if (!rv)
     {
