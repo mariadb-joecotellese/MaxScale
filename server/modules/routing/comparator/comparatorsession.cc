@@ -185,23 +185,16 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
 
     if (should_report(other_result))
     {
-        if (should_explain(other_result))
-        {
-            auto hash = other_result.hash();
-            std::vector<int64_t> ids;
+        auto hash = other_result.hash();
+        std::vector<int64_t> ids;
 
-            if (m_router.registry().is_explained(hash, other_result.id(), &ids))
-            {
-                generate_already_explained_report(other_result, ids);
-            }
-            else
-            {
-                rv = ComparatorOtherBackend::EXPLAIN;
-            }
+        if (m_router.registry().is_explained(hash, other_result.id(), &ids))
+        {
+            generate_already_explained_report(other_result, ids);
         }
         else
         {
-            generate_report(other_result);
+            rv = ComparatorOtherBackend::EXPLAIN;
         }
     }
 
@@ -255,35 +248,6 @@ bool ComparatorSession::should_report(const ComparatorOtherResult& other_result)
     }
 
     return rv;
-}
-
-bool ComparatorSession::should_explain(const ComparatorOtherResult& other_result) const
-{
-    bool rv = false;
-
-    if (other_result.is_explainable())
-    {
-        auto& config = m_router.config();
-
-        if (config.report.get() == ReportAction::REPORT_ALWAYS)
-        {
-            rv = true;
-        }
-        else if (config.explain_difference != 0)
-        {
-            const auto& main_result = other_result.main_result();
-            std::chrono::nanoseconds main_duration = main_result.duration();
-            std::chrono::nanoseconds other_duration = other_result.duration();
-            std::chrono::nanoseconds delta = (main_duration * config.explain_difference) / 100;
-
-            if (other_duration > main_duration + delta)
-            {
-                rv = true;
-            }
-        }
-    }
-
-    return true;
 }
 
 void ComparatorSession::generate_report(const ComparatorOtherResult& other_result)

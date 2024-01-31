@@ -49,16 +49,6 @@ config::ParamEnum<ComparisonKind> comparison_kind(
             },
     ComparisonKind::READ_WRITE, config::Param::AT_STARTUP);
 
-config::ParamPercent explain_difference(
-    &specification,
-    "explain_difference",
-    "Execution time difference, specified in percent, between the main and an other server "
-    "that triggers an EXPLAIN on the statement on the other.",
-    0, // Default
-    0, // Min
-    std::numeric_limits<config::ParamCount::value_type>::max(), // Max
-    config::Param::AT_RUNTIME);
-
 config::ParamSize explain_iterations(
     &specification,
     "explain_iterations",
@@ -135,7 +125,6 @@ ComparatorConfig::ComparatorConfig(const char* zName, ComparatorRouter* pInstanc
     add_native(&ComparatorConfig::pService, &comparator::service);
 
     add_native(&ComparatorConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
-    add_native(&ComparatorConfig::explain_difference, &comparator::explain_difference);
     add_native(&ComparatorConfig::explain_iterations, &comparator::explain_iterations);
     add_native(&ComparatorConfig::comparison_kind, &comparator::comparison_kind);
     add_native(&ComparatorConfig::max_request_lag, &comparator::max_request_lag);
