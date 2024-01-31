@@ -36,7 +36,7 @@ void ComparatorOtherBackend::prepare(const ComparatorMainBackend::SResult& sMain
     m_results.emplace_back(std::move(sOther_result));
 }
 
-void ComparatorOtherBackend::ready(const ComparatorOtherResult& other_result)
+void ComparatorOtherBackend::ready(ComparatorOtherResult& other_result)
 {
     mxb_assert(m_pHandler);
 

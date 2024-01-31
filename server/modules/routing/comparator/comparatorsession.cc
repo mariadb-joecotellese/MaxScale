@@ -179,7 +179,7 @@ bool ComparatorSession::handleError(mxs::ErrorType type,
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
-ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherResult& other_result)
+ComparatorOtherBackend::Action ComparatorSession::ready(ComparatorOtherResult& other_result)
 {
     ComparatorOtherBackend::Action rv = ComparatorOtherBackend::CONTINUE;
 
@@ -188,14 +188,11 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
         auto now = m_pSession->worker()->epoll_tick_now();
         auto hash = other_result.hash();
         auto id = other_result.id();
-        ComparatorRegistry::Entries entries;
+        ComparatorRegistry::Entries explainers;
 
-        if (m_router.registry().is_explained(now, hash, id, &entries))
+        if (!m_router.registry().is_explained(now, hash, id, &explainers))
         {
-            generate_already_explained_report(other_result, entries);
-        }
-        else
-        {
+            other_result.set_explainers(explainers);
             rv = ComparatorOtherBackend::EXPLAIN;
         }
     }
@@ -257,19 +254,6 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
     generate_report(other_result, nullptr, nullptr);
 }
 
-void ComparatorSession::generate_already_explained_report(const ComparatorOtherResult& result,
-                                                          const ComparatorRegistry::Entries& entries)
-{
-    json_t* pExplain = json_array();
-
-    for (const auto& entry : entries)
-    {
-        json_array_append_new(pExplain, json_integer(entry.id));
-    }
-
-    generate_report(result, "explained_by", pExplain);
-}
-
 void ComparatorSession::generate_report_with_explain(const ComparatorExplainResult& result,
                                                      std::string_view explain_json)
 {
@@ -315,6 +299,20 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
     {
         mxb_assert(pExplain);
         json_object_set_new(pOther, zExplain, pExplain);
+    }
+
+    const ComparatorRegistry::Entries& explainers = other_result.explainers();
+
+    if (!explainers.empty())
+    {
+        json_t* pExplained_by = json_array();
+
+        for (const auto& explainer : explainers)
+        {
+            json_array_append_new(pExplained_by, json_integer(explainer.id));
+        }
+
+        json_object_set_new(pOther, "explained_by", pExplained_by);
     }
 
     json_t* pArr = json_array();

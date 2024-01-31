@@ -9,6 +9,7 @@
 #include <memory>
 #include <maxbase/checksum.hh>
 #include <maxscale/target.hh>
+#include "comparatorregistry.hh"
 
 class ComparatorBackend;
 class ComparatorMainBackend;
@@ -71,6 +72,16 @@ public:
         return std::chrono::duration_cast<std::chrono::nanoseconds>(m_end - m_start);
     }
 
+    void set_explainers(const ComparatorRegistry::Entries& explainers)
+    {
+        m_explainers = explainers;
+    }
+
+    const ComparatorRegistry::Entries& explainers() const
+    {
+        return m_explainers;
+    }
+
 protected:
     ComparatorResult(ComparatorBackend* pBackend)
         : m_backend(*pBackend)
@@ -81,11 +92,12 @@ protected:
     }
 
 private:
-    ComparatorBackend& m_backend;
-    Clock::time_point  m_start;
-    Clock::time_point  m_end;
-    mxb::CRC32         m_checksum;
-    mxs::Reply         m_reply;
+    ComparatorBackend&          m_backend;
+    Clock::time_point           m_start;
+    Clock::time_point           m_end;
+    mxb::CRC32                  m_checksum;
+    mxs::Reply                  m_reply;
+    ComparatorRegistry::Entries m_explainers;
 };
 
 
@@ -154,7 +166,7 @@ public:
     class Handler
     {
     public:
-        virtual void ready(const ComparatorOtherResult& other_result) = 0;
+        virtual void ready(ComparatorOtherResult& other_result) = 0;
     };
 
     ComparatorOtherResult(ComparatorOtherBackend* pBackend,

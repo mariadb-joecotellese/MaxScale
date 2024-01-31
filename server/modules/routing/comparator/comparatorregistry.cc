@@ -70,6 +70,8 @@ bool ComparatorRegistry::is_explained(mxb::TimePoint now, Hash hash, int64_t id,
             }
             else
             {
+                *pEntries = it->second;
+
                 // Add the id, following the assumption that the caller
                 // will now do the EXPLAIN. This means that in the output,
                 // a query may refer (for the EXPLAIN result) to a query

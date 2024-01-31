@@ -197,7 +197,7 @@ public:
     class Handler
     {
     public:
-        virtual Action ready(const ComparatorOtherResult& other_result) = 0;
+        virtual Action ready(ComparatorOtherResult& other_result) = 0;
         virtual void ready(const ComparatorExplainResult& explain_result,
                            const std::string& error,
                            std::string_view json) = 0;
@@ -229,7 +229,7 @@ public:
 
 private:
     // ComparatorOtherResult::Handler
-    void ready(const ComparatorOtherResult& other_result) override;
+    void ready(ComparatorOtherResult& other_result) override;
 
     // ComparatorExplainResult::Handler
     void ready(const ComparatorExplainResult& other_result,
