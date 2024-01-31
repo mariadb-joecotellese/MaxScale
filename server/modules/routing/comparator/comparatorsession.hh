@@ -11,6 +11,7 @@
 #include <maxscale/buffer.hh>
 #include <maxscale/queryclassifier.hh>
 #include "comparatorbackend.hh"
+#include "comparatorregistry.hh"
 #include "comparatorresult.hh"
 #include "comparatorstats.hh"
 
@@ -50,7 +51,7 @@ private:
 
     void generate_report(const ComparatorOtherResult& result);
     void generate_already_explained_report(const ComparatorOtherResult& result,
-                                           const std::vector<int64_t>& ids);
+                                           const ComparatorRegistry::Entries& entries);
     void generate_report_with_explain(const ComparatorExplainResult& result, std::string_view explain_json);
 
     void generate_report(const ComparatorOtherResult& other_result,

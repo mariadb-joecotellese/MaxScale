@@ -26,23 +26,19 @@ ComparatorRegistry::Hash ComparatorRegistry::hash_for(std::string_view canonical
     return this_unit.hash(canonical_sql);
 }
 
-bool ComparatorRegistry::is_explained(Hash hash, int64_t id, Ids* pIds)
+bool ComparatorRegistry::is_explained(mxb::TimePoint now, Hash hash, int64_t id, Entries* pEntries)
 {
     bool rv = false;
 
-    size_t nMax_entries = 0;
+    std::shared_lock shared_lock(m_entries_lock);
 
-    std::shared_lock shared_lock(m_explained_lock);
+    auto it = m_entries.find(hash);
 
-    auto it = m_explained.find(hash);
-
-    if (it != m_explained.end())
+    if (it != m_entries.end())
     {
-        nMax_entries = it->second.size();
-
-        if (nMax_entries >= m_nMax_entries)
+        if (!needs_updating(now, it->second))
         {
-            *pIds = it->second;
+            *pEntries = it->second;
             rv = true;
         }
     }
@@ -52,26 +48,24 @@ bool ComparatorRegistry::is_explained(Hash hash, int64_t id, Ids* pIds)
     if (!rv)
     {
         // More EXPLAINs needed, lock mutex, this time for update.
-        std::unique_lock unique_lock(m_explained_lock);
+        std::unique_lock unique_lock(m_entries_lock);
 
         // Look up again, because there was room for someone else between
         // the shared lock being unlocked and the unique lock being locked
         // to do something.
-        it = m_explained.find(hash);
+        it = m_entries.find(hash);
 
-        if (it == m_explained.end())
+        if (it == m_entries.end())
         {
-            Ids& ids = m_explained[hash];
-            ids.reserve(m_nMax_entries);
-            ids.push_back(id);
+            Entries& entries = m_entries[hash];
+            entries.reserve(max_entries());
+            entries.push_back({now, id});
         }
         else
         {
-            nMax_entries = it->second.size();
-
-            if (nMax_entries >= m_nMax_entries)
+            if (!needs_updating(now, it->second))
             {
-                *pIds = it->second;
+                *pEntries = it->second;
                 rv = true;
             }
             else
@@ -83,9 +77,9 @@ bool ComparatorRegistry::is_explained(Hash hash, int64_t id, Ids* pIds)
                 // register the execution of the EXPLAIN only after it has
                 // been performed, as that may lead to a thundering herd kind
                 // of effect.
-                it->second.push_back(id);
+                it->second.push_back({now, id});
 
-                if (nMax_entries + 1 == m_nMax_entries)
+                if (it->second.size() == max_entries())
                 {
                     // Final EXPLAIN, ensure the vector is exactly sized.
                     it->second.shrink_to_fit();
@@ -98,4 +92,30 @@ bool ComparatorRegistry::is_explained(Hash hash, int64_t id, Ids* pIds)
 }
 
 
+bool ComparatorRegistry::needs_updating(mxb::TimePoint now, std::vector<Entry>& entries)
+{
+    bool rv = false;
 
+    auto threshold = now - period();
+
+    auto nToo_old = 0;
+    for (const auto& entry : entries)
+    {
+        if (entry.when <= threshold)
+        {
+            ++nToo_old;
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    if (nToo_old > 0)
+    {
+        std::move(entries.begin() + nToo_old, entries.end(), entries.begin());
+        entries.resize(entries.size() - nToo_old);
+    }
+
+    return entries.size() < max_entries();
+}

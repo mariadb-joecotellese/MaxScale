@@ -185,12 +185,14 @@ ComparatorOtherBackend::Action ComparatorSession::ready(const ComparatorOtherRes
 
     if (should_report(other_result))
     {
+        auto now = m_pSession->worker()->epoll_tick_now();
         auto hash = other_result.hash();
-        std::vector<int64_t> ids;
+        auto id = other_result.id();
+        ComparatorRegistry::Entries entries;
 
-        if (m_router.registry().is_explained(hash, other_result.id(), &ids))
+        if (m_router.registry().is_explained(now, hash, id, &entries))
         {
-            generate_already_explained_report(other_result, ids);
+            generate_already_explained_report(other_result, entries);
         }
         else
         {
@@ -256,13 +258,13 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
 }
 
 void ComparatorSession::generate_already_explained_report(const ComparatorOtherResult& result,
-                                                          const std::vector<int64_t>& ids)
+                                                          const ComparatorRegistry::Entries& entries)
 {
     json_t* pExplain = json_array();
 
-    for (auto id : ids)
+    for (const auto& entry : entries)
     {
-        json_array_append_new(pExplain, json_integer(id));
+        json_array_append_new(pExplain, json_integer(entry.id));
     }
 
     generate_report(result, "explained_by", pExplain);
