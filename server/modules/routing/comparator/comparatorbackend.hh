@@ -82,17 +82,30 @@ public:
         return *m_pParser_helper;
     }
 
+    void execute_pending_explains();
+
 protected:
     ComparatorBackend(mxs::Endpoint* pEndpoint)
         : mxs::Backend(pEndpoint)
     {
     }
 
+    using SComparatorExplainResult = std::shared_ptr<ComparatorExplainResult>;
+
+    void schedule_explain(SComparatorExplainResult&&);
+
 protected:
+    virtual void book_explain() = 0;
+
     std::unique_ptr<mariadb::QueryClassifier> m_sQc;
     const mxs::Parser*                        m_pParser { nullptr };
     const mxs::Parser::Helper*                m_pParser_helper { nullptr };
     std::deque<SResult>                       m_results;
+
+private:
+    void execute(const SComparatorExplainResult& sExplain_result);
+
+    std::deque<SComparatorExplainResult> m_pending_explains;
 };
 
 template<class Stats>
@@ -147,6 +160,18 @@ protected:
     ComparatorBackendWithStats(mxs::Endpoint* pEndpoint)
         : ComparatorBackend(pEndpoint)
     {
+    }
+
+    void book_explain() override
+    {
+        ++m_stats.nExplain_requests;
+
+        // Tune general counters, since those related to the extra
+        // EXPLAIN requests should be exluded.
+        --m_stats.nRequest_packets;
+        --m_stats.nRequests;
+        --m_stats.nRequests_explainable;
+        --m_stats.nRequests_responding;
     }
 
 protected:
@@ -241,15 +266,10 @@ private:
                std::string_view json) override;
 
 private:
-    using SComparatorExplainResult = std::shared_ptr<ComparatorExplainResult>;
     using SComparatorExporter = std::shared_ptr<ComparatorExporter>;
 
-    void execute_pending_explains();
-    void execute(const SComparatorExplainResult& sExplain_result);
-
-    SComparatorExporter                  m_sExporter;
-    Handler*                             m_pHandler { nullptr };
-    std::deque<SComparatorExplainResult> m_pending_explains;
+    SComparatorExporter m_sExporter;
+    Handler*            m_pHandler { nullptr };
 };
 
 namespace comparator

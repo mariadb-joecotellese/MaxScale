@@ -19,6 +19,9 @@ struct ComparatorStats
     int64_t                  nRequests_responding { 0 };
     int64_t                  nRequests_explainable { 0 };
     int64_t                  nResponses { 0 };
+    std::chrono::nanoseconds explain_duration { 0 };
+    int64_t                  nExplain_requests { 0 };
+    int64_t                  nExplain_responses { 0 };
 
     ComparatorStats& operator += (const ComparatorStats& rhs)
     {
@@ -28,6 +31,9 @@ struct ComparatorStats
         this->nRequests_explainable += rhs.nRequests_explainable;
         this->nRequests_responding += rhs.nRequests_responding;
         this->nResponses += rhs.nResponses;
+        this->explain_duration += rhs.explain_duration;
+        this->nExplain_requests += rhs.nExplain_requests;
+        this->nExplain_responses += rhs.nExplain_responses;
 
         return *this;
     }
@@ -51,9 +57,6 @@ struct ComparatorMainStats final : ComparatorStats
 
 struct ComparatorOtherStats final : ComparatorStats
 {
-    std::chrono::nanoseconds explain_duration { 0 };
-    int64_t                  nExplain_requests { 0 };
-    int64_t                  nExplain_responses { 0 };
     int64_t                  nRequests_skipped { 0 };
     int64_t                  nFaster { 0 };
     int64_t                  nSlower { 0 };
@@ -62,9 +65,6 @@ struct ComparatorOtherStats final : ComparatorStats
     {
         ComparatorStats::operator += (rhs);
 
-        this->explain_duration += rhs.explain_duration;
-        this->nExplain_requests += rhs.nExplain_requests;
-        this->nExplain_responses += rhs.nExplain_responses;
         this->nRequests_skipped += rhs.nRequests_skipped;
         this->nFaster += rhs.nFaster;
         this->nSlower += rhs.nSlower;

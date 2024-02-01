@@ -11,6 +11,44 @@
 
 
 /**
+ * ComparatorBackend
+ */
+
+void ComparatorBackend::execute_pending_explains()
+{
+    if (!extraordinary_in_process())
+    {
+        while (!m_pending_explains.empty())
+        {
+            auto sExplain_result = std::move(m_pending_explains.front());
+            m_pending_explains.pop_front();
+
+            execute(sExplain_result);
+        }
+    }
+}
+
+void ComparatorBackend::execute(const std::shared_ptr<ComparatorExplainResult>& sExplain_result)
+{
+    std::string sql { "EXPLAIN FORMAT=JSON "};
+    sql += sExplain_result->other_result().sql();
+
+    m_results.emplace_back(std::move(sExplain_result));
+
+    GWBUF packet = phelper().create_packet(sql);
+    packet.set_type(GWBUF::TYPE_COLLECT_ROWS);
+
+    write(std::move(packet), mxs::Backend::EXPECT_RESPONSE);
+
+    book_explain();
+}
+
+void ComparatorBackend::schedule_explain(SComparatorExplainResult&& sExplain_result)
+{
+    m_pending_explains.emplace_back(std::move(sExplain_result));
+}
+
+/**
  * ComparatorMainBackend
  */
 
@@ -66,7 +104,7 @@ void ComparatorOtherBackend::ready(ComparatorOtherResult& other_result)
             auto* pExplain_result = new ComparatorExplainResult(this, sOther_result);
             auto sExplain_result = std::shared_ptr<ComparatorExplainResult>(pExplain_result);
 
-            m_pending_explains.emplace_back(std::move(sExplain_result));
+            schedule_explain(std::move(sExplain_result));
         }
         break;
 
@@ -95,41 +133,6 @@ void ComparatorOtherBackend::ready(const ComparatorExplainResult& explain_result
     m_pHandler->ready(explain_result, error, json);
 
     execute_pending_explains();
-}
-
-void ComparatorOtherBackend::execute_pending_explains()
-{
-    if (!extraordinary_in_process())
-    {
-        while (!m_pending_explains.empty())
-        {
-            auto sExplain_result = std::move(m_pending_explains.front());
-            m_pending_explains.pop_front();
-
-            execute(sExplain_result);
-        }
-    }
-}
-
-void ComparatorOtherBackend::execute(const std::shared_ptr<ComparatorExplainResult>& sExplain_result)
-{
-    std::string sql { "EXPLAIN FORMAT=JSON "};
-    sql += sExplain_result->other_result().sql();
-
-    m_results.emplace_back(std::move(sExplain_result));
-
-    GWBUF packet = phelper().create_packet(sql);
-    packet.set_type(GWBUF::TYPE_COLLECT_ROWS);
-
-    write(std::move(packet), mxs::Backend::EXPECT_RESPONSE);
-    ++m_stats.nExplain_requests;
-
-    // Tune general counters, since those related to the extra
-    // EXPLAIN requests should be exluded.
-    --m_stats.nRequest_packets;
-    --m_stats.nRequests;
-    --m_stats.nRequests_explainable;
-    --m_stats.nRequests_responding;
 }
 
 /**
