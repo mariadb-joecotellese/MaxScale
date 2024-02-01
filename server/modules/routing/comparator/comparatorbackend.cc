@@ -52,18 +52,27 @@ void ComparatorOtherBackend::ready(ComparatorOtherResult& other_result)
         ++m_stats.nSlower;
     }
 
-    Action action = m_pHandler->ready(other_result);
-
-    if (action == EXPLAIN)
+    switch (m_pHandler->ready(other_result))
     {
-        mxb_assert(other_result.is_explainable());
+    case CONTINUE:
+        break;
 
-        auto sOther_result = other_result.shared_from_this();
+    case EXPLAIN_OTHER:
+        {
+            mxb_assert(other_result.is_explainable());
 
-        auto* pExplain_result = new ComparatorExplainResult(this, sOther_result);
-        auto sExplain_result = std::shared_ptr<ComparatorExplainResult>(pExplain_result);
+            auto sOther_result = other_result.shared_from_this();
 
-        m_pending_explains.emplace_back(std::move(sExplain_result));
+            auto* pExplain_result = new ComparatorExplainResult(this, sOther_result);
+            auto sExplain_result = std::shared_ptr<ComparatorExplainResult>(pExplain_result);
+
+            m_pending_explains.emplace_back(std::move(sExplain_result));
+        }
+        break;
+
+    case EXPLAIN_MAIN:
+    case EXPLAIN_BOTH:
+        mxb_assert(!true);
     }
 
     execute_pending_explains();

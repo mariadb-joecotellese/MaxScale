@@ -188,11 +188,15 @@ public:
     using Result = ComparatorOtherResult;
     using SResult = std::shared_ptr<Result>;
 
-    enum Action
+    enum ActionValue
     {
-        CONTINUE,
-        EXPLAIN
+        CONTINUE      = 0,
+        EXPLAIN_OTHER = Explain::OTHER,
+        EXPLAIN_MAIN  = Explain::MAIN,
+        EXPLAIN_BOTH  = (Explain::OTHER | Explain::MAIN)
     };
+
+    using Action = uint32_t;
 
     class Handler
     {

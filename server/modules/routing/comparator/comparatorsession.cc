@@ -193,7 +193,7 @@ ComparatorOtherBackend::Action ComparatorSession::ready(ComparatorOtherResult& o
         if (!m_router.registry().is_explained(now, hash, id, &explainers))
         {
             other_result.set_explainers(explainers);
-            rv = ComparatorOtherBackend::EXPLAIN;
+            rv = m_router.config().explain;
         }
     }
 
