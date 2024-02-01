@@ -10,6 +10,18 @@
 #include <maxscale/ccdefs.hh>
 #include <maxscale/config2.hh>
 
+enum class ComparisonKind
+{
+    READ_ONLY,
+    READ_WRITE
+};
+
+enum Explain
+{
+    OTHER = 1 << 0,
+    MAIN  = 1 << 1
+};
+
 enum class OnError
 {
     IGNORE,
@@ -22,19 +34,16 @@ enum class Report
     ON_DISCREPANCY,
 };
 
-enum class ComparisonKind
-{
-    READ_ONLY,
-    READ_WRITE
-};
-
-constexpr const ComparisonKind            DEFAULT_COMPARISON_KIND { ComparisonKind::READ_WRITE };
-constexpr const int64_t                   DEFAULT_ENTRIES { 2 };
-constexpr const int64_t                   DEFAULT_MAX_EXECUTION_TIME_DIFFERENCE { 10 };
-constexpr const int64_t                   DEFAULT_MAX_REQUEST_LAG { 10 };
-constexpr const OnError                   DEFAULT_ON_ERROR { OnError::IGNORE };
-constexpr const std::chrono::milliseconds DEFAULT_PERIOD { 60 * 60 * 1000 };
-constexpr const Report                    DEFAULT_REPORT { Report::ON_DISCREPANCY };
+/* *INDENT-OFF* */
+constexpr ComparisonKind            DEFAULT_COMPARISON_KIND { ComparisonKind::READ_WRITE };
+constexpr int64_t                   DEFAULT_ENTRIES { 2 };
+constexpr Explain                   DEFAULT_EXPLAIN { Explain::OTHER };
+constexpr int64_t                   DEFAULT_MAX_EXECUTION_TIME_DIFFERENCE { 10 };
+constexpr int64_t                   DEFAULT_MAX_REQUEST_LAG { 10 };
+constexpr OnError                   DEFAULT_ON_ERROR { OnError::IGNORE };
+constexpr std::chrono::milliseconds DEFAULT_PERIOD { 60 * 60 * 1000 };
+constexpr Report                    DEFAULT_REPORT { Report::ON_DISCREPANCY };
+/* *INDENT-ON* */
 
 class ComparatorRouter;
 
@@ -49,14 +58,29 @@ public:
     mxs::Target* pMain;
 
     ComparisonKind             comparison_kind;
+    uint32_t                   explain;
     mxs::config::Enum<OnError> on_error;
     mxs::config::Enum<Report>  report;
-
     int64_t                    max_execution_time_difference;
     int64_t                    entries;
     std::chrono::milliseconds  period;
 
     int64_t                    max_request_lag;
+
+    bool explain_main() const
+    {
+        return this->explain & Explain::MAIN;
+    }
+
+    bool explain_other() const
+    {
+        return this->explain & Explain::OTHER;
+    }
+
+    bool explain_all() const
+    {
+        return explain_main() && explain_other();
+    }
 
     SERVICE* pService;
 

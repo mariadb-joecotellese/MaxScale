@@ -44,11 +44,11 @@ Specification specification(MXB_MODULE_NAME, config::Specification::ROUTER);
 config::ParamEnum<ComparisonKind> comparison_kind(
     &specification,
     "comparison_kind",
-    "Is the comparison read-write or read-only",
+    "Is the comparison read-write or read-only.",
     {
         {ComparisonKind::READ_ONLY, "read_only"},
-        {ComparisonKind::READ_WRITE, "read_write"},
-            },
+        {ComparisonKind::READ_WRITE, "read_write"}
+    },
     DEFAULT_COMPARISON_KIND,
     config::Param::AT_STARTUP);
 
@@ -59,6 +59,17 @@ config::ParamSize entries(
     DEFAULT_ENTRIES, // Default
     0, // Min
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max
+    config::Param::AT_RUNTIME);
+
+config::ParamEnumMask<Explain> explain(
+    &specification,
+    "explain",
+    "What results should be EXPLAINed; those of 'other' or 'main'.",
+    {
+        {Explain::OTHER, "other"},
+        {Explain::MAIN, "main"}
+    },
+    DEFAULT_EXPLAIN,
     config::Param::AT_RUNTIME);
 
 config::ParamTarget main(
@@ -94,8 +105,8 @@ config::ParamEnum<OnError> on_error(
     "What to do when a non-main connection fails",
     {
         {OnError::IGNORE, "ignore"},
-        {OnError::CLOSE, "close"},
-            },
+        {OnError::CLOSE, "close"}
+    },
     DEFAULT_ON_ERROR,
     config::Param::AT_RUNTIME);
 
@@ -105,8 +116,8 @@ config::ParamEnum<Report> report(
     "When to generate the report for an SQL command",
     {
         {Report::ALWAYS, "always"},
-        {Report::ON_DISCREPANCY, "on_discrepancy"},
-            },
+        {Report::ON_DISCREPANCY, "on_discrepancy"}
+    },
     DEFAULT_REPORT,
     config::Param::AT_RUNTIME);
 
@@ -149,6 +160,7 @@ ComparatorConfig::ComparatorConfig(const char* zName, ComparatorRouter* pInstanc
     add_native(&ComparatorConfig::pService, &comparator::service);
 
     add_native(&ComparatorConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
+    add_native(&ComparatorConfig::explain, &comparator::explain);
     add_native(&ComparatorConfig::entries, &comparator::entries);
     add_native(&ComparatorConfig::period, &comparator::period);
     add_native(&ComparatorConfig::comparison_kind, &comparator::comparison_kind);
