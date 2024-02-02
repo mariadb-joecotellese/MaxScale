@@ -15,7 +15,7 @@ using std::unique_ptr;
 namespace
 {
 
-inline bool is_checksum_discrepancy(const ComparatorResult& result, mxb::CRC32 main_checksum)
+inline bool is_checksum_discrepancy(const CResult& result, mxb::CRC32 main_checksum)
 {
     return result.checksum() != main_checksum;
 }
@@ -29,10 +29,10 @@ inline bool is_execution_time_discrepancy(const std::chrono::nanoseconds& durati
 
 }
 
-ComparatorSession::ComparatorSession(MXS_SESSION* pSession,
-                                     ComparatorRouter* pRouter,
-                                     SComparatorMainBackend sMain,
-                                     SComparatorOtherBackends others)
+CSession::CSession(MXS_SESSION* pSession,
+                   CRouter* pRouter,
+                   SCMainBackend sMain,
+                   SCOtherBackends others)
     : RouterSession(pSession)
     , m_sMain(std::move(sMain))
     , m_others(std::move(others))
@@ -51,7 +51,7 @@ ComparatorSession::ComparatorSession(MXS_SESSION* pSession,
     }
 }
 
-ComparatorSession::~ComparatorSession()
+CSession::~CSession()
 {
     Stats stats { m_sMain->backend()->target(), m_sMain->stats() };
 
@@ -63,7 +63,7 @@ ComparatorSession::~ComparatorSession()
     m_router.collect(stats);
 }
 
-bool ComparatorSession::routeQuery(GWBUF&& packet)
+bool CSession::routeQuery(GWBUF&& packet)
 {
     bool rv = false;
 
@@ -74,7 +74,7 @@ bool ComparatorSession::routeQuery(GWBUF&& packet)
         mxs::Backend::response_type type = expecting_response
             ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::NO_RESPONSE;
 
-        std::shared_ptr<ComparatorMainResult> sMain_result;
+        std::shared_ptr<CMainResult> sMain_result;
 
         if (type != mxs::Backend::NO_RESPONSE)
         {
@@ -141,13 +141,13 @@ bool ComparatorSession::routeQuery(GWBUF&& packet)
     return rv;
 }
 
-bool ComparatorSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mxs::Reply& reply)
+bool CSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mxs::Reply& reply)
 {
-    auto* pBackend = static_cast<ComparatorBackend*>(down.endpoint()->get_userdata());
+    auto* pBackend = static_cast<CBackend*>(down.endpoint()->get_userdata());
 
     pBackend->process_result(packet, reply);
 
-    ComparatorBackend::Routing routing = ComparatorBackend::Routing::CONTINUE;
+    CBackend::Routing routing = CBackend::Routing::CONTINUE;
 
     if (reply.is_complete())
     {
@@ -159,7 +159,7 @@ bool ComparatorSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down,
 
     bool rv = true;
 
-    if (pBackend == m_sMain.get() && routing == ComparatorBackend::Routing::CONTINUE)
+    if (pBackend == m_sMain.get() && routing == CBackend::Routing::CONTINUE)
     {
         rv = RouterSession::clientReply(std::move(packet), down, reply);
     }
@@ -167,12 +167,12 @@ bool ComparatorSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down,
     return rv;
 }
 
-bool ComparatorSession::handleError(mxs::ErrorType type,
-                                    const std::string& message,
-                                    mxs::Endpoint* pProblem,
-                                    const mxs::Reply& reply)
+bool CSession::handleError(mxs::ErrorType type,
+                           const std::string& message,
+                           mxs::Endpoint* pProblem,
+                           const mxs::Reply& reply)
 {
-    auto* pBackend = static_cast<ComparatorBackend*>(pProblem->get_userdata());
+    auto* pBackend = static_cast<CBackend*>(pProblem->get_userdata());
 
     pBackend->close();
 
@@ -181,16 +181,16 @@ bool ComparatorSession::handleError(mxs::ErrorType type,
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
-ComparatorOtherBackend::Action ComparatorSession::ready(ComparatorOtherResult& other_result)
+COtherBackend::Action CSession::ready(COtherResult& other_result)
 {
-    ComparatorOtherBackend::Action rv = ComparatorOtherBackend::CONTINUE;
+    COtherBackend::Action rv = COtherBackend::CONTINUE;
 
     if (should_report(other_result))
     {
         auto now = m_pSession->worker()->epoll_tick_now();
         auto hash = other_result.hash();
         auto id = other_result.id();
-        ComparatorRegistry::Entries explainers;
+        CRegistry::Entries explainers;
 
         if (!m_router.registry().is_explained(now, hash, id, &explainers))
         {
@@ -209,7 +209,7 @@ ComparatorOtherBackend::Action ComparatorSession::ready(ComparatorOtherResult& o
     return rv;
 }
 
-void ComparatorSession::ready(const ComparatorExplainOtherResult& explain_result)
+void CSession::ready(const CExplainOtherResult& explain_result)
 {
     const auto& error = explain_result.error();
 
@@ -228,7 +228,7 @@ void ComparatorSession::ready(const ComparatorExplainOtherResult& explain_result
     }
 }
 
-bool ComparatorSession::should_report(const ComparatorOtherResult& other_result) const
+bool CSession::should_report(const COtherResult& other_result) const
 {
     const auto& config = m_router.config();
 
@@ -260,7 +260,7 @@ bool ComparatorSession::should_report(const ComparatorOtherResult& other_result)
     return rv;
 }
 
-void ComparatorSession::generate_report(const ComparatorOtherResult& other_result)
+void CSession::generate_report(const COtherResult& other_result)
 {
     generate_report(other_result, nullptr, nullptr);
 }
@@ -286,7 +286,7 @@ json_t* load_json(std::string_view json)
 
 }
 
-void ComparatorSession::generate_report(const ComparatorExplainOtherResult& result)
+void CSession::generate_report(const CExplainOtherResult& result)
 {
     std::string_view json;
 
@@ -299,7 +299,7 @@ void ComparatorSession::generate_report(const ComparatorExplainOtherResult& resu
     }
 
     json_t* pExplain_main = nullptr;
-    const ComparatorExplainMainResult* pMain_result = result.explain_main_result();
+    const CExplainMainResult* pMain_result = result.explain_main_result();
 
     if (pMain_result)
     {
@@ -314,9 +314,9 @@ void ComparatorSession::generate_report(const ComparatorExplainOtherResult& resu
     generate_report(result.other_result(), pExplain_other, pExplain_main);
 }
 
-void ComparatorSession::generate_report(const ComparatorOtherResult& other_result,
-                                        json_t* pExplain_other,
-                                        json_t* pExplain_main)
+void CSession::generate_report(const COtherResult& other_result,
+                               json_t* pExplain_other,
+                               json_t* pExplain_main)
 {
     const auto& main_result = other_result.main_result();
 
@@ -330,7 +330,7 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
     json_t* pOther = generate_json(other_result, pExplain_other);
     json_t* pMain = generate_json(main_result, pExplain_main);
 
-    const ComparatorRegistry::Entries& explainers = other_result.explainers();
+    const CRegistry::Entries& explainers = other_result.explainers();
 
     if (!explainers.empty())
     {
@@ -350,10 +350,10 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
 
     json_object_set_new(pJson, "results", pArr);
 
-    static_cast<ComparatorOtherBackend&>(other_result.backend()).exporter().ship(pJson);
+    static_cast<COtherBackend&>(other_result.backend()).exporter().ship(pJson);
 }
 
-json_t* ComparatorSession::generate_json(const ComparatorResult& result, json_t* pExplain)
+json_t* CSession::generate_json(const CResult& result, json_t* pExplain)
 {
     const char* type = result.reply().error() ?
         "error" : (result.reply().is_resultset() ? "resultset" : "ok");

@@ -17,19 +17,19 @@
 #include "comparatorresult.hh"
 #include "comparatorstats.hh"
 
-class ComparatorMainBackend;
-class ComparatorOtherBackend;
-using SComparatorMainBackend = std::unique_ptr<ComparatorMainBackend>;
-using SComparatorOtherBackend = std::unique_ptr<ComparatorOtherBackend>;
-using SComparatorOtherBackends = std::vector<SComparatorOtherBackend>;
+class CMainBackend;
+class COtherBackend;
+using SCMainBackend = std::unique_ptr<CMainBackend>;
+using SCOtherBackend = std::unique_ptr<COtherBackend>;
+using SCOtherBackends = std::vector<SCOtherBackend>;
 
-class ComparatorExporter;
-class ComparatorRouter;
+class CExporter;
+class CRouter;
 
-class ComparatorBackend : public mxs::Backend
+class CBackend : public mxs::Backend
 {
 public:
-    using Result = ComparatorResult;
+    using Result = CResult;
     using SResult = std::shared_ptr<Result>;
 
     void set_query_classifier(std::unique_ptr<mariadb::QueryClassifier>&& sQc)
@@ -90,12 +90,12 @@ public:
 
     void execute_pending_explains();
 
-    using SComparatorExplainResult = std::shared_ptr<ComparatorExplainResult>;
+    using SCExplainResult = std::shared_ptr<CExplainResult>;
 
-    void schedule_explain(SComparatorExplainResult&&);
+    void schedule_explain(SCExplainResult&&);
 
 protected:
-    ComparatorBackend(mxs::Endpoint* pEndpoint)
+    CBackend(mxs::Endpoint* pEndpoint)
         : mxs::Backend(pEndpoint)
     {
     }
@@ -109,13 +109,13 @@ protected:
     std::deque<SResult>                       m_results;
 
 private:
-    void execute(const SComparatorExplainResult& sExplain_result);
+    void execute(const SCExplainResult& sExplain_result);
 
-    std::deque<SComparatorExplainResult> m_pending_explains;
+    std::deque<SCExplainResult> m_pending_explains;
 };
 
 template<class Stats>
-class ComparatorBackendWithStats : public ComparatorBackend
+class CBackendWithStats : public CBackend
 {
 public:
     const Stats& stats() const
@@ -163,12 +163,12 @@ public:
         ++m_stats.nResponses;
         m_stats.total_duration += sResult->close(reply);
 
-        return kind == ComparatorResult::Kind::EXTERNAL ? Routing::CONTINUE : Routing::STOP;
+        return kind == CResult::Kind::EXTERNAL ? Routing::CONTINUE : Routing::STOP;
     }
 
 protected:
-    ComparatorBackendWithStats(mxs::Endpoint* pEndpoint)
-        : ComparatorBackend(pEndpoint)
+    CBackendWithStats(mxs::Endpoint* pEndpoint)
+        : CBackend(pEndpoint)
     {
     }
 
@@ -189,14 +189,14 @@ protected:
 };
 
 
-class ComparatorMainBackend final : public ComparatorBackendWithStats<ComparatorMainStats>
+class CMainBackend final : public CBackendWithStats<CMainStats>
 {
 public:
-    using Base = ComparatorBackendWithStats<ComparatorMainStats>;
-    using Result = ComparatorMainResult;
+    using Base = CBackendWithStats<CMainStats>;
+    using Result = CMainResult;
     using SResult = std::shared_ptr<Result>;
 
-    ComparatorMainBackend(mxs::Endpoint* pEndpoint)
+    CMainBackend(mxs::Endpoint* pEndpoint)
         : Base(pEndpoint)
     {
     }
@@ -208,21 +208,21 @@ public:
         return m_command;
     }
 
-    void ready(const ComparatorExplainMainResult& result);
+    void ready(const CExplainMainResult& result);
 
 private:
     uint8_t m_command { 0 };
 };
 
 
-class ComparatorOtherBackend final : public ComparatorBackendWithStats<ComparatorOtherStats>
-                                   , private ComparatorOtherResult::Handler
-                                   , private ComparatorExplainOtherResult::Handler
+class COtherBackend final : public CBackendWithStats<COtherStats>
+                          , private COtherResult::Handler
+                          , private CExplainOtherResult::Handler
 
 {
 public:
-    using Base = ComparatorBackendWithStats<ComparatorOtherStats>;
-    using Result = ComparatorOtherResult;
+    using Base = CBackendWithStats<COtherStats>;
+    using Result = COtherResult;
     using SResult = std::shared_ptr<Result>;
 
     enum ActionValue
@@ -238,12 +238,12 @@ public:
     class Handler
     {
     public:
-        virtual Action ready(ComparatorOtherResult& other_result) = 0;
-        virtual void ready(const ComparatorExplainOtherResult& explain_result) = 0;
+        virtual Action ready(COtherResult& other_result) = 0;
+        virtual void ready(const CExplainOtherResult& explain_result) = 0;
     };
 
-    ComparatorOtherBackend(mxs::Endpoint* pEndpoint,
-                           std::shared_ptr<ComparatorExporter> sExporter)
+    COtherBackend(mxs::Endpoint* pEndpoint,
+                  std::shared_ptr<CExporter> sExporter)
         : Base(pEndpoint)
         , m_sExporter(std::move(sExporter))
     {
@@ -259,33 +259,33 @@ public:
         m_pHandler = pHandler;
     }
 
-    ComparatorExporter& exporter() const
+    CExporter& exporter() const
     {
         return *m_sExporter.get();
     }
 
-    void prepare(const ComparatorMainBackend::SResult& sMain_result);
+    void prepare(const CMainBackend::SResult& sMain_result);
 
 private:
-    // ComparatorOtherResult::Handler
-    void ready(ComparatorOtherResult& other_result) override;
+    // COtherResult::Handler
+    void ready(COtherResult& other_result) override;
 
-    // ComparatorExplainResult::Handler
-    void ready(const ComparatorExplainOtherResult& other_result) override;
+    // CExplainResult::Handler
+    void ready(const CExplainOtherResult& other_result) override;
 
 private:
-    using SComparatorExporter = std::shared_ptr<ComparatorExporter>;
+    using SCExporter = std::shared_ptr<CExporter>;
 
-    SComparatorExporter m_sExporter;
+    SCExporter m_sExporter;
     Handler*            m_pHandler { nullptr };
 };
 
 namespace comparator
 {
 
-std::pair<SComparatorMainBackend, SComparatorOtherBackends>
+std::pair<SCMainBackend, SCOtherBackends>
 backends_from_endpoints(const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
-                        const ComparatorRouter& router);
+                        const CRouter& router);
 
 }

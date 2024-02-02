@@ -145,29 +145,29 @@ bool Specification::do_post_validate(Params& params) const
 }
 
 // static
-mxs::config::Specification* ComparatorConfig::specification()
+mxs::config::Specification* CConfig::specification()
 {
     return &comparator::specification;
 }
 
-ComparatorConfig::ComparatorConfig(const char* zName, ComparatorRouter* pInstance)
+CConfig::CConfig(const char* zName, CRouter* pInstance)
     : mxs::config::Configuration(zName, &comparator::specification)
     , on_error(this, &comparator::on_error)
     , report(this, &comparator::report)
     , m_instance(*pInstance)
 {
-    add_native(&ComparatorConfig::pMain, &comparator::main);
-    add_native(&ComparatorConfig::pService, &comparator::service);
+    add_native(&CConfig::pMain, &comparator::main);
+    add_native(&CConfig::pService, &comparator::service);
 
-    add_native(&ComparatorConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
-    add_native(&ComparatorConfig::explain, &comparator::explain);
-    add_native(&ComparatorConfig::entries, &comparator::entries);
-    add_native(&ComparatorConfig::period, &comparator::period);
-    add_native(&ComparatorConfig::comparison_kind, &comparator::comparison_kind);
-    add_native(&ComparatorConfig::max_request_lag, &comparator::max_request_lag);
+    add_native(&CConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
+    add_native(&CConfig::explain, &comparator::explain);
+    add_native(&CConfig::entries, &comparator::entries);
+    add_native(&CConfig::period, &comparator::period);
+    add_native(&CConfig::comparison_kind, &comparator::comparison_kind);
+    add_native(&CConfig::max_request_lag, &comparator::max_request_lag);
 }
 
-bool ComparatorConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)
+bool CConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)
 {
     return m_instance.post_configure();
 }

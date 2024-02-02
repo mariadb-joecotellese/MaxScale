@@ -11,9 +11,9 @@
 using std::chrono::duration_cast;
 
 /**
- * ComparatorStats
+ * CStats
  */
-void ComparatorStats::fill_json(json_t* pJson) const
+void CStats::fill_json(json_t* pJson) const
 {
     std::chrono::milliseconds ms;
 
@@ -36,9 +36,9 @@ void ComparatorStats::fill_json(json_t* pJson) const
 
 
 /**
- * ComparatorMainStats
+ * CMainStats
  */
-json_t* ComparatorMainStats::to_json() const
+json_t* CMainStats::to_json() const
 {
     json_t* pJson = json_object();
 
@@ -51,9 +51,9 @@ json_t* ComparatorMainStats::to_json() const
 
 
 /**
- * ComparatorOtherStats
+ * COtherStats
  */
-json_t* ComparatorOtherStats::to_json() const
+json_t* COtherStats::to_json() const
 {
     json_t* pJson = json_object();
 
@@ -73,9 +73,9 @@ json_t* ComparatorOtherStats::to_json() const
 
 
 /**
- * ComparatorSessionStats
+ * CSessionStats
  */
-json_t* ComparatorSessionStats::to_json() const
+json_t* CSessionStats::to_json() const
 {
     json_t* pJson = json_object();
 
@@ -98,16 +98,16 @@ json_t* ComparatorSessionStats::to_json() const
 }
 
 /**
- * ComparatorRouterStats
+ * CRouterStats
  */
-void ComparatorRouterStats::post_configure(const ComparatorConfig& config)
+void CRouterStats::post_configure(const CConfig& config)
 {
     mxb_assert(!m_session_stats.pMain);
 
     m_session_stats.pMain = config.pMain;
 }
 
-json_t* ComparatorRouterStats::to_json() const
+json_t* CRouterStats::to_json() const
 {
     json_t* pJson = json_object();
 

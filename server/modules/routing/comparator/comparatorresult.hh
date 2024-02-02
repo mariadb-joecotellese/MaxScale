@@ -11,16 +11,16 @@
 #include <maxscale/target.hh>
 #include "comparatorregistry.hh"
 
-class ComparatorBackend;
-class ComparatorMainBackend;
-class ComparatorOtherBackend;
+class CBackend;
+class CMainBackend;
+class COtherBackend;
 
 /**
- * @class ComparatorResult
+ * @class CResult
  *
  * The result of executing one particular statement.
  */
-class ComparatorResult
+class CResult
 {
 public:
     enum class Kind
@@ -29,14 +29,14 @@ public:
         EXTERNAL  // Result of a client originating request.
     };
 
-    using Hash = ComparatorHash;
+    using Hash = CHash;
 
-    ComparatorResult(const ComparatorResult&) = delete;
-    ComparatorResult& operator=(const ComparatorResult&) = delete;
+    CResult(const CResult&) = delete;
+    CResult& operator=(const CResult&) = delete;
 
     using Clock = std::chrono::steady_clock;
 
-    virtual ~ComparatorResult();
+    virtual ~CResult();
 
     virtual Kind kind() const
     {
@@ -60,7 +60,7 @@ public:
         m_reply.clear();
     }
 
-    ComparatorBackend& backend() const
+    CBackend& backend() const
     {
         return m_backend;
     }
@@ -83,18 +83,18 @@ public:
         return std::chrono::duration_cast<std::chrono::nanoseconds>(m_end - m_start);
     }
 
-    void set_explainers(const ComparatorRegistry::Entries& explainers)
+    void set_explainers(const CRegistry::Entries& explainers)
     {
         m_explainers = explainers;
     }
 
-    const ComparatorRegistry::Entries& explainers() const
+    const CRegistry::Entries& explainers() const
     {
         return m_explainers;
     }
 
 protected:
-    ComparatorResult(ComparatorBackend* pBackend)
+    CResult(CBackend* pBackend)
         : m_backend(*pBackend)
         , m_start(Clock::now())
         , m_end(Clock::time_point::max())
@@ -103,25 +103,25 @@ protected:
     }
 
 private:
-    ComparatorBackend&          m_backend;
-    Clock::time_point           m_start;
-    Clock::time_point           m_end;
-    mxb::CRC32                  m_checksum;
-    mxs::Reply                  m_reply;
-    ComparatorRegistry::Entries m_explainers;
+    CBackend&          m_backend;
+    Clock::time_point  m_start;
+    Clock::time_point  m_end;
+    mxb::CRC32         m_checksum;
+    mxs::Reply         m_reply;
+    CRegistry::Entries m_explainers;
 };
 
 
-class ComparatorOtherResult;
+class COtherResult;
 
-class ComparatorMainResult final : public ComparatorResult
-                                 , public std::enable_shared_from_this<ComparatorMainResult>
+class CMainResult final : public CResult
+                        , public std::enable_shared_from_this<CMainResult>
 
 {
 public:
-    ComparatorMainResult(ComparatorMainBackend* pBackend, const GWBUF& packet);
+    CMainResult(CMainBackend* pBackend, const GWBUF& packet);
 
-    ~ComparatorMainResult() override = default;
+    ~CMainResult() override = default;
 
     Kind kind() const override
     {
@@ -149,15 +149,15 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend class ComparatorOtherResult;
+    friend class COtherResult;
 
-    void add_dependent(ComparatorOtherResult* pDependent)
+    void add_dependent(COtherResult* pDependent)
     {
         mxb_assert(m_dependents.find(pDependent) == m_dependents.end());
         m_dependents.insert(pDependent);
     }
 
-    void remove_dependent(ComparatorOtherResult* pDependent)
+    void remove_dependent(COtherResult* pDependent)
     {
         auto it = m_dependents.find(pDependent);
 
@@ -167,33 +167,33 @@ private:
     }
 
 private:
-    const int64_t                    m_id;
-    GWBUF                            m_packet;
-    mutable std::string_view         m_sql;
-    mutable uint32_t                 m_command {0};
-    mutable std::string_view         m_canonical;
-    mutable Hash                     m_hash {0};
-    std::set<ComparatorOtherResult*> m_dependents;
+    const int64_t            m_id;
+    GWBUF                    m_packet;
+    mutable std::string_view m_sql;
+    mutable uint32_t         m_command {0};
+    mutable std::string_view m_canonical;
+    mutable Hash             m_hash {0};
+    std::set<COtherResult*>  m_dependents;
 };
 
 
-class ComparatorOtherResult final : public ComparatorResult
-                                  , public std::enable_shared_from_this<ComparatorOtherResult>
+class COtherResult final : public CResult
+                         , public std::enable_shared_from_this<COtherResult>
 {
 public:
     class Handler
     {
     public:
-        virtual void ready(ComparatorOtherResult& other_result) = 0;
+        virtual void ready(COtherResult& other_result) = 0;
     };
 
-    ComparatorOtherResult(ComparatorOtherBackend* pBackend,
-                          Handler* pHandler,
-                          std::shared_ptr<ComparatorMainResult> sMain_result);
+    COtherResult(COtherBackend* pBackend,
+                 Handler* pHandler,
+                 std::shared_ptr<CMainResult> sMain_result);
 
-    ~ComparatorOtherResult();
+    ~COtherResult();
 
-    ComparatorMainResult& main_result() const
+    CMainResult& main_result() const
     {
         mxb_assert(m_sMain_result);
         return *m_sMain_result.get();
@@ -232,17 +232,17 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend ComparatorMainResult;
+    friend CMainResult;
 
     void main_was_closed();
 
 private:
-    Handler&                              m_handler;
-    std::shared_ptr<ComparatorMainResult> m_sMain_result;
+    Handler&                     m_handler;
+    std::shared_ptr<CMainResult> m_sMain_result;
 };
 
 
-class ComparatorExplainResult : public ComparatorResult
+class CExplainResult : public CResult
 {
 public:
     virtual std::string_view sql() const = 0;
@@ -276,21 +276,20 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 protected:
-    ComparatorExplainResult(ComparatorBackend* pBackend)
-        : ComparatorResult(pBackend)
+    CExplainResult(CBackend* pBackend)
+        : CResult(pBackend)
     {
     }
 
 };
 
 
-class ComparatorExplainOtherResult;
+class CExplainOtherResult;
 
-class ComparatorExplainMainResult final : public ComparatorExplainResult
+class CExplainMainResult final : public CExplainResult
 {
 public:
-    ComparatorExplainMainResult(ComparatorMainBackend* pBackend,
-                                std::shared_ptr<ComparatorMainResult> sMain_result);
+    CExplainMainResult(CMainBackend* pBackend, std::shared_ptr<CMainResult> sMain_result);
 
     std::string_view sql() const override
     {
@@ -300,15 +299,15 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend class ComparatorExplainOtherResult;
+    friend class CExplainOtherResult;
 
-    void add_dependent(ComparatorExplainOtherResult* pDependent)
+    void add_dependent(CExplainOtherResult* pDependent)
     {
         mxb_assert(m_dependents.find(pDependent) == m_dependents.end());
         m_dependents.insert(pDependent);
     }
 
-    void remove_dependent(ComparatorExplainOtherResult* pDependent)
+    void remove_dependent(CExplainOtherResult* pDependent)
     {
         auto it = m_dependents.find(pDependent);
 
@@ -318,24 +317,24 @@ private:
     }
 
 private:
-    std::shared_ptr<ComparatorMainResult>   m_sMain_result;
-    std::set<ComparatorExplainOtherResult*> m_dependents;
+    std::shared_ptr<CMainResult>   m_sMain_result;
+    std::set<CExplainOtherResult*> m_dependents;
 };
 
 
-class ComparatorExplainOtherResult final : public ComparatorExplainResult
+class CExplainOtherResult final : public CExplainResult
 {
 public:
     class Handler
     {
     public:
-        virtual void ready(const ComparatorExplainOtherResult& explain_other_result) = 0;
+        virtual void ready(const CExplainOtherResult& explain_other_result) = 0;
     };
 
-    ComparatorExplainOtherResult(Handler* pHandler,
-                                 std::shared_ptr<const ComparatorOtherResult> sOther_result,
-                                 std::shared_ptr<ComparatorExplainMainResult> sExplain_main_result)
-        : ComparatorExplainResult(&sOther_result->backend())
+    CExplainOtherResult(Handler* pHandler,
+                        std::shared_ptr<const COtherResult> sOther_result,
+                        std::shared_ptr<CExplainMainResult> sExplain_main_result)
+        : CExplainResult(&sOther_result->backend())
         , m_handler(*pHandler)
         , m_sOther_result(sOther_result)
         , m_sExplain_main_result(sExplain_main_result)
@@ -348,7 +347,7 @@ public:
         }
     }
 
-    ~ComparatorExplainOtherResult()
+    ~CExplainOtherResult()
     {
         if (m_sExplain_main_result)
         {
@@ -361,12 +360,12 @@ public:
         return m_sOther_result->sql();
     }
 
-    const ComparatorOtherResult& other_result() const
+    const COtherResult& other_result() const
     {
         return *m_sOther_result.get();
     }
 
-    const ComparatorExplainMainResult* explain_main_result() const
+    const CExplainMainResult* explain_main_result() const
     {
         return m_sExplain_main_result.get();
     }
@@ -374,12 +373,12 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend ComparatorExplainMainResult;
+    friend CExplainMainResult;
 
     void main_was_closed();
 
 private:
-    Handler&                                     m_handler;
-    std::shared_ptr<const ComparatorOtherResult> m_sOther_result;
-    std::shared_ptr<ComparatorExplainMainResult> m_sExplain_main_result;
+    Handler&                            m_handler;
+    std::shared_ptr<const COtherResult> m_sOther_result;
+    std::shared_ptr<CExplainMainResult> m_sExplain_main_result;
 };

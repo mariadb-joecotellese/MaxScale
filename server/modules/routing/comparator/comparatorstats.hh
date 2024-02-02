@@ -8,10 +8,10 @@
 #include "comparatordefs.hh"
 #include <maxscale/target.hh>
 
-class ComparatorConfig;
+class CConfig;
 class SERVICE;
 
-struct ComparatorStats
+struct CStats
 {
     std::chrono::nanoseconds total_duration { 0 };
     int64_t                  nRequest_packets { 0 };
@@ -23,7 +23,7 @@ struct ComparatorStats
     int64_t                  nExplain_requests { 0 };
     int64_t                  nExplain_responses { 0 };
 
-    ComparatorStats& operator += (const ComparatorStats& rhs)
+    CStats& operator += (const CStats& rhs)
     {
         this->total_duration += rhs.total_duration;
         this->nRequest_packets += rhs.nRequest_packets;
@@ -41,13 +41,13 @@ struct ComparatorStats
     void fill_json(json_t* pJson) const;
 };
 
-struct ComparatorMainStats final : ComparatorStats
+struct CMainStats final : CStats
 {
     // TODO: Placeholder.
 
-    ComparatorMainStats& operator += (const ComparatorMainStats& rhs)
+    CMainStats& operator += (const CMainStats& rhs)
     {
-        ComparatorStats::operator += (rhs);
+        CStats::operator += (rhs);
 
         return *this;
     }
@@ -55,15 +55,15 @@ struct ComparatorMainStats final : ComparatorStats
     json_t* to_json() const;
 };
 
-struct ComparatorOtherStats final : ComparatorStats
+struct COtherStats final : CStats
 {
     int64_t                  nRequests_skipped { 0 };
     int64_t                  nFaster { 0 };
     int64_t                  nSlower { 0 };
 
-    ComparatorOtherStats& operator += (const ComparatorOtherStats& rhs)
+    COtherStats& operator += (const COtherStats& rhs)
     {
-        ComparatorStats::operator += (rhs);
+        CStats::operator += (rhs);
 
         this->nRequests_skipped += rhs.nRequests_skipped;
         this->nFaster += rhs.nFaster;
@@ -75,13 +75,13 @@ struct ComparatorOtherStats final : ComparatorStats
     json_t* to_json() const;
 };
 
-struct ComparatorSessionStats
+struct CSessionStats
 {
-    mxs::Target*                                 pMain { nullptr };
-    ComparatorMainStats                          main_stats;
-    std::map<mxs::Target*, ComparatorOtherStats> other_stats;
+    mxs::Target*                        pMain { nullptr };
+    CMainStats                          main_stats;
+    std::map<mxs::Target*, COtherStats> other_stats;
 
-    ComparatorSessionStats& operator += (const ComparatorSessionStats& rhs)
+    CSessionStats& operator += (const CSessionStats& rhs)
     {
         this->main_stats += rhs.main_stats;
 
@@ -96,15 +96,15 @@ struct ComparatorSessionStats
     json_t* to_json() const;
 };
 
-class ComparatorRouterStats
+class CRouterStats
 {
 public:
-    ComparatorRouterStats(const SERVICE* pService)
+    CRouterStats(const SERVICE* pService)
         : m_service(*pService)
     {
     }
 
-    ComparatorRouterStats& operator += (const ComparatorSessionStats& rhs)
+    CRouterStats& operator += (const CSessionStats& rhs)
     {
         mxb_assert(m_session_stats.pMain == rhs.pMain);
 
@@ -112,11 +112,11 @@ public:
         return *this;
     }
 
-    void post_configure(const ComparatorConfig& config);
+    void post_configure(const CConfig& config);
 
     json_t* to_json() const;
 
 private:
-    const SERVICE&         m_service;
-    ComparatorSessionStats m_session_stats;
+    const SERVICE& m_service;
+    CSessionStats  m_session_stats;
 };

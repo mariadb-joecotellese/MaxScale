@@ -15,7 +15,7 @@
 #include <maxscale/utils.hh>
 
 // Exports to a file
-class FileExporter final : public ComparatorExporter
+class FileExporter final : public CExporter
 {
 public:
     FileExporter(int fd)
@@ -39,10 +39,9 @@ private:
     int m_fd;
 };
 
-std::unique_ptr<ComparatorExporter> build_exporter(const ComparatorConfig& config,
-                                                   const mxs::Target& target)
+std::unique_ptr<CExporter> build_exporter(const CConfig& config, const mxs::Target& target)
 {
-    std::unique_ptr<ComparatorExporter> sExporter;
+    std::unique_ptr<CExporter> sExporter;
 
     std::string dir = mxs::datadir();
     dir += "/";

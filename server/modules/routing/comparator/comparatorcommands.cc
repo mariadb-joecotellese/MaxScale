@@ -171,13 +171,13 @@ Service* create_comparator_service(const string& name,
     json_t* pJson = json_object();
     json_object_set_new(pJson, CN_DATA, pData);
 
-    Service* pComparator_service = nullptr;
+    Service* pC_service = nullptr;
 
     if (runtime_create_service_from_json(pJson))
     {
-        pComparator_service = Service::find(name);
+        pC_service = Service::find(name);
 
-        if (!pComparator_service)
+        if (!pC_service)
         {
             MXB_ERROR("Could create Comparator service '%s', but it could not subsequently "
                       "be looked up.", name.c_str());
@@ -190,7 +190,7 @@ Service* create_comparator_service(const string& name,
 
     json_decref(pJson);
 
-    return pComparator_service;
+    return pC_service;
 }
 
 Service* create_comparator_service(const SERVICE& service,
@@ -198,7 +198,7 @@ Service* create_comparator_service(const SERVICE& service,
                                    const SERVER& other,
                                    const char* zComparison_kind)
 {
-    Service* pComparator_service = nullptr;
+    Service* pC_service = nullptr;
 
     string name { "Comparator" };
     name += service.name();
@@ -211,10 +211,10 @@ Service* create_comparator_service(const SERVICE& service,
     }
     else
     {
-        pComparator_service = create_comparator_service(name, service, main, other, zComparison_kind);
+        pC_service = create_comparator_service(name, service, main, other, zComparison_kind);
     }
 
-    return pComparator_service;
+    return pC_service;
 }
 
 bool get_comparison_kind(const char* zComparison_kind, ComparisonKind* pComparison_kind)
@@ -289,15 +289,14 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
         if (rv)
         {
-            Service* pComparator_service = create_comparator_service(*pService, *pMain, *pOther,
-                                                                     zComparison_kind);
+            Service* pC_service = create_comparator_service(*pService, *pMain, *pOther, zComparison_kind);
 
-            if (pComparator_service)
+            if (pC_service)
             {
                 json_t* pOutput = json_object();
                 auto s = mxb::string_printf("Comparator service '%s' created. Server '%s' ready "
                                             "to be evaluated.",
-                                            pComparator_service->name(),
+                                            pC_service->name(),
                                             pOther->name());
                 json_object_set_new(pOutput, "status", json_string(s.c_str()));
                 *ppOutput = pOutput;
@@ -348,7 +347,7 @@ static int command_start_argc = MXS_ARRAY_NELEMS(command_start_argv);
 bool command_start(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
     auto* pService = pArgs->argv[0].value.service;
-    auto* pRouter = static_cast<ComparatorRouter*>(pService->router());
+    auto* pRouter = static_cast<CRouter*>(pService->router());
 
     return pRouter->start(ppOutput);
 };
@@ -386,7 +385,7 @@ static int command_status_argc = MXS_ARRAY_NELEMS(command_status_argv);
 bool command_status(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
     auto* pService = pArgs->argv[0].value.service;
-    auto* pRouter = static_cast<ComparatorRouter*>(pService->router());
+    auto* pRouter = static_cast<CRouter*>(pService->router());
 
     return pRouter->status(ppOutput);
 };
@@ -424,7 +423,7 @@ static int command_stop_argc = MXS_ARRAY_NELEMS(command_stop_argv);
 bool command_stop(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
     auto* pService = pArgs->argv[0].value.service;
-    auto* pRouter = static_cast<ComparatorRouter*>(pService->router());
+    auto* pRouter = static_cast<CRouter*>(pService->router());
 
     return pRouter->stop(ppOutput);
 };
@@ -459,11 +458,11 @@ static modulecmd_arg_type_t command_summary_argv[] =
      "saved, or both returned and saved. 'save' is the default."},
 };
 
-std::map<std::string, ComparatorRouter::Summary> summary_keywords =
+std::map<std::string, CRouter::Summary> summary_keywords =
 {
-    { "return", ComparatorRouter::Summary::RETURN },
-    { "save", ComparatorRouter::Summary::SAVE },
-    { "both", ComparatorRouter::Summary::BOTH },
+    { "return", CRouter::Summary::RETURN },
+    { "save", CRouter::Summary::SAVE },
+    { "both", CRouter::Summary::BOTH },
 };
 
 static int command_summary_argc = MXS_ARRAY_NELEMS(command_summary_argv);
@@ -474,9 +473,9 @@ bool command_summary(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     bool rv = true;
 
     auto* pService = pArgs->argv[0].value.service;
-    auto* pRouter = static_cast<ComparatorRouter*>(pService->router());
+    auto* pRouter = static_cast<CRouter*>(pService->router());
 
-    ComparatorRouter::Summary summary = ComparatorRouter::Summary::SAVE;
+    CRouter::Summary summary = CRouter::Summary::SAVE;
 
     if (pArgs->argc == 2)
     {

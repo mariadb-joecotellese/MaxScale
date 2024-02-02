@@ -15,22 +15,22 @@
 #include "comparatorresult.hh"
 #include "comparatorstats.hh"
 
-class ComparatorRouter;
+class CRouter;
 
-class ComparatorSession final : public mxs::RouterSession
-                              , private ComparatorOtherBackend::Handler
+class CSession final : public mxs::RouterSession
+                     , private COtherBackend::Handler
 {
 public:
-    using Stats = ComparatorSessionStats;
+    using Stats = CSessionStats;
 
-    ComparatorSession(const ComparatorSession&) = delete;
-    ComparatorSession& operator=(const ComparatorSession&) = delete;
+    CSession(const CSession&) = delete;
+    CSession& operator=(const CSession&) = delete;
 
-    ComparatorSession(MXS_SESSION* pSession,
-                      ComparatorRouter* pRouter,
-                      SComparatorMainBackend sMain,
-                      SComparatorOtherBackends backends);
-    ~ComparatorSession();
+    CSession(MXS_SESSION* pSession,
+             CRouter* pRouter,
+             SCMainBackend sMain,
+             SCOtherBackends backends);
+    ~CSession();
 
     bool routeQuery(GWBUF&& packet) override;
 
@@ -40,23 +40,23 @@ public:
                      mxs::Endpoint* pProblem, const mxs::Reply& reply) override;
 
 private:
-    // ComparatorOtherBackend::Handler
-    ComparatorOtherBackend::Action ready(ComparatorOtherResult& other_result) override;
-    void ready(const ComparatorExplainOtherResult& explain_other_result) override;
+    // COtherBackend::Handler
+    COtherBackend::Action ready(COtherResult& other_result) override;
+    void ready(const CExplainOtherResult& explain_other_result) override;
 
 private:
-    bool should_report(const ComparatorOtherResult& result) const;
+    bool should_report(const COtherResult& result) const;
 
-    void generate_report(const ComparatorOtherResult& result);
-    void generate_report(const ComparatorExplainOtherResult& result);
+    void generate_report(const COtherResult& result);
+    void generate_report(const CExplainOtherResult& result);
 
-    void generate_report(const ComparatorOtherResult& other_result,
+    void generate_report(const COtherResult& other_result,
                          json_t* pExplain_other,
                          json_t* pExplain_main);
-    json_t* generate_json(const ComparatorResult& result, json_t* pExplain);
+    json_t* generate_json(const CResult& result, json_t* pExplain);
 
-    SComparatorMainBackend   m_sMain;
-    SComparatorOtherBackends m_others;
-    int                      m_responses = 0;
-    ComparatorRouter&        m_router;
+    SCMainBackend   m_sMain;
+    SCOtherBackends m_others;
+    int             m_responses = 0;
+    CRouter&        m_router;
 };

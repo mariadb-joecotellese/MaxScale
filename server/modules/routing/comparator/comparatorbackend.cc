@@ -11,10 +11,10 @@
 
 
 /**
- * ComparatorBackend
+ * CBackend
  */
 
-void ComparatorBackend::execute_pending_explains()
+void CBackend::execute_pending_explains()
 {
     if (!extraordinary_in_process())
     {
@@ -28,7 +28,7 @@ void ComparatorBackend::execute_pending_explains()
     }
 }
 
-void ComparatorBackend::execute(const std::shared_ptr<ComparatorExplainResult>& sExplain_result)
+void CBackend::execute(const std::shared_ptr<CExplainResult>& sExplain_result)
 {
     std::string sql { "EXPLAIN FORMAT=JSON "};
     sql += sExplain_result->sql();
@@ -43,25 +43,25 @@ void ComparatorBackend::execute(const std::shared_ptr<ComparatorExplainResult>& 
     book_explain();
 }
 
-void ComparatorBackend::schedule_explain(SComparatorExplainResult&& sExplain_result)
+void CBackend::schedule_explain(SCExplainResult&& sExplain_result)
 {
     m_pending_explains.emplace_back(std::move(sExplain_result));
 }
 
 /**
- * ComparatorMainBackend
+ * CMainBackend
  */
 
-ComparatorMainBackend::SResult ComparatorMainBackend::prepare(const GWBUF& packet)
+CMainBackend::SResult CMainBackend::prepare(const GWBUF& packet)
 {
-    auto sMain_result = std::make_shared<ComparatorMainResult>(this, packet);
+    auto sMain_result = std::make_shared<CMainResult>(this, packet);
 
     m_results.push_back(sMain_result);
 
     return sMain_result;
 }
 
-void ComparatorMainBackend::ready(const ComparatorExplainMainResult& explain_result)
+void CMainBackend::ready(const CExplainMainResult& explain_result)
 {
     ++m_stats.nExplain_responses;
 
@@ -75,19 +75,19 @@ void ComparatorMainBackend::ready(const ComparatorExplainMainResult& explain_res
 }
 
 /**
- * ComparatorOtherBackend
+ * COtherBackend
  */
 
-void ComparatorOtherBackend::prepare(const ComparatorMainBackend::SResult& sMain_result)
+void COtherBackend::prepare(const CMainBackend::SResult& sMain_result)
 {
-    // std::make_shared can't be used, because the private ComparatorOtherResult::Handler base is inaccessible.
-    auto* pOther_result = new ComparatorOtherResult(this, this, sMain_result);
-    auto sOther_result = std::shared_ptr<ComparatorOtherResult>(pOther_result);
+    // std::make_shared can't be used, because the private COtherResult::Handler base is inaccessible.
+    auto* pOther_result = new COtherResult(this, this, sMain_result);
+    auto sOther_result = std::shared_ptr<COtherResult>(pOther_result);
 
     m_results.emplace_back(std::move(sOther_result));
 }
 
-void ComparatorOtherBackend::ready(ComparatorOtherResult& other_result)
+void COtherBackend::ready(COtherResult& other_result)
 {
     mxb_assert(m_pHandler);
 
@@ -104,7 +104,7 @@ void ComparatorOtherBackend::ready(ComparatorOtherResult& other_result)
         ++m_stats.nSlower;
     }
 
-    std::shared_ptr<ComparatorExplainMainResult> sExplain_main;
+    std::shared_ptr<CExplainMainResult> sExplain_main;
 
     switch (m_pHandler->ready(other_result))
     {
@@ -120,9 +120,9 @@ void ComparatorOtherBackend::ready(ComparatorOtherResult& other_result)
         {
             mxb_assert(main_result.is_explainable());
 
-            auto& main_backend = static_cast<ComparatorMainBackend&>(main_result.backend());
+            auto& main_backend = static_cast<CMainBackend&>(main_result.backend());
             auto sMain_result = main_result.shared_from_this();
-            auto* pExplain_main = new ComparatorExplainMainResult(&main_backend, sMain_result);
+            auto* pExplain_main = new CExplainMainResult(&main_backend, sMain_result);
             sExplain_main.reset(pExplain_main);
 
             main_backend.schedule_explain(sExplain_main);
@@ -136,8 +136,8 @@ void ComparatorOtherBackend::ready(ComparatorOtherResult& other_result)
 
             auto sOther_result = other_result.shared_from_this();
 
-            auto* pExplain_result = new ComparatorExplainOtherResult(this, sOther_result, sExplain_main);
-            auto sExplain_result = std::shared_ptr<ComparatorExplainResult>(pExplain_result);
+            auto* pExplain_result = new CExplainOtherResult(this, sOther_result, sExplain_main);
+            auto sExplain_result = std::shared_ptr<CExplainResult>(pExplain_result);
 
             schedule_explain(std::move(sExplain_result));
         }
@@ -147,7 +147,7 @@ void ComparatorOtherBackend::ready(ComparatorOtherResult& other_result)
     execute_pending_explains();
 }
 
-void ComparatorOtherBackend::ready(const ComparatorExplainOtherResult& explain_result)
+void COtherBackend::ready(const CExplainOtherResult& explain_result)
 {
     mxb_assert(m_pHandler);
 
@@ -171,25 +171,25 @@ void ComparatorOtherBackend::ready(const ComparatorExplainOtherResult& explain_r
 namespace comparator
 {
 
-std::pair<SComparatorMainBackend,SComparatorOtherBackends>
+std::pair<SCMainBackend,SCOtherBackends>
 backends_from_endpoints(const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
-                        const ComparatorRouter& router)
+                        const CRouter& router)
 {
     mxb_assert(endpoints.size() > 1);
 
-    SComparatorMainBackend sMain;
+    SCMainBackend sMain;
 
     for (auto* pEndpoint : endpoints)
     {
         if (pEndpoint->target() == &main_target)
         {
-            sMain.reset(new ComparatorMainBackend(pEndpoint));
+            sMain.reset(new CMainBackend(pEndpoint));
             break;
         }
     }
 
-    SComparatorOtherBackends others;
+    SCOtherBackends others;
     others.reserve(endpoints.size() - 1);
 
     for (auto* pEndpoint : endpoints)
@@ -198,7 +198,7 @@ backends_from_endpoints(const mxs::Target& main_target,
 
         if (pTarget != &main_target)
         {
-            others.emplace_back(new ComparatorOtherBackend(pEndpoint, router.exporter_for(pTarget)));
+            others.emplace_back(new COtherBackend(pEndpoint, router.exporter_for(pTarget)));
         }
     }
 

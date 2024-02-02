@@ -10,10 +10,10 @@
 #include <maxscale/target.hh>
 #include "comparatorconfig.hh"
 
-class ComparatorExporter
+class CExporter
 {
 public:
-    virtual ~ComparatorExporter() = default;
+    virtual ~CExporter() = default;
 
     /**
      * Ship a JSON object outside of MaxScale
@@ -23,5 +23,4 @@ public:
     virtual void ship(json_t* pJson) = 0;
 };
 
-std::unique_ptr<ComparatorExporter> build_exporter(const ComparatorConfig& config,
-                                                   const mxs::Target& target);
+std::unique_ptr<CExporter> build_exporter(const CConfig& config, const mxs::Target& target);

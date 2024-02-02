@@ -21,7 +21,7 @@ using namespace mxs;
 using std::chrono::duration_cast;
 
 
-ComparatorRouter::ComparatorRouter(SERVICE* pService)
+CRouter::CRouter(SERVICE* pService)
     : mxb::Worker::Callable(mxs::MainWorker::get())
     , m_config(pService->name(), this)
     , m_service(*pService)
@@ -29,13 +29,13 @@ ComparatorRouter::ComparatorRouter(SERVICE* pService)
 {
 }
 
-ComparatorRouter::~ComparatorRouter()
+CRouter::~CRouter()
 {
     summary(Summary::SAVE, nullptr);
 }
 
 // static
-const char* ComparatorRouter::to_string(ComparatorState comparator_state)
+const char* CRouter::to_string(ComparatorState comparator_state)
 {
     switch (comparator_state)
     {
@@ -57,7 +57,7 @@ const char* ComparatorRouter::to_string(ComparatorState comparator_state)
 }
 
 // static
-const char* ComparatorRouter::to_string(SyncState sync_state)
+const char* CRouter::to_string(SyncState sync_state)
 {
     switch (sync_state)
     {
@@ -77,12 +77,12 @@ const char* ComparatorRouter::to_string(SyncState sync_state)
 }
 
 // static
-ComparatorRouter* ComparatorRouter::create(SERVICE* pService)
+CRouter* CRouter::create(SERVICE* pService)
 {
-    return new ComparatorRouter(pService);
+    return new CRouter(pService);
 }
 
-RouterSession* ComparatorRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpoints)
+RouterSession* CRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpoints)
 {
     const auto& children = m_service.get_children();
 
@@ -112,13 +112,13 @@ RouterSession* ComparatorRouter::newSession(MXS_SESSION* pSession, const Endpoin
 
     if (connected)
     {
-        pRouter_session = new ComparatorSession(pSession, this, std::move(sMain), std::move(backends));
+        pRouter_session = new CSession(pSession, this, std::move(sMain), std::move(backends));
     }
 
     return pRouter_session;
 }
 
-std::shared_ptr<ComparatorExporter> ComparatorRouter::exporter_for(const mxs::Target* pTarget) const
+std::shared_ptr<CExporter> CRouter::exporter_for(const mxs::Target* pTarget) const
 {
     std::shared_lock<std::shared_mutex> guard(m_exporters_rwlock);
 
@@ -128,17 +128,17 @@ std::shared_ptr<ComparatorExporter> ComparatorRouter::exporter_for(const mxs::Ta
     return it->second;
 }
 
-json_t* ComparatorRouter::diagnostics() const
+json_t* CRouter::diagnostics() const
 {
     return nullptr;
 }
 
-uint64_t ComparatorRouter::getCapabilities() const
+uint64_t CRouter::getCapabilities() const
 {
     return COMPARATOR_CAPABILITIES;
 }
 
-bool ComparatorRouter::post_configure()
+bool CRouter::post_configure()
 {
     bool rv= true;
 
@@ -167,7 +167,7 @@ bool ComparatorRouter::post_configure()
     return rv;
 }
 
-bool ComparatorRouter::start(json_t** ppOutput)
+bool CRouter::start(json_t** ppOutput)
 {
     mxb_assert(MainWorker::is_current());
 
@@ -196,7 +196,7 @@ bool ComparatorRouter::start(json_t** ppOutput)
     return true;
 }
 
-bool ComparatorRouter::status(json_t** ppOutput)
+bool CRouter::status(json_t** ppOutput)
 {
     RoutingWorker::SessionResult sr = suspended_sessions();
 
@@ -205,7 +205,7 @@ bool ComparatorRouter::status(json_t** ppOutput)
     return true;
 }
 
-bool ComparatorRouter::stop(json_t** ppOutput)
+bool CRouter::stop(json_t** ppOutput)
 {
     mxb_assert(MainWorker::is_current());
 
@@ -284,7 +284,7 @@ bool save_stats(const std::string& path, json_t* pOutput)
 
 }
 
-bool ComparatorRouter::summary(Summary summary, json_t** ppOutput)
+bool CRouter::summary(Summary summary, json_t** ppOutput)
 {
     bool rv = true;
 
@@ -325,14 +325,14 @@ bool ComparatorRouter::summary(Summary summary, json_t** ppOutput)
     return rv;
 }
 
-void ComparatorRouter::collect(const ComparatorSessionStats& stats)
+void CRouter::collect(const CSessionStats& stats)
 {
     std::lock_guard<std::mutex> guard(m_stats_lock);
 
     m_stats += stats;
 }
 
-void ComparatorRouter::set_state(ComparatorState comparator_state, SyncState sync_state)
+void CRouter::set_state(ComparatorState comparator_state, SyncState sync_state)
 {
     m_comparator_state = comparator_state;
     m_sync_state = sync_state;
@@ -355,7 +355,7 @@ void ComparatorRouter::set_state(ComparatorState comparator_state, SyncState syn
 #endif
 }
 
-void ComparatorRouter::set_sync_state(SyncState sync_state)
+void CRouter::set_sync_state(SyncState sync_state)
 {
     m_sync_state = sync_state;
 
@@ -363,27 +363,27 @@ void ComparatorRouter::set_sync_state(SyncState sync_state)
                && m_sync_state != SyncState::NOT_APPLICABLE);
 }
 
-mxs::RoutingWorker::SessionResult ComparatorRouter::restart_sessions()
+mxs::RoutingWorker::SessionResult CRouter::restart_sessions()
 {
     return mxs::RoutingWorker::restart_sessions(m_config.pService->name());
 }
 
-mxs::RoutingWorker::SessionResult ComparatorRouter::suspend_sessions()
+mxs::RoutingWorker::SessionResult CRouter::suspend_sessions()
 {
     return mxs::RoutingWorker::suspend_sessions(m_config.pService->name());
 }
 
-mxs::RoutingWorker::SessionResult ComparatorRouter::resume_sessions()
+mxs::RoutingWorker::SessionResult CRouter::resume_sessions()
 {
     return mxs::RoutingWorker::resume_sessions(m_config.pService->name());
 }
 
-mxs::RoutingWorker::SessionResult ComparatorRouter::suspended_sessions()
+mxs::RoutingWorker::SessionResult CRouter::suspended_sessions()
 {
     return mxs::RoutingWorker::suspended_sessions(m_config.pService->name());
 }
 
-void ComparatorRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOutput)
+void CRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOutput)
 {
     json_t* pOutput = json_object();
     json_object_set_new(pOutput, "state", json_string(to_string(m_comparator_state)));
@@ -396,8 +396,8 @@ void ComparatorRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t**
     *ppOutput = pOutput;
 }
 
-bool ComparatorRouter::rewire_service(const std::set<std::string>& from_targets,
-                                      const std::set<std::string>& to_targets)
+bool CRouter::rewire_service(const std::set<std::string>& from_targets,
+                             const std::set<std::string>& to_targets)
 {
     bool rv = false;
 
@@ -423,7 +423,7 @@ bool ComparatorRouter::rewire_service(const std::set<std::string>& from_targets,
     return rv;
 }
 
-bool ComparatorRouter::rewire_service_for_comparison()
+bool CRouter::rewire_service_for_comparison()
 {
     bool rv = false;
 
@@ -440,7 +440,7 @@ bool ComparatorRouter::rewire_service_for_comparison()
     return rv;
 }
 
-bool ComparatorRouter::rewire_service_for_normalcy()
+bool CRouter::rewire_service_for_normalcy()
 {
     bool rv = false;
 
@@ -457,7 +457,7 @@ bool ComparatorRouter::rewire_service_for_normalcy()
     return rv;
 }
 
-bool ComparatorRouter::reset_replication(const SERVER& server)
+bool CRouter::reset_replication(const SERVER& server)
 {
     bool rv = false;
 
@@ -499,7 +499,7 @@ bool ComparatorRouter::reset_replication(const SERVER& server)
     return rv;
 }
 
-bool ComparatorRouter::stop_replication(const SERVER& server)
+bool CRouter::stop_replication(const SERVER& server)
 {
     bool rv = false;
 
@@ -532,7 +532,7 @@ bool ComparatorRouter::stop_replication(const SERVER& server)
     return rv;
 }
 
-void ComparatorRouter::reset_replication()
+void CRouter::reset_replication()
 {
     // TODO: For now it should be ensured that the immediate
     // TODO: children are all servers.
@@ -605,7 +605,7 @@ std::optional<GtidPosByDomain> get_gtid_pos_by_domain(const SERVICE& service, co
 
 }
 
-ComparatorRouter::ReplicationStatus ComparatorRouter::stop_replication()
+CRouter::ReplicationStatus CRouter::stop_replication()
 {
     ReplicationStatus rv = ReplicationStatus::ERROR;
 
@@ -685,7 +685,7 @@ ComparatorRouter::ReplicationStatus ComparatorRouter::stop_replication()
     return rv;
 }
 
-void ComparatorRouter::restart_and_resume()
+void CRouter::restart_and_resume()
 {
     RoutingWorker::SessionResult sr = restart_sessions();
 
@@ -705,7 +705,7 @@ void ComparatorRouter::restart_and_resume()
     }
 }
 
-void ComparatorRouter::setup(const RoutingWorker::SessionResult& sr)
+void CRouter::setup(const RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
@@ -766,7 +766,7 @@ void ComparatorRouter::setup(const RoutingWorker::SessionResult& sr)
     }
 }
 
-bool ComparatorRouter::setup_dcall()
+bool CRouter::setup_dcall()
 {
     RoutingWorker::SessionResult sr = suspend_sessions();
 
@@ -782,7 +782,7 @@ bool ComparatorRouter::setup_dcall()
     return call_again;
 }
 
-void ComparatorRouter::start_setup_dcall()
+void CRouter::start_setup_dcall()
 {
     mxb_assert(m_dcstart == 0);
 
@@ -791,7 +791,7 @@ void ComparatorRouter::start_setup_dcall()
         });
 }
 
-void ComparatorRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
+void CRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
@@ -814,7 +814,7 @@ void ComparatorRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
     }
 }
 
-bool ComparatorRouter::teardown_dcall()
+bool CRouter::teardown_dcall()
 {
     RoutingWorker::SessionResult sr = suspend_sessions();
 
@@ -830,7 +830,7 @@ bool ComparatorRouter::teardown_dcall()
     return call_again;
 }
 
-void ComparatorRouter::start_teardown_dcall()
+void CRouter::start_teardown_dcall()
 {
     mxb_assert(m_dcstart == 0);
 
@@ -839,7 +839,7 @@ void ComparatorRouter::start_teardown_dcall()
         });
 }
 
-bool ComparatorRouter::update_exporters()
+bool CRouter::update_exporters()
 {
     bool rv = true;
 

@@ -14,4 +14,4 @@
 
 const uint64_t COMPARATOR_CAPABILITIES = RCAP_TYPE_REQUEST_TRACKING | RCAP_TYPE_RUNTIME_CONFIG;
 
-using ComparatorHash = uint64_t;
+using CHash = uint64_t;

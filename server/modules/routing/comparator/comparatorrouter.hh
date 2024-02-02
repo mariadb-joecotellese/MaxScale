@@ -17,13 +17,13 @@
 #include "comparatorregistry.hh"
 #include "comparatorstats.hh"
 
-class ComparatorSession;
+class CSession;
 
-class ComparatorRouter : public mxs::Router
-                       , private mxb::Worker::Callable
+class CRouter : public mxs::Router
+              , private mxb::Worker::Callable
 {
 public:
-    using Stats = ComparatorRouterStats;
+    using Stats = CRouterStats;
 
     enum class ComparatorState
     {
@@ -43,16 +43,16 @@ public:
     static const char* to_string(ComparatorState comparator_state);
     static const char* to_string(SyncState sync_state);
 
-    ComparatorRouter(const ComparatorRouter&) = delete;
-    ComparatorRouter& operator=(const ComparatorRouter&) = delete;
+    CRouter(const CRouter&) = delete;
+    CRouter& operator=(const CRouter&) = delete;
 
-    ~ComparatorRouter();
-    static ComparatorRouter*  create(SERVICE* pService);
+    ~CRouter();
+    static CRouter*     create(SERVICE* pService);
     mxs::RouterSession* newSession(MXS_SESSION* pSession, const mxs::Endpoints& endpoints) override;
     json_t*             diagnostics() const override;
     uint64_t            getCapabilities() const override;
 
-    std::shared_ptr<ComparatorExporter> exporter_for(const mxs::Target* pTarget) const;
+    std::shared_ptr<CExporter> exporter_for(const mxs::Target* pTarget) const;
 
     mxs::Target* get_main() const
     {
@@ -69,7 +69,7 @@ public:
         return {MXS_MARIADB_PROTOCOL_NAME};
     }
 
-    const ComparatorConfig& config() const
+    const CConfig& config() const
     {
         return m_config;
     }
@@ -88,9 +88,9 @@ public:
     bool stop(json_t** ppOutput);
     bool summary(Summary summary, json_t** ppOutput);
 
-    void collect(const ComparatorSessionStats& stats);
+    void collect(const CSessionStats& stats);
 
-    ComparatorRegistry& registry()
+    CRegistry& registry()
     {
         return m_registry;
     }
@@ -141,19 +141,19 @@ private:
 
     bool update_exporters();
 
-    ComparatorRouter(SERVICE* pService);
+    CRouter(SERVICE* pService);
 
-    using SExporter = std::shared_ptr<ComparatorExporter>;
+    using SExporter = std::shared_ptr<CExporter>;
 
     std::string                             m_service_name;
     ComparatorState                         m_comparator_state { ComparatorState::PREPARED };
     SyncState                               m_sync_state { SyncState::NOT_APPLICABLE };
-    ComparatorConfig                        m_config;
+    CConfig                                 m_config;
     SERVICE&                                m_service;
     mxb::Worker::DCId                       m_dcstart { mxb::Worker::NO_CALL };
     std::map<const mxs::Target*, SExporter> m_exporters;
     mutable std::shared_mutex               m_exporters_rwlock;
     Stats                                   m_stats;
     std::mutex                              m_stats_lock;
-    ComparatorRegistry                      m_registry;
+    CRegistry                               m_registry;
 };

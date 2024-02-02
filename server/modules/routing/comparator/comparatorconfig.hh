@@ -45,15 +45,15 @@ constexpr std::chrono::milliseconds DEFAULT_PERIOD { 60 * 60 * 1000 };
 constexpr Report                    DEFAULT_REPORT { Report::ON_DISCREPANCY };
 /* *INDENT-ON* */
 
-class ComparatorRouter;
+class CRouter;
 
-class ComparatorConfig : public mxs::config::Configuration
+class CConfig : public mxs::config::Configuration
 {
 public:
-    ComparatorConfig(const ComparatorConfig&) = delete;
-    ComparatorConfig& operator=(const ComparatorConfig&) = delete;
+    CConfig(const CConfig&) = delete;
+    CConfig& operator=(const CConfig&) = delete;
 
-    ComparatorConfig(const char* zName, ComparatorRouter* pInstance);
+    CConfig(const char* zName, CRouter* pInstance);
 
     mxs::Target* pMain;
 
@@ -90,5 +90,5 @@ protected:
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;
 
 private:
-    ComparatorRouter& m_instance;
+    CRouter& m_instance;
 };

@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include "comparatorconfig.hh"
 
-class ComparatorRegistry final
+class CRegistry final
 {
 public:
     struct Entry
@@ -19,13 +19,13 @@ public:
     };
 
     using Entries = std::vector<Entry>;
-    using Hash = ComparatorHash;
+    using Hash = CHash;
 
-    ComparatorRegistry(const ComparatorRegistry&) = delete;
-    ComparatorRegistry& operator=(const ComparatorRegistry&);
+    CRegistry(const CRegistry&) = delete;
+    CRegistry& operator=(const CRegistry&);
 
-    ComparatorRegistry();
-    ~ComparatorRegistry() = default;
+    CRegistry();
+    ~CRegistry() = default;
 
     /**
      * Specify how many times a statement should be explained.

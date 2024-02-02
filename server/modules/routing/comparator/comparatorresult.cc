@@ -20,19 +20,19 @@ struct ThisUnit
 }
 
 /**
- * ComparatorResult
+ * CResult
  */
-ComparatorResult::~ComparatorResult()
+CResult::~CResult()
 {
 }
 
-void ComparatorResult::process(const GWBUF& buffer)
+void CResult::process(const GWBUF& buffer)
 {
     mxb_assert(!closed());
     m_checksum.update(buffer);
 }
 
-std::chrono::nanoseconds ComparatorResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds CResult::close(const mxs::Reply& reply)
 {
     mxb_assert(!closed());
     m_reply = reply;
@@ -43,16 +43,16 @@ std::chrono::nanoseconds ComparatorResult::close(const mxs::Reply& reply)
 
 
 /**
- * ComparatorMainResult
+ * CMainResult
  */
-ComparatorMainResult::ComparatorMainResult(ComparatorMainBackend* pBackend, const GWBUF& packet)
-    : ComparatorResult(pBackend)
+CMainResult::CMainResult(CMainBackend* pBackend, const GWBUF& packet)
+    : CResult(pBackend)
     , m_id(this_unit.id++)
     , m_packet(packet.shallow_clone())
 {
 }
 
-std::string_view ComparatorMainResult::sql() const
+std::string_view CMainResult::sql() const
 {
     if (m_sql.empty())
     {
@@ -62,7 +62,7 @@ std::string_view ComparatorMainResult::sql() const
     return m_sql;
 }
 
-uint8_t ComparatorMainResult::command() const
+uint8_t CMainResult::command() const
 {
     if (m_command == 0)
     {
@@ -72,7 +72,7 @@ uint8_t ComparatorMainResult::command() const
     return m_command;
 }
 
-std::string_view ComparatorMainResult::canonical() const
+std::string_view CMainResult::canonical() const
 {
     if (m_canonical.empty())
     {
@@ -82,24 +82,24 @@ std::string_view ComparatorMainResult::canonical() const
     return m_canonical;
 }
 
-ComparatorResult::Hash ComparatorMainResult::hash() const
+CResult::Hash CMainResult::hash() const
 {
     if (m_hash == 0)
     {
-        m_hash = ComparatorRegistry::hash_for(canonical());
+        m_hash = CRegistry::hash_for(canonical());
     }
 
     return m_hash;
 }
 
-std::chrono::nanoseconds ComparatorMainResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds CMainResult::close(const mxs::Reply& reply)
 {
-    auto rv = ComparatorResult::close(reply);
+    auto rv = CResult::close(reply);
 
     // A dependent may end up removing itself.
     auto dependents = m_dependents;
 
-    for (ComparatorOtherResult* pDependent : dependents)
+    for (COtherResult* pDependent : dependents)
     {
         pDependent->main_was_closed();
     }
@@ -108,28 +108,28 @@ std::chrono::nanoseconds ComparatorMainResult::close(const mxs::Reply& reply)
 }
 
 /**
- * ComparatorOtherResult
+ * COtherResult
  */
 
-ComparatorOtherResult::ComparatorOtherResult(ComparatorOtherBackend* pBackend,
-                                             Handler* pHandler,
-                                             std::shared_ptr<ComparatorMainResult> sMain_result)
-    : ComparatorResult(pBackend)
+COtherResult::COtherResult(COtherBackend* pBackend,
+                           Handler* pHandler,
+                           std::shared_ptr<CMainResult> sMain_result)
+    : CResult(pBackend)
     , m_handler(*pHandler)
     , m_sMain_result(sMain_result)
 {
     m_sMain_result->add_dependent(this);
 }
 
-ComparatorOtherResult::~ComparatorOtherResult()
+COtherResult::~COtherResult()
 {
     m_sMain_result->remove_dependent(this);
 }
 
 
-std::chrono::nanoseconds ComparatorOtherResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds COtherResult::close(const mxs::Reply& reply)
 {
-    auto rv = ComparatorResult::close(reply);
+    auto rv = CResult::close(reply);
 
     if (m_sMain_result->closed())
     {
@@ -139,7 +139,7 @@ std::chrono::nanoseconds ComparatorOtherResult::close(const mxs::Reply& reply)
     return rv;
 }
 
-void ComparatorOtherResult::main_was_closed()
+void COtherResult::main_was_closed()
 {
     if (closed())
     {
@@ -149,12 +149,12 @@ void ComparatorOtherResult::main_was_closed()
 
 
 /**
- * ComparatorExplainResult
+ * CExplainResult
  */
 
-std::chrono::nanoseconds ComparatorExplainResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds CExplainResult::close(const mxs::Reply& reply)
 {
-    ComparatorResult::close(reply);
+    CResult::close(reply);
 
     // Return 0, so that the duration of the EXPLAIN request is not
     // included in the total duration.
@@ -162,39 +162,39 @@ std::chrono::nanoseconds ComparatorExplainResult::close(const mxs::Reply& reply)
 }
 
 /**
- * ComparatorExplainMainResult
+ * CExplainMainResult
  */
-ComparatorExplainMainResult::ComparatorExplainMainResult(ComparatorMainBackend* pBackend,
-                                                         std::shared_ptr<ComparatorMainResult> sMain_result)
-    : ComparatorExplainResult(pBackend)
+CExplainMainResult::CExplainMainResult(CMainBackend* pBackend,
+                                       std::shared_ptr<CMainResult> sMain_result)
+    : CExplainResult(pBackend)
     , m_sMain_result(sMain_result)
 {
     mxb_assert(m_sMain_result);
 }
 
-std::chrono::nanoseconds ComparatorExplainMainResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds CExplainMainResult::close(const mxs::Reply& reply)
 {
-    auto rv = ComparatorExplainResult::close(reply);
+    auto rv = CExplainResult::close(reply);
 
     // A dependent may end up removing itself.
     auto dependents = m_dependents;
 
-    for (ComparatorExplainOtherResult* pDependent : dependents)
+    for (CExplainOtherResult* pDependent : dependents)
     {
         pDependent->main_was_closed();
     }
 
-    static_cast<ComparatorMainBackend&>(backend()).ready(*this);
+    static_cast<CMainBackend&>(backend()).ready(*this);
 
     return rv;
 }
 
 /**
- * ComparatorExplainOtherResult
+ * CExplainOtherResult
  */
-std::chrono::nanoseconds ComparatorExplainOtherResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds CExplainOtherResult::close(const mxs::Reply& reply)
 {
-    auto rv = ComparatorExplainResult::close(reply);
+    auto rv = CExplainResult::close(reply);
 
     if (!m_sExplain_main_result || m_sExplain_main_result->closed())
     {
@@ -204,7 +204,7 @@ std::chrono::nanoseconds ComparatorExplainOtherResult::close(const mxs::Reply& r
     return rv;
 }
 
-void ComparatorExplainOtherResult::main_was_closed()
+void CExplainOtherResult::main_was_closed()
 {
     if (closed())
     {

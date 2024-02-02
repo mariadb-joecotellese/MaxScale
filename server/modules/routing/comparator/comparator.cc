@@ -24,12 +24,12 @@ extern "C" MXS_MODULE* MXS_CREATE_MODULE()
         zDesc,
         "V1.0.0",
         COMPARATOR_CAPABILITIES,
-        &mxs::RouterApi<ComparatorRouter>::s_api,
+        &mxs::RouterApi<CRouter>::s_api,
         NULL,
         NULL,
         NULL,
         NULL,
-        ComparatorConfig::specification()
+        CConfig::specification()
     };
 
     return &info;
