@@ -74,6 +74,15 @@ void CMainBackend::ready(const CExplainMainResult& explain_result)
     execute_pending_explains();
 }
 
+void CMainBackend::execute_pending_explains()
+{
+    // TODO: Replace this with MXS_SESSION::delay_routing() as that will handle
+    // TODO: session lifetime issues.
+    m_worker.lcall([this] {
+            CBackend::execute_pending_explains();
+        });
+}
+
 /**
  * COtherBackend
  */
@@ -83,6 +92,8 @@ void COtherBackend::prepare(const CMainBackend::SResult& sMain_result)
     // std::make_shared can't be used, because the private COtherResult::Handler base is inaccessible.
     auto* pOther_result = new COtherResult(this, this, sMain_result);
     auto sOther_result = std::shared_ptr<COtherResult>(pOther_result);
+
+    sOther_result->register_at_main();
 
     m_results.emplace_back(std::move(sOther_result));
 }
@@ -132,7 +143,9 @@ void COtherBackend::ready(COtherResult& other_result)
             auto sOther_result = other_result.shared_from_this();
 
             auto* pExplain_result = new CExplainOtherResult(this, sOther_result, sExplain_main);
-            auto sExplain_result = std::shared_ptr<CExplainResult>(pExplain_result);
+            auto sExplain_result = std::shared_ptr<CExplainOtherResult>(pExplain_result);
+
+            sExplain_result->register_at_main();
 
             schedule_explain(std::move(sExplain_result));
         }
@@ -167,7 +180,8 @@ namespace comparator
 {
 
 std::pair<SCMainBackend,SCOtherBackends>
-backends_from_endpoints(const mxs::Target& main_target,
+backends_from_endpoints(mxb::Worker* pWorker,
+                        const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
                         const CRouter& router)
 {
@@ -179,7 +193,7 @@ backends_from_endpoints(const mxs::Target& main_target,
     {
         if (pEndpoint->target() == &main_target)
         {
-            sMain.reset(new CMainBackend(pEndpoint));
+            sMain.reset(new CMainBackend(pEndpoint, pWorker));
             break;
         }
     }

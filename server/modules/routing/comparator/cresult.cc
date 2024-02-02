@@ -52,6 +52,10 @@ CMainResult::CMainResult(CMainBackend* pBackend, const GWBUF& packet)
 {
 }
 
+CMainResult::~CMainResult()
+{
+}
+
 std::string_view CMainResult::sql() const
 {
     if (m_sql.empty())
@@ -99,9 +103,9 @@ std::chrono::nanoseconds CMainResult::close(const mxs::Reply& reply)
     // A dependent may end up removing itself.
     auto dependents = m_dependents;
 
-    for (COtherResult* pDependent : dependents)
+    for (std::shared_ptr<COtherResult> sDependent : dependents)
     {
-        pDependent->main_was_closed();
+        sDependent->main_was_closed();
     }
 
     return rv;
@@ -118,14 +122,11 @@ COtherResult::COtherResult(COtherBackend* pBackend,
     , m_handler(*pHandler)
     , m_sMain_result(sMain_result)
 {
-    m_sMain_result->add_dependent(this);
 }
 
 COtherResult::~COtherResult()
 {
-    m_sMain_result->remove_dependent(this);
 }
-
 
 std::chrono::nanoseconds COtherResult::close(const mxs::Reply& reply)
 {
@@ -134,6 +135,7 @@ std::chrono::nanoseconds COtherResult::close(const mxs::Reply& reply)
     if (m_sMain_result->closed())
     {
         m_handler.ready(*this);
+        m_sMain_result->remove_dependent(shared_from_this());
     }
 
     return rv;
@@ -144,6 +146,7 @@ void COtherResult::main_was_closed()
     if (closed())
     {
         m_handler.ready(*this);
+        m_sMain_result->remove_dependent(shared_from_this());
     }
 }
 
@@ -172,6 +175,10 @@ CExplainMainResult::CExplainMainResult(CMainBackend* pBackend,
     mxb_assert(m_sMain_result);
 }
 
+CExplainMainResult::~CExplainMainResult()
+{
+}
+
 std::chrono::nanoseconds CExplainMainResult::close(const mxs::Reply& reply)
 {
     auto rv = CExplainResult::close(reply);
@@ -179,9 +186,9 @@ std::chrono::nanoseconds CExplainMainResult::close(const mxs::Reply& reply)
     // A dependent may end up removing itself.
     auto dependents = m_dependents;
 
-    for (CExplainOtherResult* pDependent : dependents)
+    for (std::shared_ptr<CExplainOtherResult> sDependent : dependents)
     {
-        pDependent->main_was_closed();
+        sDependent->main_was_closed();
     }
 
     static_cast<CMainBackend&>(backend()).ready(*this);
@@ -192,6 +199,21 @@ std::chrono::nanoseconds CExplainMainResult::close(const mxs::Reply& reply)
 /**
  * CExplainOtherResult
  */
+CExplainOtherResult::CExplainOtherResult(Handler* pHandler,
+                                         std::shared_ptr<const COtherResult> sOther_result,
+                                         std::shared_ptr<CExplainMainResult> sExplain_main_result)
+    : CExplainResult(&sOther_result->backend())
+    , m_handler(*pHandler)
+    , m_sOther_result(sOther_result)
+    , m_sExplain_main_result(sExplain_main_result)
+{
+    mxb_assert(m_sOther_result);
+}
+
+CExplainOtherResult::~CExplainOtherResult()
+{
+}
+
 std::chrono::nanoseconds CExplainOtherResult::close(const mxs::Reply& reply)
 {
     auto rv = CExplainResult::close(reply);
@@ -199,6 +221,11 @@ std::chrono::nanoseconds CExplainOtherResult::close(const mxs::Reply& reply)
     if (!m_sExplain_main_result || m_sExplain_main_result->closed())
     {
         m_handler.ready(*this);
+
+        if (m_sExplain_main_result)
+        {
+            m_sExplain_main_result->remove_dependent(shared_from_this());
+        }
     }
 
     return rv;
@@ -209,5 +236,6 @@ void CExplainOtherResult::main_was_closed()
     if (closed())
     {
         m_handler.ready(*this);
+        m_sExplain_main_result->remove_dependent(shared_from_this());
     }
 }

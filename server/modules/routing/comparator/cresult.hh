@@ -121,7 +121,7 @@ class CMainResult final : public CResult
 public:
     CMainResult(CMainBackend* pBackend, const GWBUF& packet);
 
-    ~CMainResult() override = default;
+    ~CMainResult();
 
     Kind kind() const override
     {
@@ -151,15 +151,15 @@ public:
 private:
     friend class COtherResult;
 
-    void add_dependent(COtherResult* pDependent)
+    void add_dependent(std::shared_ptr<COtherResult> sDependent)
     {
-        mxb_assert(m_dependents.find(pDependent) == m_dependents.end());
-        m_dependents.insert(pDependent);
+        mxb_assert(m_dependents.find(sDependent) == m_dependents.end());
+        m_dependents.insert(sDependent);
     }
 
-    void remove_dependent(COtherResult* pDependent)
+    void remove_dependent(std::shared_ptr<COtherResult> sDependent)
     {
-        auto it = m_dependents.find(pDependent);
+        auto it = m_dependents.find(sDependent);
 
         mxb_assert(it != m_dependents.end());
 
@@ -167,13 +167,13 @@ private:
     }
 
 private:
-    const int64_t            m_id;
-    GWBUF                    m_packet;
-    mutable std::string_view m_sql;
-    mutable uint32_t         m_command {0};
-    mutable std::string_view m_canonical;
-    mutable Hash             m_hash {0};
-    std::set<COtherResult*>  m_dependents;
+    const int64_t                           m_id;
+    GWBUF                                   m_packet;
+    mutable std::string_view                m_sql;
+    mutable uint32_t                        m_command {0};
+    mutable std::string_view                m_canonical;
+    mutable Hash                            m_hash {0};
+    std::set<std::shared_ptr<COtherResult>> m_dependents;
 };
 
 
@@ -192,6 +192,11 @@ public:
                  std::shared_ptr<CMainResult> sMain_result);
 
     ~COtherResult();
+
+    void register_at_main()
+    {
+        m_sMain_result->add_dependent(shared_from_this());
+    }
 
     CMainResult& main_result() const
     {
@@ -291,6 +296,8 @@ class CExplainMainResult final : public CExplainResult
 public:
     CExplainMainResult(CMainBackend* pBackend, std::shared_ptr<CMainResult> sMain_result);
 
+    ~CExplainMainResult();
+
     std::string_view sql() const override
     {
         return m_sMain_result->sql();
@@ -301,15 +308,15 @@ public:
 private:
     friend class CExplainOtherResult;
 
-    void add_dependent(CExplainOtherResult* pDependent)
+    void add_dependent(std::shared_ptr<CExplainOtherResult> sDependent)
     {
-        mxb_assert(m_dependents.find(pDependent) == m_dependents.end());
-        m_dependents.insert(pDependent);
+        mxb_assert(m_dependents.find(sDependent) == m_dependents.end());
+        m_dependents.insert(sDependent);
     }
 
-    void remove_dependent(CExplainOtherResult* pDependent)
+    void remove_dependent(std::shared_ptr<CExplainOtherResult> sDependent)
     {
-        auto it = m_dependents.find(pDependent);
+        auto it = m_dependents.find(sDependent);
 
         mxb_assert(it != m_dependents.end());
 
@@ -317,12 +324,14 @@ private:
     }
 
 private:
-    std::shared_ptr<CMainResult>   m_sMain_result;
-    std::set<CExplainOtherResult*> m_dependents;
+    std::shared_ptr<CMainResult>                   m_sMain_result;
+    std::set<std::shared_ptr<CExplainOtherResult>> m_dependents;
 };
 
 
 class CExplainOtherResult final : public CExplainResult
+                                , public std::enable_shared_from_this<CExplainOtherResult>
+
 {
 public:
     class Handler
@@ -333,25 +342,14 @@ public:
 
     CExplainOtherResult(Handler* pHandler,
                         std::shared_ptr<const COtherResult> sOther_result,
-                        std::shared_ptr<CExplainMainResult> sExplain_main_result)
-        : CExplainResult(&sOther_result->backend())
-        , m_handler(*pHandler)
-        , m_sOther_result(sOther_result)
-        , m_sExplain_main_result(sExplain_main_result)
-    {
-        mxb_assert(m_sOther_result);
+                        std::shared_ptr<CExplainMainResult> sExplain_main_result);
+    ~CExplainOtherResult();
 
-        if (m_sExplain_main_result)
-        {
-            m_sExplain_main_result->add_dependent(this);
-        }
-    }
-
-    ~CExplainOtherResult()
+    void register_at_main()
     {
         if (m_sExplain_main_result)
         {
-            m_sExplain_main_result->remove_dependent(this);
+            m_sExplain_main_result->add_dependent(shared_from_this());
         }
     }
 

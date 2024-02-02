@@ -88,7 +88,7 @@ public:
         return *m_pParser_helper;
     }
 
-    void execute_pending_explains();
+    virtual void execute_pending_explains();
 
     using SCExplainResult = std::shared_ptr<CExplainResult>;
 
@@ -196,8 +196,10 @@ public:
     using Result = CMainResult;
     using SResult = std::shared_ptr<Result>;
 
-    CMainBackend(mxs::Endpoint* pEndpoint)
+    CMainBackend(mxs::Endpoint* pEndpoint,
+                 mxb::Worker* pWorker)
         : Base(pEndpoint)
+        , m_worker(*pWorker)
     {
     }
 
@@ -210,8 +212,11 @@ public:
 
     void ready(const CExplainMainResult& result);
 
+    void execute_pending_explains() override;
+
 private:
-    uint8_t m_command { 0 };
+    uint8_t      m_command { 0 };
+    mxb::Worker& m_worker;
 };
 
 
@@ -267,14 +272,15 @@ private:
     using SCExporter = std::shared_ptr<CExporter>;
 
     SCExporter m_sExporter;
-    Handler*            m_pHandler { nullptr };
+    Handler*   m_pHandler { nullptr };
 };
 
 namespace comparator
 {
 
 std::pair<SCMainBackend, SCOtherBackends>
-backends_from_endpoints(const mxs::Target& main_target,
+backends_from_endpoints(mxb::Worker* pWorker,
+                        const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
                         const CRouter& router);
 

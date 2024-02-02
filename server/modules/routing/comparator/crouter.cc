@@ -92,7 +92,8 @@ RouterSession* CRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpo
         return nullptr;
     }
 
-    auto [ sMain, backends ] = comparator::backends_from_endpoints(*m_config.pMain, endpoints, *this);
+    auto* pWorker = pSession->worker();
+    auto [ sMain, backends ] = comparator::backends_from_endpoints(pWorker, *m_config.pMain, endpoints, *this);
     bool connected = false;
 
     if (sMain->can_connect() && sMain->connect())

@@ -153,8 +153,6 @@ bool CSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mx
     {
         routing = pBackend->finish_result(reply);
         pBackend->ack_write();
-
-        MXB_INFO("Reply from '%s' complete.", pBackend->name());
     }
 
     bool rv = true;
@@ -192,12 +190,16 @@ Explain CSession::ready(COtherResult& other_result)
         auto id = other_result.id();
         CRegistry::Entries explainers;
 
-        if (!m_router.registry().is_explained(now, hash, id, &explainers))
+        auto entries = m_router.config().entries;
+
+        if (entries == 0 || !m_router.registry().is_explained(now, hash, id, &explainers))
         {
-            if (other_result.is_explainable())
+            auto explain = m_router.config().explain;
+
+            if (other_result.is_explainable() && explain != Explain::NONE)
             {
                 other_result.set_explainers(explainers);
-                rv = m_router.config().explain;
+                rv = explain;
             }
             else
             {
