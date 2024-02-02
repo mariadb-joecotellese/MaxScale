@@ -4,7 +4,7 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "comparatorcommands.hh"
+#include "ccommands.hh"
 #include <set>
 #include <vector>
 #include <maxbase/format.hh>
@@ -19,7 +19,7 @@
 #include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/monitormanager.hh"
 #include "../../../core/internal/service.hh"
-#include "comparatorrouter.hh"
+#include "crouter.hh"
 
 using namespace mxq;
 using namespace std;

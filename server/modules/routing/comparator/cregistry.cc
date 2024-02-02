@@ -3,7 +3,7 @@
  *
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
-#include "comparatorregistry.hh"
+#include "cregistry.hh"
 #include <maxbase/checksum.hh>
 
 namespace

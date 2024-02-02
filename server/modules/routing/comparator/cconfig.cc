@@ -4,8 +4,8 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "comparatorconfig.hh"
-#include "comparatorrouter.hh"
+#include "cconfig.hh"
+#include "crouter.hh"
 
 namespace
 {

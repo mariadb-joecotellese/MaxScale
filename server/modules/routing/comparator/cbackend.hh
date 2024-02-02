@@ -14,8 +14,8 @@
 #include <maxscale/parser.hh>
 #include <maxscale/queryclassifier.hh>
 #include <maxscale/router.hh>
-#include "comparatorresult.hh"
-#include "comparatorstats.hh"
+#include "cresult.hh"
+#include "cstats.hh"
 
 class CMainBackend;
 class COtherBackend;

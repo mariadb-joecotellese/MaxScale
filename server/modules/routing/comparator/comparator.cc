@@ -4,8 +4,8 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "comparatorrouter.hh"
-#include "comparatorcommands.hh"
+#include "crouter.hh"
+#include "ccommands.hh"
 
 
 extern "C" MXS_MODULE* MXS_CREATE_MODULE()

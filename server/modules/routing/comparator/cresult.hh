@@ -9,7 +9,7 @@
 #include <memory>
 #include <maxbase/checksum.hh>
 #include <maxscale/target.hh>
-#include "comparatorregistry.hh"
+#include "cregistry.hh"
 
 class CBackend;
 class CMainBackend;

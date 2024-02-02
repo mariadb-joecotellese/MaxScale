@@ -4,10 +4,10 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "comparatorbackend.hh"
+#include "cbackend.hh"
 #include <maxscale/protocol/mariadb/mysql.hh>
-#include "comparatorresult.hh"
-#include "comparatorrouter.hh"
+#include "cresult.hh"
+#include "crouter.hh"
 
 
 /**

@@ -4,9 +4,9 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "comparatorstats.hh"
+#include "cstats.hh"
 #include <maxscale/service.hh>
-#include "comparatorconfig.hh"
+#include "cconfig.hh"
 
 using std::chrono::duration_cast;
 

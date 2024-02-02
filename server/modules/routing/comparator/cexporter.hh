@@ -8,7 +8,7 @@
 #include "comparatordefs.hh"
 #include <maxbase/jansson.hh>
 #include <maxscale/target.hh>
-#include "comparatorconfig.hh"
+#include "cconfig.hh"
 
 class CExporter
 {

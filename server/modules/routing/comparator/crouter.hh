@@ -12,10 +12,10 @@
 #include <maxscale/backend.hh>
 #include <maxscale/protocol/mariadb/module_names.hh>
 #include <maxscale/service.hh>
-#include "comparatorconfig.hh"
-#include "comparatorexporter.hh"
-#include "comparatorregistry.hh"
-#include "comparatorstats.hh"
+#include "cconfig.hh"
+#include "cexporter.hh"
+#include "cregistry.hh"
+#include "cstats.hh"
 
 class CSession;
 

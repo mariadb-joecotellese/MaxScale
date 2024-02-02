@@ -7,7 +7,7 @@
 #include "comparatordefs.hh"
 #include <shared_mutex>
 #include <unordered_map>
-#include "comparatorconfig.hh"
+#include "cconfig.hh"
 
 class CRegistry final
 {

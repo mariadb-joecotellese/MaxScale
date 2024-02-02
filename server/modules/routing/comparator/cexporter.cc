@@ -4,7 +4,7 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "comparatorexporter.hh"
+#include "cexporter.hh"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>

@@ -10,10 +10,10 @@
 #include <maxscale/backend.hh>
 #include <maxscale/buffer.hh>
 #include <maxscale/queryclassifier.hh>
-#include "comparatorbackend.hh"
-#include "comparatorregistry.hh"
-#include "comparatorresult.hh"
-#include "comparatorstats.hh"
+#include "cbackend.hh"
+#include "cregistry.hh"
+#include "cresult.hh"
+#include "cstats.hh"
 
 class CRouter;
 

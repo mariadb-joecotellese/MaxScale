@@ -1,14 +1,14 @@
 add_library(comparator SHARED
   comparator.cc
-  comparatorbackend.cc
-  comparatorcommands.cc
-  comparatorconfig.cc
-  comparatorexporter.cc
-  comparatorregistry.cc
-  comparatorresult.cc
-  comparatorrouter.cc
-  comparatorsession.cc
-  comparatorstats.cc
+  cbackend.cc
+  ccommands.cc
+  cconfig.cc
+  cexporter.cc
+  cregistry.cc
+  cresult.cc
+  crouter.cc
+  csession.cc
+  cstats.cc
   )
 
 target_link_libraries(comparator maxscale-common)
