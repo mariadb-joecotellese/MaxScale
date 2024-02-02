@@ -46,6 +46,7 @@
 #include <maxscale/parser.hh>
 #include <maxscale/service.hh>
 #include <maxscale/protocol/mariadb/protocol_classes.hh>
+#include <maxscale/protocol/mariadb/mysql.hh>
 
 using std::string;
 
@@ -149,6 +150,7 @@ cfg::ParamEnumMask<int64_t> s_log_data(
         {QlaInstance::LOG_DATA_NUM_WARNINGS, "num_warnings"},
         {QlaInstance::LOG_DATA_ERR_MSG, "error_msg"},
         {QlaInstance::LOG_DATA_SERVER, "server"},
+        {QlaInstance::LOG_DATA_COMMAND, "command"},
     },
     QlaInstance::LOG_DATA_DATE | QlaInstance::LOG_DATA_USER | QlaInstance::LOG_DATA_QUERY,
     cfg::Param::AT_RUNTIME);
@@ -489,6 +491,7 @@ bool QlaFilterSession::routeQuery(GWBUF&& queue)
         return mxs::FilterSession::routeQuery(std::move(queue));
     }
 
+    m_ps_to_text.track_query(queue);
     std::string_view query = parser().get_sql(queue);
 
     Query q;
@@ -496,13 +499,30 @@ bool QlaFilterSession::routeQuery(GWBUF&& queue)
 
     if (q.matched)
     {
+        q.sql.assign(m_log->settings().use_canonical_form ? parser().get_canonical(queue) : query);
+    }
+    else if (auto ps_sql = m_ps_to_text.to_sql(queue); !ps_sql.empty())
+    {
+        q.matched = m_log->match_exclude(ps_sql.data(), ps_sql.length());
+
+        if (q.matched)
+        {
+            q.sql = std::move(ps_sql);
+
+            if (m_log->settings().use_canonical_form)
+            {
+                maxsimd::get_canonical(&q.sql);
+            }
+        }
+    }
+
+    if (q.matched)
+    {
         const uint32_t data_flags = m_log->settings().log_file_data_flags;
 
         q.first_reply = true;
         q.qc_type_mask = 0;         // only set if needed
-
-        q.sql = m_log->settings().use_canonical_form ?
-            parser().get_canonical(queue) : parser().get_sql(queue);
+        q.command = mariadb::get_command(queue);
 
         q.begin_time = m_pSession->worker()->epoll_tick_now();
 
@@ -533,6 +553,8 @@ bool QlaFilterSession::clientReply(GWBUF&& queue, const mxs::ReplyRoute& down, c
     {
         return mxs::FilterSession::clientReply(std::move(queue), down, reply);
     }
+
+    m_ps_to_text.track_reply(reply);
 
     if (!m_queue.empty())
     {
@@ -838,6 +860,11 @@ string QlaFilterSession::generate_log_entry(uint64_t data_flags, const Query& q,
         {
             output << down.first()->target()->name();
         }
+        curr_sep = real_sep;
+    }
+    if (data_flags & QlaInstance::LOG_DATA_COMMAND)
+    {
+        output << curr_sep << mariadb::cmd_to_string(q.command);
         curr_sep = real_sep;
     }
     output << "\n";

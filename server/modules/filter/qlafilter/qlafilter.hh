@@ -25,6 +25,7 @@
 #include <maxscale/pcre2.hh>
 #include <maxscale/workerlocal.hh>
 #include <maxscale/protocol/mariadb/module_names.hh>
+#include <maxscale/protocol/mariadb/ps_to_text.hh>
 #include <maxsimd/canonical.hh>
 
 class QlaFilterSession;
@@ -42,6 +43,7 @@ struct Query
     mxb::TimePoint       first_response_time;
     mxb::TimePoint       last_response_time;
     wall_time::TimePoint wall_time;     // Wall time when query began
+    uint8_t              command {0};
 };
 
 /**
@@ -83,7 +85,8 @@ public:
         LOG_DATA_ERR_MSG          = (1 << 11),
         LOG_DATA_TRANSACTION      = (1 << 12),
         LOG_DATA_TRANSACTION_DUR  = (1 << 13),
-        LOG_DATA_SERVER           = (1 << 14)
+        LOG_DATA_SERVER           = (1 << 14),
+        LOG_DATA_COMMAND          = (1 << 15),
     };
 
     enum DurationMultiplier
@@ -268,7 +271,9 @@ private:
 
     std::deque<Query> m_queue;
 
-    void        write_log_entries(Query &&query, const mxs::Reply& reply, const mxs::ReplyRoute& down);
+    mariadb::PsToText m_ps_to_text;
+
+    void        write_log_entries(Query&& query, const mxs::Reply& reply, const mxs::ReplyRoute& down);
     void        write_session_log_entry(const std::string& entry);
     std::string generate_log_entry(uint64_t data_flags, const Query& query,
                                    const mxs::Reply& reply, const mxs::ReplyRoute& down);

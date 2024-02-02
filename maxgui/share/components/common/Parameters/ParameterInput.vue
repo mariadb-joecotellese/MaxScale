@@ -229,7 +229,9 @@ This component accepts these optional props:
 Emits:
 - $emit('on-input-change', { targetItemCloned: object, changed: boolean })
 */
-import { mapState } from 'vuex'
+import { MXS_OBJ_TYPES } from '@share/constants'
+import { DURATION_SUFFIXES } from '@rootSrc/constants'
+
 export default {
     name: 'parameter-input',
     props: {
@@ -255,12 +257,8 @@ export default {
         }
     },
     computed: {
-        ...mapState({
-            DURATION_SUFFIXES: state => state.app_config.DURATION_SUFFIXES,
-            MXS_OBJ_TYPES: state => state.app_config.MXS_OBJ_TYPES,
-        }),
         isListener() {
-            return this.objType === this.MXS_OBJ_TYPES.LISTENERS
+            return this.objType === MXS_OBJ_TYPES.LISTENERS
         },
     },
     watch: {
@@ -300,6 +298,7 @@ export default {
     },
 
     created() {
+        this.DURATION_SUFFIXES = DURATION_SUFFIXES
         this.targetItem = this.processItem(this.$helpers.lodash.cloneDeep(this.item))
     },
 

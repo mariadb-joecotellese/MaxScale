@@ -11,8 +11,6 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
-import * as config from '@wsSrc/store/config'
-import commonConfig from '@share/config'
 import ErdTaskTmp from '@wsModels/ErdTaskTmp'
 import EtlTaskTmp from '@wsModels/EtlTaskTmp'
 import QueryConn from '@wsModels/QueryConn'
@@ -22,67 +20,52 @@ import QueryTabTmp from '@wsModels/QueryTabTmp'
 import Worksheet from '@wsModels/Worksheet'
 import WorksheetTmp from '@wsModels/WorksheetTmp'
 import queries from '@wsSrc/api/queries'
+import { genSetMutations } from '@share/utils/helpers'
+import {
+    QUERY_CONN_BINDING_TYPES,
+    QUERY_LOG_TYPES,
+    ETL_DEF_POLLING_INTERVAL,
+} from '@wsSrc/constants'
+
+const states = () => ({
+    hidden_comp: [''],
+    migr_dlg: { is_opened: false, etl_task_id: '', type: '' },
+    gen_erd_dlg: {
+        is_opened: false,
+        preselected_schemas: [],
+        connection: null,
+        gen_in_new_ws: false, // generate erd in a new worksheet
+    },
+    exec_sql_dlg: {
+        is_opened: false,
+        editor_height: 250,
+        sql: '',
+        /**
+         * @property {object} data - Contains res.data.data.attributes of a query
+         * @property {object} error
+         */
+        result: null,
+        on_exec: () => null,
+        after_cancel: () => null,
+    },
+    confirm_dlg: {
+        is_opened: false,
+        title: '',
+        confirm_msg: '',
+        save_text: 'save',
+        cancel_text: 'dontSave',
+        on_save: () => null,
+        after_cancel: () => null,
+    },
+    etl_polling_interval: ETL_DEF_POLLING_INTERVAL,
+    //Below states needed for the workspace package so it can be used in SkySQL
+    conn_dlg: { is_opened: false, type: QUERY_CONN_BINDING_TYPES.QUERY_EDITOR },
+})
 
 export default {
     namespaced: true,
-    state: {
-        config: { ...config, COMMON_CONFIG: commonConfig },
-        hidden_comp: [''],
-        migr_dlg: { is_opened: false, etl_task_id: '', type: '' },
-        gen_erd_dlg: {
-            is_opened: false,
-            preselected_schemas: [],
-            connection: null,
-            gen_in_new_ws: false, // generate erd in a new worksheet
-        },
-        exec_sql_dlg: {
-            is_opened: false,
-            editor_height: 250,
-            sql: '',
-            /**
-             * @property {object} data - Contains res.data.data.attributes of a query
-             * @property {object} error
-             */
-            result: null,
-            on_exec: () => null,
-            after_cancel: () => null,
-        },
-        confirm_dlg: {
-            is_opened: false,
-            title: '',
-            confirm_msg: '',
-            save_text: 'save',
-            cancel_text: 'dontSave',
-            on_save: () => null,
-            after_cancel: () => null,
-        },
-        etl_polling_interval: config.ETL_DEF_POLLING_INTERVAL,
-        //Below states needed for the workspace package so it can be used in SkySQL
-        conn_dlg: { is_opened: false, type: config.QUERY_CONN_BINDING_TYPES.QUERY_EDITOR },
-    },
-    mutations: {
-        SET_HIDDEN_COMP(state, payload) {
-            state.hidden_comp = payload
-        },
-        SET_MIGR_DLG(state, payload) {
-            state.migr_dlg = payload
-        },
-        SET_GEN_ERD_DLG(state, payload) {
-            state.gen_erd_dlg = payload
-        },
-        SET_EXEC_SQL_DLG(state, payload) {
-            state.exec_sql_dlg = payload
-        },
-        SET_CONFIRM_DLG(state, payload) {
-            state.confirm_dlg = payload
-        },
-        SET_ETL_POLLING_INTERVAL(state, payload) {
-            state.etl_polling_interval = payload
-        },
-        SET_CONN_DLG(state, payload) {
-            state.conn_dlg = payload
-        },
-    },
+    state: states(),
+    mutations: genSetMutations(states()),
     actions: {
         async initWorkspace({ dispatch }) {
             dispatch('initEntities')
@@ -166,7 +149,7 @@ export default {
                         sql,
                         res,
                         connection_name,
-                        queryType: state.config.QUERY_LOG_TYPES.ACTION_LOGS,
+                        queryType: QUERY_LOG_TYPES.ACTION_LOGS,
                     },
                     { root: true }
                 )

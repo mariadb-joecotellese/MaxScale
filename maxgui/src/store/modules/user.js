@@ -14,33 +14,24 @@
 import { OVERLAY_LOGOUT } from '@share/overlayTypes'
 import router from '@rootSrc/router'
 import { authHttp, getBaseHttp, abortRequests } from '@rootSrc/utils/axios'
+import { USER_ROLES, USER_ADMIN_ACTIONS } from '@rootSrc/constants'
+import { PERSIST_TOKEN_OPT } from '@share/constants'
+import { genSetMutations } from '@share/utils/helpers'
+
+const states = () => ({
+    logged_in_user: {},
+    login_err_msg: '',
+    all_inet_users: [],
+})
 
 export default {
     namespaced: true,
-    state: {
-        logged_in_user: {},
-        login_err_msg: '',
-        all_inet_users: [],
-    },
+    state: states(),
     mutations: {
-        /**
-         * @param {Object} userObj User rememberMe info
-         * @param {Boolean} userObj.rememberMe rememberMe
-         * @param {String} userObj.name username
-         */
-        SET_LOGGED_IN_USER(state, userObj) {
-            state.logged_in_user = userObj
-        },
-        SET_LOGIN_ERR_MSG(state, errMsg) {
-            state.login_err_msg = errMsg
-        },
         CLEAR_USER(state) {
             state.logged_in_user = null
         },
-        // ------------------- maxscale users
-        SET_ALL_INET_USERS(state, arr) {
-            state.all_inet_users = arr
-        },
+        ...genSetMutations(states()),
     },
     actions: {
         // To be called before app is mounted
@@ -64,11 +55,7 @@ export default {
                 { root: true }
             )
         },
-        async login({ commit, dispatch, rootState }, { rememberMe, auth }) {
-            const {
-                COMMON_CONFIG: { PERSIST_TOKEN_OPT },
-            } = rootState.app_config
-
+        async login({ commit, dispatch }, { rememberMe, auth }) {
             const url = rememberMe ? `/auth?${PERSIST_TOKEN_OPT}` : '/auth?persist=yes'
             const [e, res] = await this.vue.$helpers.to(authHttp.get(url, { auth }))
             if (e) {
@@ -141,11 +128,11 @@ export default {
          * @param {String} payload.role - admin or basic. Required for mode `post`
          * @param {Function} payload.callback - callback function after receiving 204 (response ok)
          */
-        async manageInetUser({ commit, rootState }, payload) {
+        async manageInetUser({ commit }, payload) {
             try {
                 let res
                 let message
-                const { ADD, UPDATE, DELETE } = rootState.app_config.USER_ADMIN_ACTIONS
+                const { ADD, UPDATE, DELETE } = USER_ADMIN_ACTIONS
                 switch (payload.mode) {
                     case ADD:
                         res = await this.vue.$http.post(`/users/inet`, {
@@ -188,11 +175,11 @@ export default {
             const { attributes: { account = '' } = {} } = state.logged_in_user || {}
             return account
         },
-        isAdmin: (state, getters, rootState) => {
-            return getters.getLoggedInUserRole === rootState.app_config.USER_ROLES.ADMIN
+        isAdmin: (state, getters) => {
+            return getters.getLoggedInUserRole === USER_ROLES.ADMIN
         },
-        getUserAdminActions: (state, getters, rootState) => {
-            const { DELETE, UPDATE, ADD } = rootState.app_config.USER_ADMIN_ACTIONS
+        getUserAdminActions: () => {
+            const { DELETE, UPDATE, ADD } = USER_ADMIN_ACTIONS
             // scope is needed to access $mxs_t
             return ({ scope }) => ({
                 [UPDATE]: {

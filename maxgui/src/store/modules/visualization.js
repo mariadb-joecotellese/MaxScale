@@ -13,26 +13,21 @@
  */
 import Worksheet from '@wsModels/Worksheet'
 import QueryConn from '@wsModels/QueryConn'
-import { lodash } from '@share/utils/helpers'
+import { lodash, genSetMutations } from '@share/utils/helpers'
+import { MXS_OBJ_TYPES } from '@share/constants'
+import { MRDB_MON } from '@rootSrc/constants'
+import { QUERY_CONN_BINDING_TYPES } from '@wsSrc/constants'
+
+const states = () => ({
+    clusters: {}, // key is the name of the monitor, value is the monitor cluster
+    current_cluster: {},
+    config_graph_data: [],
+})
 
 export default {
     namespaced: true,
-    state: {
-        clusters: {}, // key is the name of the monitor, value is the monitor cluster
-        current_cluster: {},
-        config_graph_data: [],
-    },
-    mutations: {
-        SET_CLUSTERS(state, payload) {
-            state.clusters = payload
-        },
-        SET_CURR_CLUSTER(state, payload) {
-            state.current_cluster = payload
-        },
-        SET_CONFIG_GRAPH_DATA(state, payload) {
-            state.config_graph_data = payload
-        },
-    },
+    state: states(),
+    mutations: genSetMutations(states()),
     actions: {
         async discoveryClusters({ commit, dispatch, rootState, getters }) {
             try {
@@ -43,7 +38,7 @@ export default {
                 let clusters = {}
                 rootState.monitor.all_monitors.forEach(monitor => {
                     //TODO: Handle other monitors, now it only handles mariadbmon
-                    if (monitor.attributes.module === rootState.app_config.MRDB_MON)
+                    if (monitor.attributes.module === MRDB_MON)
                         clusters[monitor.id] = getters.genCluster(monitor)
                 })
                 commit('SET_CLUSTERS', clusters)
@@ -60,9 +55,8 @@ export default {
                 let cluster = {}
                 const monitor = rootState.monitor.current_monitor
                 //TODO: Handle other monitors, now it only handles mariadbmon
-                if (monitor.attributes.module === rootState.app_config.MRDB_MON)
-                    cluster = getters.genCluster(monitor)
-                commit('SET_CURR_CLUSTER', cluster)
+                if (monitor.attributes.module === MRDB_MON) cluster = getters.genCluster(monitor)
+                commit('SET_CURRENT_CLUSTER', cluster)
             } catch (e) {
                 this.vue.$logger.error(e)
             }
@@ -87,7 +81,7 @@ export default {
          * dialog with pre-select object
          * @param {String} param.conn_name - connection name
          */
-        async chooseQueryEditorWke({ commit, rootState }, { type, conn_name }) {
+        async chooseQueryEditorWke({ commit }, { type, conn_name }) {
             const { $typy } = this.vue
             const queryEditorConns = QueryConn.getters('queryEditorConns')
             // Find connection
@@ -122,7 +116,7 @@ export default {
                     'mxsWorkspace/SET_CONN_DLG',
                     {
                         is_opened: true,
-                        type: rootState.mxsWorkspace.config.QUERY_CONN_BINDING_TYPES.QUERY_EDITOR,
+                        type: QUERY_CONN_BINDING_TYPES.QUERY_EDITOR,
                     },
                     { root: true }
                 )
@@ -223,7 +217,7 @@ export default {
                 listener: { all_listeners },
             } = rootState
             let data = []
-            const { SERVICES, SERVERS, LISTENERS } = rootState.app_config.MXS_OBJ_TYPES
+            const { SERVICES, SERVERS, LISTENERS } = MXS_OBJ_TYPES
             const rsrcData = [all_services, all_servers, all_listeners, all_monitors]
             rsrcData.forEach(rsrc =>
                 rsrc.forEach(item => {

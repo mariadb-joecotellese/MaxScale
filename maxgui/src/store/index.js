@@ -12,45 +12,23 @@
  * Public License.
  */
 import Vuex from 'vuex'
-import { APP_CONFIG } from '@rootSrc/utils/constants'
-import commonConfig from '@share/config'
 import modules from './modules'
 import plugins from './plugins'
+import { genSetMutations } from '@share/utils/helpers'
+
+const states = () => ({
+    search_keyword: '',
+    update_availability: false,
+    prev_route: null,
+    module_parameters: [],
+    form_type: '',
+    should_refresh_resource: false,
+})
 
 const store = new Vuex.Store({
     plugins,
-    state: {
-        app_config: { ...APP_CONFIG, COMMON_CONFIG: commonConfig },
-        search_keyword: '',
-        update_availability: false,
-        prev_route: null,
-        module_parameters: [],
-        form_type: '',
-        should_refresh_resource: false,
-    },
-    mutations: {
-        /**
-         * @param {String} keyword global search keyword
-         */
-        SET_SEARCH_KEYWORD(state, keyword) {
-            state.search_keyword = keyword
-        },
-        SET_UPDATE_AVAILABILITY(state, val) {
-            state.update_availability = val
-        },
-        SET_PREV_ROUTE(state, prev_route) {
-            state.prev_route = prev_route
-        },
-        SET_MODULE_PARAMETERS(state, module_parameters) {
-            state.module_parameters = module_parameters
-        },
-        SET_FORM_TYPE(state, form_type) {
-            state.form_type = form_type
-        },
-        SET_REFRESH_RESOURCE(state, boolean) {
-            state.should_refresh_resource = boolean
-        },
-    },
+    state: states(),
+    mutations: genSetMutations(states()),
     actions: {
         /**
          * User will be logged out if maxscale is restarted or maxgui is updated

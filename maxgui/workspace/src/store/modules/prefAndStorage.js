@@ -11,9 +11,11 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
+import { genSetMutations } from '@share/utils/helpers'
 import { addDaysToNow } from '@wsSrc/utils/helpers'
+import { CMPL_SNIPPET_KIND, QUERY_CANCELED } from '@wsSrc/constants'
 
-const getUserPrefStates = () => ({
+const states = () => ({
     sidebar_pct_width: 0,
     is_sidebar_collapsed: false,
     query_pane_pct_height: 60,
@@ -28,30 +30,15 @@ const getUserPrefStates = () => ({
     def_conn_obj_type: 'listeners',
     interactive_timeout: 28800,
     wait_timeout: 28800,
+    query_history: [],
+    query_snippets: [],
 })
-
-function userPrefMutationCreator(states) {
-    return Object.keys(states).reduce(
-        (mutations, name) => ({
-            ...mutations,
-            [`SET_${name.toUpperCase()}`]: (state, payload) => (state[name] = payload),
-        }),
-        {}
-    )
-}
 
 // Place here any workspace states need to be persisted without being cleared when logging out
 export default {
     namespaced: true,
-    state: {
-        query_history: [],
-        query_snippets: [],
-        ...getUserPrefStates(),
-    },
+    state: states(),
     mutations: {
-        SET_QUERY_HISTORY(state, payload) {
-            state.query_history = payload
-        },
         UPDATE_QUERY_HISTORY(state, { idx, payload }) {
             if (idx) state.query_history.splice(idx, 1)
             else state.query_history.unshift(payload)
@@ -60,10 +47,7 @@ export default {
             if (idx) state.query_snippets.splice(idx, 1)
             else state.query_snippets.unshift(payload)
         },
-        SET_QUERY_SNIPPETS(state, payload) {
-            state.query_snippets = payload
-        },
-        ...userPrefMutationCreator(getUserPrefStates()),
+        ...genSetMutations(states()),
     },
     actions: {
         /**
@@ -74,10 +58,7 @@ export default {
          * @param {Object} payload.res - query response
          * @param {String} payload.queryType - query type in QUERY_LOG_TYPES
          */
-        pushQueryLog(
-            { commit, rootState },
-            { startTime, connection_name, name, sql, res, queryType }
-        ) {
+        pushQueryLog({ commit }, { startTime, connection_name, name, sql, res, queryType }) {
             try {
                 const { queryResErrToStr } = this.vue.$helpers
                 const maskedQuery = this.vue.$helpers.maskQueryPwd(sql)
@@ -91,7 +72,7 @@ export default {
                 let resCount = 0
                 for (const res of results) {
                     const { data, message = '', errno } = res
-                    const isQueryCanceled = message === rootState.mxsWorkspace.config.QUERY_CANCELED
+                    const isQueryCanceled = message === QUERY_CANCELED
 
                     if (isQueryCanceled) {
                         resultData[`INTERRUPT`] = message
@@ -179,12 +160,12 @@ export default {
         },
     },
     getters: {
-        snippetCompletionItems: (state, getters, rootState) =>
+        snippetCompletionItems: state =>
             state.query_snippets.map(q => ({
                 label: q.name,
                 detail: `SNIPPET - ${q.sql}`,
                 insertText: q.sql,
-                type: rootState.mxsWorkspace.config.CMPL_SNIPPET_KIND,
+                type: CMPL_SNIPPET_KIND,
             })),
     },
 }

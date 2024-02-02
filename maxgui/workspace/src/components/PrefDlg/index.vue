@@ -110,6 +110,8 @@ import { mapMutations, mapState } from 'vuex'
 import RowLimitCtr from '@wkeComps/QueryEditor/RowLimitCtr.vue'
 import QueryConn from '@wsModels/QueryConn'
 import Worksheet from '@wsModels/Worksheet'
+import { MXS_OBJ_TYPES } from '@share/constants'
+import { PREF_TYPES, OS_KEY, IS_MAC_OS } from '@wsSrc/constants'
 
 export default {
     name: 'pref-dlg',
@@ -124,9 +126,6 @@ export default {
     },
     computed: {
         ...mapState({
-            OS_KEY: state => state.mxsWorkspace.config.OS_KEY,
-            PREF_TYPES: state => state.mxsWorkspace.config.PREF_TYPES,
-            MXS_OBJ_TYPES: state => state.app_config.MXS_OBJ_TYPES,
             query_row_limit: state => state.prefAndStorage.query_row_limit,
             query_confirm_flag: state => state.prefAndStorage.query_confirm_flag,
             query_history_expired_time: state => state.prefAndStorage.query_history_expired_time,
@@ -166,7 +165,7 @@ export default {
             }
         },
         objConnTypes() {
-            const { LISTENERS, SERVERS, SERVICES } = this.MXS_OBJ_TYPES
+            const { LISTENERS, SERVERS, SERVICES } = MXS_OBJ_TYPES
             return [LISTENERS, SERVERS, SERVICES]
         },
         sysVariablesRefLink() {
@@ -208,9 +207,7 @@ export default {
                             iconTooltipTxt: this.preferences.tab_moves_focus
                                 ? 'mxs.info.tabMovesFocus'
                                 : 'mxs.info.tabInsetChar',
-                            shortcut: `${this.OS_KEY} ${
-                                this.$helpers.isMAC() ? '+ SHIFT' : ''
-                            } + M`,
+                            shortcut: `${OS_KEY} ${IS_MAC_OS ? '+ SHIFT' : ''} + M`,
                         },
                         {
                             id: 'identifier_auto_completion',
@@ -266,6 +263,9 @@ export default {
                 if (v) this.preferences = this.$helpers.lodash.cloneDeep(this.persistedPref)
             },
         },
+    },
+    created() {
+        this.PREF_TYPES = PREF_TYPES
     },
     methods: {
         ...mapMutations({

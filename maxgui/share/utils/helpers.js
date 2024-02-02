@@ -269,10 +269,6 @@ export async function to(promise) {
         })
 }
 
-export function isMAC() {
-    return Boolean(window.navigator.userAgent.indexOf('Mac') !== -1)
-}
-
 const padTimeNumber = num => num.toString().padStart(2, '0')
 /**
  * @param {Number} sec - seconds
@@ -288,4 +284,19 @@ export function uptimeHumanize(sec) {
         .join(':')
 
     return `${formattedDuration} ${formattedTime}`
+}
+
+/**
+ * Creates a set of Vuex mutations based on the provided states
+ * @param {Object} states - An object representing the states for which mutations are to be created.
+ * @returns {Object} - An object containing Vuex mutations.
+ */
+export function genSetMutations(states) {
+    return Object.keys(states).reduce(
+        (mutations, name) => ({
+            ...mutations,
+            [`SET_${name.toUpperCase()}`]: (state, payload) => (state[name] = payload),
+        }),
+        {}
+    )
 }

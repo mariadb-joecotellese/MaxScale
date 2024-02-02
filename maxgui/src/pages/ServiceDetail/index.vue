@@ -132,6 +132,8 @@ import { mapActions, mapMutations, mapState, mapGetters } from 'vuex'
 import OverviewHeader from './OverviewHeader'
 import PageHeader from './PageHeader'
 import refreshRate from '@share/mixins/refreshRate'
+import { ROUTING_TARGET_RELATIONSHIP_TYPES } from '@rootSrc/constants'
+import { MXS_OBJ_TYPES } from '@share/constants'
 
 export default {
     name: 'service-detail',
@@ -162,9 +164,6 @@ export default {
             module_parameters: 'module_parameters',
             service_connections_datasets: state => state.service.service_connections_datasets,
             filtered_sessions: state => state.session.filtered_sessions,
-            MXS_OBJ_TYPES: state => state.app_config.MXS_OBJ_TYPES,
-            ROUTING_TARGET_RELATIONSHIP_TYPES: state =>
-                state.app_config.ROUTING_TARGET_RELATIONSHIP_TYPES,
         }),
         serviceId() {
             return this.$route.params.id
@@ -220,7 +219,7 @@ export default {
     watch: {
         async should_refresh_resource(val) {
             if (val) {
-                this.SET_REFRESH_RESOURCE(false)
+                this.SET_SHOULD_REFRESH_RESOURCE(false)
                 await this.fetchAll()
             }
         },
@@ -235,6 +234,7 @@ export default {
         },
     },
     async created() {
+        this.MXS_OBJ_TYPES = MXS_OBJ_TYPES
         await this.fetchAll()
         // Generate datasets
         this.genServiceConnectionsDataSets()
@@ -253,7 +253,7 @@ export default {
         }),
         ...mapMutations({
             SET_FORM_TYPE: 'SET_FORM_TYPE',
-            SET_REFRESH_RESOURCE: 'SET_REFRESH_RESOURCE',
+            SET_SHOULD_REFRESH_RESOURCE: 'SET_SHOULD_REFRESH_RESOURCE',
         }),
 
         async fetchAll() {
@@ -303,7 +303,7 @@ export default {
             const { relationships = {} } = this.current_service
             let rows = []
             for (const type of Object.keys(relationships)) {
-                if (this.ROUTING_TARGET_RELATIONSHIP_TYPES.includes(type)) {
+                if (ROUTING_TARGET_RELATIONSHIP_TYPES.includes(type)) {
                     let fields = ['state']
                     /* fetch routing server targets current GTID and include it in the
                      * diagnostics-table

@@ -11,29 +11,20 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
+import { SERVER_OP_TYPES } from '@rootSrc/constants'
+import { genSetMutations } from '@share/utils/helpers'
+
+const states = () => ({
+    all_servers: [],
+    all_server_names: [],
+    current_server: {},
+    server_connections_datasets: [],
+})
 
 export default {
     namespaced: true,
-    state: {
-        all_servers: [],
-        all_server_names: [],
-        current_server: {},
-        server_connections_datasets: [],
-    },
-    mutations: {
-        SET_ALL_SERVERS(state, payload) {
-            state.all_servers = payload
-        },
-        SET_ALL_SERVER_NAMES(state, payload) {
-            state.all_server_names = payload
-        },
-        SET_CURRENT_SERVER(state, payload) {
-            state.current_server = payload
-        },
-        SET_SERVER_CONNECTIONS_DATASETS(state, payload) {
-            state.server_connections_datasets = payload
-        },
-    },
+    state: states(),
+    mutations: genSetMutations(states()),
     actions: {
         async fetchAllServers({ commit }) {
             try {
@@ -287,8 +278,8 @@ export default {
                 return currentState
             }
         },
-        getServerOps: (state, getters, rootState) => {
-            const { MAINTAIN, CLEAR, DRAIN, DELETE } = rootState.app_config.SERVER_OP_TYPES
+        getServerOps: () => {
+            const { MAINTAIN, CLEAR, DRAIN, DELETE } = SERVER_OP_TYPES
             // scope is needed to access $mxs_t
             return ({ currStateMode, scope }) => ({
                 [MAINTAIN]: {

@@ -30,9 +30,10 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
-import { mapState } from 'vuex'
 import ModuleParameters from '@share/components/common/ObjectForms/ModuleParameters'
 import ResourceRelationships from '@share/components/common/ObjectForms/ResourceRelationships'
+import { MXS_OBJ_TYPES } from '@share/constants'
+import { MRDB_MON } from '@rootSrc/constants'
 
 export default {
     name: 'monitor-form-input',
@@ -46,10 +47,6 @@ export default {
         moduleParamsProps: { type: Object, required: true },
     },
     computed: {
-        ...mapState({
-            MRDB_MON: state => state.app_config.MRDB_MON,
-            MXS_OBJ_TYPES: state => state.app_config.MXS_OBJ_TYPES,
-        }),
         // get only server that are not monitored
         serversList() {
             let serverItems = []
@@ -64,7 +61,10 @@ export default {
             )
         },
     },
-
+    created() {
+        this.MXS_OBJ_TYPES = MXS_OBJ_TYPES
+        this.MRDB_MON = MRDB_MON
+    },
     methods: {
         getValues() {
             const { moduleInputs, serversRelationship } = this.$refs

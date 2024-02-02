@@ -82,7 +82,7 @@
             </template>
             {{ $mxs_t('disableAccessibilityMode') }}
             <br />
-            {{ OS_KEY }} {{ $helpers.isMAC() ? '+ SHIFT' : '' }} + M
+            {{ OS_KEY }} {{ IS_MAC_OS ? '+ SHIFT' : '' }} + M
         </mxs-tooltip-btn>
         <!-- QUERY_ROW_LIMIT dropdown input-->
         <v-form v-model="isRowLimitValid" class="fill-height d-flex align-center mr-3">
@@ -172,6 +172,7 @@ import QueryResult from '@wsModels/QueryResult'
 import RowLimitCtr from '@wkeComps/QueryEditor/RowLimitCtr.vue'
 import FileBtnsCtr from '@wkeComps/QueryEditor/FileBtnsCtr.vue'
 import { EventBus } from '@wkeComps/EventBus'
+import { QUERY_MODES, OS_KEY, IS_MAC_OS } from '@wsSrc/constants'
 
 export default {
     name: 'txt-editor-toolbar-ctr',
@@ -207,8 +208,6 @@ export default {
     },
     computed: {
         ...mapState({
-            OS_KEY: state => state.mxsWorkspace.config.OS_KEY,
-            QUERY_MODES: state => state.mxsWorkspace.config.QUERY_MODES,
             query_confirm_flag: state => state.prefAndStorage.query_confirm_flag,
             query_snippets: state => state.prefAndStorage.query_snippets,
             is_max_rows_valid: state => state.editorsMem.is_max_rows_valid,
@@ -250,6 +249,10 @@ export default {
         sqlTxt() {
             return this.activeRunMode === 'selected' ? this.selected_query_txt : this.queryTxt
         },
+    },
+    created() {
+        this.IS_MAC_OS = IS_MAC_OS
+        this.OS_KEY = OS_KEY
     },
     activated() {
         this.eventBus.$on('workspace-shortkey', this.shortKeyHandler)
@@ -320,7 +323,7 @@ export default {
             QueryResult.update({
                 where: this.queryTab.id,
                 data: {
-                    query_mode: this.QUERY_MODES.QUERY_VIEW,
+                    query_mode: QUERY_MODES.QUERY_VIEW,
                 },
             })
             switch (mode) {

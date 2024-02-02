@@ -76,6 +76,8 @@
  */
 import { mapActions, mapState, mapMutations, mapGetters } from 'vuex'
 import OverviewHeader from './OverviewHeader'
+import { MXS_OBJ_TYPES } from '@share/constants'
+import { MONITOR_OP_TYPES } from '@rootSrc/constants'
 
 export default {
     components: {
@@ -98,8 +100,6 @@ export default {
             is_loading_cs_status: state => state.monitor.is_loading_cs_status,
             cs_no_data_txt: state => state.monitor.cs_no_data_txt,
             all_servers: state => state.server.all_servers,
-            MONITOR_OP_TYPES: state => state.app_config.MONITOR_OP_TYPES,
-            MXS_OBJ_TYPES: state => state.app_config.MXS_OBJ_TYPES,
         }),
         ...mapGetters({ isAdmin: 'user/isAdmin' }),
         monitorId() {
@@ -133,7 +133,7 @@ export default {
         },
         should_refresh_resource: async function(val) {
             if (val) {
-                this.SET_REFRESH_RESOURCE(false)
+                this.SET_SHOULD_REFRESH_RESOURCE(false)
                 await this.initialFetch()
             }
         },
@@ -144,12 +144,13 @@ export default {
     },
 
     async created() {
+        this.MXS_OBJ_TYPES = MXS_OBJ_TYPES
         await this.initialFetch()
     },
 
     methods: {
         ...mapMutations({
-            SET_REFRESH_RESOURCE: 'SET_REFRESH_RESOURCE',
+            SET_SHOULD_REFRESH_RESOURCE: 'SET_SHOULD_REFRESH_RESOURCE',
         }),
         ...mapActions({
             fetchModuleParameters: 'fetchModuleParameters',
@@ -218,7 +219,7 @@ export default {
         async handleSwitchover(masterId) {
             await this.manipulateMonitor({
                 id: this.monitorId,
-                type: this.MONITOR_OP_TYPES.SWITCHOVER,
+                type: MONITOR_OP_TYPES.SWITCHOVER,
                 opParams: {
                     moduleType: this.monitorModule,
                     params: `&${masterId}`,

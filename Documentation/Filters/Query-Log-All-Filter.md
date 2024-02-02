@@ -164,7 +164,7 @@ options are enabled.
 | user              | User and hostname of client                            |
 | reply_time        | Duration from client query to first server reply       |
 | total_reply_time  | Duration from client query to last server reply (v6.2) |
-| query             | Query                                                  |
+| query             | The SQL of the query if it contains it                 |
 | default_db        | The default (current) database                         |
 | num_rows          | Number of rows in the result set (v6.2)                |
 | reply_size        | Number of bytes received from the server (v6.2)        |
@@ -173,6 +173,7 @@ options are enabled.
 | num_warnings      | Number of warnings in the server reply (v6.2)          |
 | error_msg         | Error message from the server (if any) (v6.2)          |
 | server            | The server where the query was routed (if any) (v22.08)|
+| command           | The protocol command that was executed (v24.02)        |
 
 ```
 log_data=date, user, query, total_reply_time
@@ -194,6 +195,12 @@ ERROR 1064 (42000): You have an error in your SQL syntax; check the manual
 that corresponds to your MariaDB server version for the right syntax to
 use near 'password="clear text pwd"' at line 1
 ```
+
+Starting with MaxScale 24.02, the `query` parameter now correctly logs
+the execution of binary protocol commands as SQL
+([MXS-4959](https://jira.mariadb.org/browse/MXS-4959)). The execution of
+batched statements (COM_STMT_BULK_LOAD) used by some connectors is not
+logged.
 
 ### `duration_unit`
 
