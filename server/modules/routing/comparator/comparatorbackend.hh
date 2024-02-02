@@ -56,7 +56,13 @@ public:
         m_results.front()->process(buffer);
     }
 
-    virtual void finish_result(const mxs::Reply& reply) = 0;
+    enum class Routing
+    {
+        CONTINUE, // Send the response further to the client.
+        STOP      // The response relates to internal activity, do not send to client.
+    };
+
+    virtual Routing finish_result(const mxs::Reply& reply) = 0;
 
     void close(close_type type = CLOSE_NORMAL) override
     {
@@ -84,15 +90,15 @@ public:
 
     void execute_pending_explains();
 
+    using SComparatorExplainResult = std::shared_ptr<ComparatorExplainResult>;
+
+    void schedule_explain(SComparatorExplainResult&&);
+
 protected:
     ComparatorBackend(mxs::Endpoint* pEndpoint)
         : mxs::Backend(pEndpoint)
     {
     }
-
-    using SComparatorExplainResult = std::shared_ptr<ComparatorExplainResult>;
-
-    void schedule_explain(SComparatorExplainResult&&);
 
 protected:
     virtual void book_explain() = 0;
@@ -144,7 +150,7 @@ public:
         return Backend::write(std::move(buffer), type);
     }
 
-    void finish_result(const mxs::Reply& reply) override
+    Routing finish_result(const mxs::Reply& reply) override
     {
         mxb_assert(reply.is_complete());
         mxb_assert(!m_results.empty());
@@ -152,8 +158,12 @@ public:
         auto sResult = std::move(m_results.front());
         m_results.pop_front();
 
+        auto kind = sResult->kind();
+
         ++m_stats.nResponses;
         m_stats.total_duration += sResult->close(reply);
+
+        return kind == ComparatorResult::Kind::EXTERNAL ? Routing::CONTINUE : Routing::STOP;
     }
 
 protected:
@@ -198,6 +208,8 @@ public:
         return m_command;
     }
 
+    void ready(const ComparatorExplainMainResult& result);
+
 private:
     uint8_t m_command { 0 };
 };
@@ -205,7 +217,7 @@ private:
 
 class ComparatorOtherBackend final : public ComparatorBackendWithStats<ComparatorOtherStats>
                                    , private ComparatorOtherResult::Handler
-                                   , private ComparatorExplainResult::Handler
+                                   , private ComparatorExplainOtherResult::Handler
 
 {
 public:
@@ -227,9 +239,7 @@ public:
     {
     public:
         virtual Action ready(ComparatorOtherResult& other_result) = 0;
-        virtual void ready(const ComparatorExplainResult& explain_result,
-                           const std::string& error,
-                           std::string_view json) = 0;
+        virtual void ready(const ComparatorExplainOtherResult& explain_result) = 0;
     };
 
     ComparatorOtherBackend(mxs::Endpoint* pEndpoint,
@@ -261,9 +271,7 @@ private:
     void ready(ComparatorOtherResult& other_result) override;
 
     // ComparatorExplainResult::Handler
-    void ready(const ComparatorExplainResult& other_result,
-               const std::string& error,
-               std::string_view json) override;
+    void ready(const ComparatorExplainOtherResult& other_result) override;
 
 private:
     using SComparatorExporter = std::shared_ptr<ComparatorExporter>;

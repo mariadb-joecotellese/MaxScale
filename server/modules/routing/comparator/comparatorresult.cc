@@ -152,43 +152,62 @@ void ComparatorOtherResult::main_was_closed()
  * ComparatorExplainResult
  */
 
-ComparatorExplainResult::ComparatorExplainResult(Handler* pHandler,
-                                                 std::shared_ptr<const ComparatorOtherResult> sOther_result)
-    : ComparatorResult(&sOther_result->backend())
-    , m_handler(*pHandler)
-    , m_sOther_result(sOther_result)
-{
-}
-
 std::chrono::nanoseconds ComparatorExplainResult::close(const mxs::Reply& reply)
 {
-    auto rv = ComparatorResult::close(reply);
-
-    const auto& e = reply.error();
-
-    std::string error;
-    std::string_view json;
-
-    if (e)
-    {
-        error = e.message();
-    }
-    else
-    {
-        if (!reply.row_data().empty())
-        {
-            mxb_assert(reply.row_data().size() == 1);
-            mxb_assert(reply.row_data().front().size() == 1);
-
-            json = reply.row_data().front().front();
-        }
-
-        mxb_assert(reply.is_complete());
-    }
-
-    m_handler.ready(*this, error, json);
+    ComparatorResult::close(reply);
 
     // Return 0, so that the duration of the EXPLAIN request is not
     // included in the total duration.
     return std::chrono::milliseconds { 0 };
+}
+
+/**
+ * ComparatorExplainMainResult
+ */
+ComparatorExplainMainResult::ComparatorExplainMainResult(ComparatorMainBackend* pBackend,
+                                                         std::shared_ptr<ComparatorMainResult> sMain_result)
+    : ComparatorExplainResult(pBackend)
+    , m_sMain_result(sMain_result)
+{
+    mxb_assert(m_sMain_result);
+}
+
+std::chrono::nanoseconds ComparatorExplainMainResult::close(const mxs::Reply& reply)
+{
+    auto rv = ComparatorExplainResult::close(reply);
+
+    // A dependent may end up removing itself.
+    auto dependents = m_dependents;
+
+    for (ComparatorExplainOtherResult* pDependent : dependents)
+    {
+        pDependent->main_was_closed();
+    }
+
+    static_cast<ComparatorMainBackend&>(backend()).ready(*this);
+
+    return rv;
+}
+
+/**
+ * ComparatorExplainOtherResult
+ */
+std::chrono::nanoseconds ComparatorExplainOtherResult::close(const mxs::Reply& reply)
+{
+    auto rv = ComparatorExplainResult::close(reply);
+
+    if (!m_sExplain_main_result || m_sExplain_main_result->closed())
+    {
+        m_handler.ready(*this);
+    }
+
+    return rv;
+}
+
+void ComparatorExplainOtherResult::main_was_closed()
+{
+    if (closed())
+    {
+        m_handler.ready(*this);
+    }
 }

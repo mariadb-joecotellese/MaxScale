@@ -15,14 +15,23 @@ using std::chrono::duration_cast;
  */
 void ComparatorStats::fill_json(json_t* pJson) const
 {
-    auto ms = duration_cast<std::chrono::milliseconds>(this->total_duration);
+    std::chrono::milliseconds ms;
 
+    ms = duration_cast<std::chrono::milliseconds>(this->total_duration);
     json_object_set_new(pJson, "total_duration", json_integer(ms.count()));
     json_object_set_new(pJson, "request_packets", json_integer(this->nRequest_packets));
     json_object_set_new(pJson, "requests", json_integer(this->nRequests));
     json_object_set_new(pJson, "requests_explainable", json_integer(this->nRequests_explainable));
     json_object_set_new(pJson, "requests_responding", json_integer(this->nRequests_responding));
     json_object_set_new(pJson, "responses", json_integer(this->nResponses));
+
+    json_t* pExplain = json_object();
+    ms = duration_cast<std::chrono::milliseconds>(this->explain_duration);
+    json_object_set_new(pExplain, "duration", json_integer(ms.count()));
+    json_object_set_new(pExplain, "requests", json_integer(this->nExplain_requests));
+    json_object_set_new(pExplain, "responses", json_integer(this->nExplain_responses));
+
+    json_object_set_new(pJson, "explain", pExplain);
 }
 
 
@@ -52,19 +61,11 @@ json_t* ComparatorOtherStats::to_json() const
     fill_json(pData);
     json_object_set_new(pData, "requests_skipped", json_integer(this->nRequests_skipped));
 
-    json_t* pExplain = json_object();
-
-    auto ms = duration_cast<std::chrono::milliseconds>(this->explain_duration);
-    json_object_set_new(pExplain, "duration", json_integer(ms.count()));
-    json_object_set_new(pExplain, "requests", json_integer(this->nExplain_requests));
-    json_object_set_new(pExplain, "responses", json_integer(this->nExplain_responses));
-
     json_t* pVerdict = json_object();
     json_object_set_new(pVerdict, "faster", json_integer(this->nFaster));
     json_object_set_new(pVerdict, "slower", json_integer(this->nSlower));
 
     json_object_set_new(pJson, "data", pData);
-    json_object_set_new(pJson, "explain", pExplain);
     json_object_set_new(pJson, "verdict", pVerdict);
 
     return pJson;

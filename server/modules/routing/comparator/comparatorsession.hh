@@ -42,20 +42,18 @@ public:
 private:
     // ComparatorOtherBackend::Handler
     ComparatorOtherBackend::Action ready(ComparatorOtherResult& other_result) override;
-    void ready(const ComparatorExplainResult& explain_result,
-               const std::string& error,
-               std::string_view json) override;
+    void ready(const ComparatorExplainOtherResult& explain_other_result) override;
 
 private:
     bool should_report(const ComparatorOtherResult& result) const;
 
     void generate_report(const ComparatorOtherResult& result);
-    void generate_report_with_explain(const ComparatorExplainResult& result, std::string_view explain_json);
+    void generate_report(const ComparatorExplainOtherResult& result);
 
     void generate_report(const ComparatorOtherResult& other_result,
-                         const char* zExplain,
-                         json_t* pExplain);
-    json_t* generate_json(const ComparatorResult& result);
+                         json_t* pExplain_other,
+                         json_t* pExplain_main);
+    json_t* generate_json(const ComparatorResult& result, json_t* pExplain);
 
     SComparatorMainBackend   m_sMain;
     SComparatorOtherBackends m_others;

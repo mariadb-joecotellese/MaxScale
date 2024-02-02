@@ -147,9 +147,11 @@ bool ComparatorSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down,
 
     pBackend->process_result(packet, reply);
 
+    ComparatorBackend::Routing routing = ComparatorBackend::Routing::CONTINUE;
+
     if (reply.is_complete())
     {
-        pBackend->finish_result(reply);
+        routing = pBackend->finish_result(reply);
         pBackend->ack_write();
 
         MXB_INFO("Reply from '%s' complete.", pBackend->name());
@@ -157,7 +159,7 @@ bool ComparatorSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down,
 
     bool rv = true;
 
-    if (pBackend == m_sMain.get())
+    if (pBackend == m_sMain.get() && routing == ComparatorBackend::Routing::CONTINUE)
     {
         rv = RouterSession::clientReply(std::move(packet), down, reply);
     }
@@ -192,28 +194,37 @@ ComparatorOtherBackend::Action ComparatorSession::ready(ComparatorOtherResult& o
 
         if (!m_router.registry().is_explained(now, hash, id, &explainers))
         {
-            other_result.set_explainers(explainers);
-            rv = m_router.config().explain;
+            if (other_result.is_explainable())
+            {
+                other_result.set_explainers(explainers);
+                rv = m_router.config().explain;
+            }
+            else
+            {
+                generate_report(other_result);
+            }
         }
     }
 
     return rv;
 }
 
-void ComparatorSession::ready(const ComparatorExplainResult& explain_result,
-                              const std::string& error,
-                              std::string_view json)
+void ComparatorSession::ready(const ComparatorExplainOtherResult& explain_result)
 {
+    const auto& error = explain_result.error();
+
     if (!error.empty())
     {
         auto& main_result = explain_result.other_result().main_result();
 
         auto sql = main_result.sql();
         MXB_WARNING("EXPLAIN of '%.*s' failed: %s", (int)sql.length(), sql.data(), error.c_str());
+
+        generate_report(explain_result.other_result());
     }
     else
     {
-        generate_report_with_explain(explain_result, json);
+        generate_report(explain_result);
     }
 }
 
@@ -254,34 +265,58 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
     generate_report(other_result, nullptr, nullptr);
 }
 
-void ComparatorSession::generate_report_with_explain(const ComparatorExplainResult& result,
-                                                     std::string_view explain_json)
+namespace
 {
-    const char* zExplain = nullptr;
-    json_t* pExplain = nullptr;
 
-    if (!explain_json.empty())
+json_t* load_json(std::string_view json)
+{
+    json_error_t error;
+    json_t* pJson = json_loadb(json.data(), json.length(), 0, &error);
+
+    if (!pJson)
     {
-        zExplain = "explain";
+        MXB_WARNING("Could not parse EXPLAIN result '%.*s' returned by server, storing as string: %s",
+                    (int)json.length(), json.data(), error.text);
 
-        json_error_t error;
-        pExplain = json_loadb(explain_json.data(), explain_json.length(), 0, &error);
+        pJson = json_stringn(json.data(), json.length());
+    }
 
-        if (!pExplain)
+    return pJson;
+}
+
+}
+
+void ComparatorSession::generate_report(const ComparatorExplainOtherResult& result)
+{
+    std::string_view json;
+
+    json_t* pExplain_other = nullptr;
+    json = result.json();
+
+    if (!json.empty())
+    {
+        pExplain_other = load_json(json);
+    }
+
+    json_t* pExplain_main = nullptr;
+    const ComparatorExplainMainResult* pMain_result = result.explain_main_result();
+
+    if (pMain_result)
+    {
+        json = pMain_result->json();
+
+        if (!json.empty())
         {
-            MXB_WARNING("Could not parse EXPLAIN result '%.*s' returned by server, storing as string: %s",
-                        (int)explain_json.length(), explain_json.data(), error.text);
-
-            pExplain = json_stringn(explain_json.data(), explain_json.length());
+            pExplain_main = load_json(json);
         }
     }
 
-    generate_report(result.other_result(), zExplain, pExplain);
+    generate_report(result.other_result(), pExplain_other, pExplain_main);
 }
 
 void ComparatorSession::generate_report(const ComparatorOtherResult& other_result,
-                                        const char* zExplain,
-                                        json_t* pExplain)
+                                        json_t* pExplain_other,
+                                        json_t* pExplain_main)
 {
     const auto& main_result = other_result.main_result();
 
@@ -292,14 +327,8 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
     json_object_set_new(pJson, "command", json_string(mariadb::cmd_to_string(main_result.command())));
     json_object_set_new(pJson, "query", json_stringn(sql.data(), sql.length()));
 
-    json_t* pMain = generate_json(main_result);
-    json_t* pOther = generate_json(other_result);
-
-    if (zExplain)
-    {
-        mxb_assert(pExplain);
-        json_object_set_new(pOther, zExplain, pExplain);
-    }
+    json_t* pOther = generate_json(other_result, pExplain_other);
+    json_t* pMain = generate_json(main_result, pExplain_main);
 
     const ComparatorRegistry::Entries& explainers = other_result.explainers();
 
@@ -324,7 +353,7 @@ void ComparatorSession::generate_report(const ComparatorOtherResult& other_resul
     static_cast<ComparatorOtherBackend&>(other_result.backend()).exporter().ship(pJson);
 }
 
-json_t* ComparatorSession::generate_json(const ComparatorResult& result)
+json_t* ComparatorSession::generate_json(const ComparatorResult& result, json_t* pExplain)
 {
     const char* type = result.reply().error() ?
         "error" : (result.reply().is_resultset() ? "resultset" : "ok");
@@ -336,6 +365,11 @@ json_t* ComparatorSession::generate_json(const ComparatorResult& result)
     json_object_set_new(pO, "warnings", json_integer(result.reply().num_warnings()));
     json_object_set_new(pO, "duration", json_integer(result.duration().count()));
     json_object_set_new(pO, "type", json_string(type));
+
+    if (pExplain)
+    {
+        json_object_set_new(pO, "explain", pExplain);
+    }
 
     return pO;
 }

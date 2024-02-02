@@ -31,12 +31,12 @@ void ComparatorBackend::execute_pending_explains()
 void ComparatorBackend::execute(const std::shared_ptr<ComparatorExplainResult>& sExplain_result)
 {
     std::string sql { "EXPLAIN FORMAT=JSON "};
-    sql += sExplain_result->other_result().sql();
+    sql += sExplain_result->sql();
 
     m_results.emplace_back(std::move(sExplain_result));
 
     GWBUF packet = phelper().create_packet(sql);
-    packet.set_type(GWBUF::TYPE_COLLECT_ROWS);
+    packet.set_type(static_cast<GWBUF::Type>(GWBUF::TYPE_COLLECT_RESULT | GWBUF::TYPE_COLLECT_ROWS));
 
     write(std::move(packet), mxs::Backend::EXPECT_RESPONSE);
 
@@ -61,6 +61,19 @@ ComparatorMainBackend::SResult ComparatorMainBackend::prepare(const GWBUF& packe
     return sMain_result;
 }
 
+void ComparatorMainBackend::ready(const ComparatorExplainMainResult& explain_result)
+{
+    ++m_stats.nExplain_responses;
+
+    // Tune counters as the extra EXPLAIN requests/responses should be
+    // excluded from the general book-keeping.
+    --m_stats.nResponses;
+
+    m_stats.explain_duration += explain_result.duration();
+
+    execute_pending_explains();
+}
+
 /**
  * ComparatorOtherBackend
  */
@@ -78,7 +91,8 @@ void ComparatorOtherBackend::ready(ComparatorOtherResult& other_result)
 {
     mxb_assert(m_pHandler);
 
-    auto main_duration = other_result.main_result().duration();
+    auto& main_result = other_result.main_result();
+    auto main_duration = main_result.duration();
     auto other_duration = other_result.duration();
 
     if (other_duration < main_duration)
@@ -90,10 +104,31 @@ void ComparatorOtherBackend::ready(ComparatorOtherResult& other_result)
         ++m_stats.nSlower;
     }
 
+    std::shared_ptr<ComparatorExplainMainResult> sExplain_main;
+
     switch (m_pHandler->ready(other_result))
     {
     case CONTINUE:
         break;
+
+    case EXPLAIN_MAIN:
+        // TODO: Drop this alternative.
+        mxb_assert(!true);
+        break;
+
+    case EXPLAIN_BOTH:
+        {
+            mxb_assert(main_result.is_explainable());
+
+            auto& main_backend = static_cast<ComparatorMainBackend&>(main_result.backend());
+            auto sMain_result = main_result.shared_from_this();
+            auto* pExplain_main = new ComparatorExplainMainResult(&main_backend, sMain_result);
+            sExplain_main.reset(pExplain_main);
+
+            main_backend.schedule_explain(sExplain_main);
+            main_backend.execute_pending_explains();
+        }
+        [[fallthrough]];
 
     case EXPLAIN_OTHER:
         {
@@ -101,24 +136,18 @@ void ComparatorOtherBackend::ready(ComparatorOtherResult& other_result)
 
             auto sOther_result = other_result.shared_from_this();
 
-            auto* pExplain_result = new ComparatorExplainResult(this, sOther_result);
+            auto* pExplain_result = new ComparatorExplainOtherResult(this, sOther_result, sExplain_main);
             auto sExplain_result = std::shared_ptr<ComparatorExplainResult>(pExplain_result);
 
             schedule_explain(std::move(sExplain_result));
         }
         break;
-
-    case EXPLAIN_MAIN:
-    case EXPLAIN_BOTH:
-        mxb_assert(!true);
     }
 
     execute_pending_explains();
 }
 
-void ComparatorOtherBackend::ready(const ComparatorExplainResult& explain_result,
-                                   const std::string& error,
-                                   std::string_view json)
+void ComparatorOtherBackend::ready(const ComparatorExplainOtherResult& explain_result)
 {
     mxb_assert(m_pHandler);
 
@@ -130,7 +159,7 @@ void ComparatorOtherBackend::ready(const ComparatorExplainResult& explain_result
 
     m_stats.explain_duration += explain_result.duration();
 
-    m_pHandler->ready(explain_result, error, json);
+    m_pHandler->ready(explain_result);
 
     execute_pending_explains();
 }

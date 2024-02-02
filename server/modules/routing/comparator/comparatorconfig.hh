@@ -37,7 +37,7 @@ enum class Report
 /* *INDENT-OFF* */
 constexpr ComparisonKind            DEFAULT_COMPARISON_KIND { ComparisonKind::READ_WRITE };
 constexpr int64_t                   DEFAULT_ENTRIES { 2 };
-constexpr Explain                   DEFAULT_EXPLAIN { Explain::OTHER };
+constexpr uint32_t                  DEFAULT_EXPLAIN { Explain::MAIN | Explain::OTHER };
 constexpr int64_t                   DEFAULT_MAX_EXECUTION_TIME_DIFFERENCE { 10 };
 constexpr int64_t                   DEFAULT_MAX_REQUEST_LAG { 10 };
 constexpr OnError                   DEFAULT_ON_ERROR { OnError::IGNORE };
