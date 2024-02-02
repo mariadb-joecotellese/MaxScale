@@ -108,15 +108,10 @@ void COtherBackend::ready(COtherResult& other_result)
 
     switch (m_pHandler->ready(other_result))
     {
-    case CONTINUE:
+    case Explain::NONE:
         break;
 
-    case EXPLAIN_MAIN:
-        // TODO: Drop this alternative.
-        mxb_assert(!true);
-        break;
-
-    case EXPLAIN_BOTH:
+    case Explain::BOTH:
         {
             mxb_assert(main_result.is_explainable());
 
@@ -130,7 +125,7 @@ void COtherBackend::ready(COtherResult& other_result)
         }
         [[fallthrough]];
 
-    case EXPLAIN_OTHER:
+    case Explain::OTHER:
         {
             mxb_assert(other_result.is_explainable());
 

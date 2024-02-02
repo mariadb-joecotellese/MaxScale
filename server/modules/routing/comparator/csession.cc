@@ -181,9 +181,9 @@ bool CSession::handleError(mxs::ErrorType type,
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
-COtherBackend::Action CSession::ready(COtherResult& other_result)
+Explain CSession::ready(COtherResult& other_result)
 {
-    COtherBackend::Action rv = COtherBackend::CONTINUE;
+    Explain rv = Explain::NONE;
 
     if (should_report(other_result))
     {

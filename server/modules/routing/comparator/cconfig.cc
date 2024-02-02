@@ -61,13 +61,14 @@ config::ParamSize entries(
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max
     config::Param::AT_RUNTIME);
 
-config::ParamEnumMask<Explain> explain(
+config::ParamEnum<Explain> explain(
     &specification,
     "explain",
-    "What results should be EXPLAINed; those of 'other' or 'main'.",
+    "What results should be EXPLAINed; 'none', 'other' or 'both'.",
     {
+        {Explain::NONE, "none"},
         {Explain::OTHER, "other"},
-        {Explain::MAIN, "main"}
+        {Explain::BOTH, "both"}
     },
     DEFAULT_EXPLAIN,
     config::Param::AT_RUNTIME);

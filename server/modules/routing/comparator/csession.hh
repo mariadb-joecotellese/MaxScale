@@ -41,7 +41,7 @@ public:
 
 private:
     // COtherBackend::Handler
-    COtherBackend::Action ready(COtherResult& other_result) override;
+    Explain ready(COtherResult& other_result) override;
     void ready(const CExplainOtherResult& explain_other_result) override;
 
 private:

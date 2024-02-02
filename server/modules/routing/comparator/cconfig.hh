@@ -16,10 +16,11 @@ enum class ComparisonKind
     READ_WRITE
 };
 
-enum Explain
+enum class Explain
 {
-    OTHER = 1 << 0,
-    MAIN  = 1 << 1
+    NONE,
+    OTHER,
+    BOTH
 };
 
 enum class OnError
@@ -37,7 +38,7 @@ enum class Report
 /* *INDENT-OFF* */
 constexpr ComparisonKind            DEFAULT_COMPARISON_KIND { ComparisonKind::READ_WRITE };
 constexpr int64_t                   DEFAULT_ENTRIES { 2 };
-constexpr uint32_t                  DEFAULT_EXPLAIN { Explain::MAIN | Explain::OTHER };
+constexpr Explain                   DEFAULT_EXPLAIN { Explain::BOTH };
 constexpr int64_t                   DEFAULT_MAX_EXECUTION_TIME_DIFFERENCE { 10 };
 constexpr int64_t                   DEFAULT_MAX_REQUEST_LAG { 10 };
 constexpr OnError                   DEFAULT_ON_ERROR { OnError::IGNORE };
@@ -58,7 +59,7 @@ public:
     mxs::Target* pMain;
 
     ComparisonKind             comparison_kind;
-    uint32_t                   explain;
+    Explain                    explain;
     mxs::config::Enum<OnError> on_error;
     mxs::config::Enum<Report>  report;
     int64_t                    max_execution_time_difference;
@@ -66,21 +67,6 @@ public:
     std::chrono::milliseconds  period;
 
     int64_t                    max_request_lag;
-
-    bool explain_main() const
-    {
-        return this->explain & Explain::MAIN;
-    }
-
-    bool explain_other() const
-    {
-        return this->explain & Explain::OTHER;
-    }
-
-    bool explain_all() const
-    {
-        return explain_main() && explain_other();
-    }
 
     SERVICE* pService;
 
