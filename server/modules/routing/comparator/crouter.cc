@@ -12,7 +12,7 @@
 #include <maxscale/protocol/mariadb/gtid.hh>
 #include <maxscale/routingworker.hh>
 #include <maxsql/mariadb_connector.hh>
-#include "csession.hh"
+#include "croutersession.hh"
 #include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/service.hh"
 
@@ -112,7 +112,7 @@ RouterSession* CRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpo
 
     if (connected)
     {
-        pRouter_session = new CSession(pSession, this, std::move(sMain), std::move(backends));
+        pRouter_session = new CRouterSession(pSession, this, std::move(sMain), std::move(backends));
     }
 
     return pRouter_session;
@@ -325,7 +325,7 @@ bool CRouter::summary(Summary summary, json_t** ppOutput)
     return rv;
 }
 
-void CRouter::collect(const CSessionStats& stats)
+void CRouter::collect(const CRouterSessionStats& stats)
 {
     std::lock_guard<std::mutex> guard(m_stats_lock);
 

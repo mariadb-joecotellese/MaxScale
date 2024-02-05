@@ -3,7 +3,7 @@
  *
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
-#include "csession.hh"
+#include "croutersession.hh"
 #include <maxscale/protocol/mariadb/mysql.hh>
 #include "cresult.hh"
 #include "crouter.hh"
@@ -29,10 +29,10 @@ inline bool is_execution_time_discrepancy(const std::chrono::nanoseconds& durati
 
 }
 
-CSession::CSession(MXS_SESSION* pSession,
-                   CRouter* pRouter,
-                   SCMainBackend sMain,
-                   SCOtherBackends others)
+CRouterSession::CRouterSession(MXS_SESSION* pSession,
+                               CRouter* pRouter,
+                               SCMainBackend sMain,
+                               SCOtherBackends others)
     : RouterSession(pSession)
     , m_sMain(std::move(sMain))
     , m_others(std::move(others))
@@ -52,7 +52,7 @@ CSession::CSession(MXS_SESSION* pSession,
     }
 }
 
-CSession::~CSession()
+CRouterSession::~CRouterSession()
 {
     Stats stats { m_sMain->backend()->target(), m_sMain->stats() };
 
@@ -64,7 +64,7 @@ CSession::~CSession()
     m_router.collect(stats);
 }
 
-bool CSession::routeQuery(GWBUF&& packet)
+bool CRouterSession::routeQuery(GWBUF&& packet)
 {
     bool rv = false;
 
@@ -142,7 +142,7 @@ bool CSession::routeQuery(GWBUF&& packet)
     return rv;
 }
 
-bool CSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mxs::Reply& reply)
+bool CRouterSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mxs::Reply& reply)
 {
     auto* pBackend = static_cast<CBackend*>(down.endpoint()->get_userdata());
 
@@ -166,10 +166,10 @@ bool CSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mx
     return rv;
 }
 
-bool CSession::handleError(mxs::ErrorType type,
-                           const std::string& message,
-                           mxs::Endpoint* pProblem,
-                           const mxs::Reply& reply)
+bool CRouterSession::handleError(mxs::ErrorType type,
+                                 const std::string& message,
+                                 mxs::Endpoint* pProblem,
+                                 const mxs::Reply& reply)
 {
     auto* pBackend = static_cast<CBackend*>(pProblem->get_userdata());
 
@@ -180,7 +180,7 @@ bool CSession::handleError(mxs::ErrorType type,
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
-Explain CSession::ready(COtherResult& other_result)
+Explain CRouterSession::ready(COtherResult& other_result)
 {
     Explain rv = Explain::NONE;
 
@@ -212,7 +212,7 @@ Explain CSession::ready(COtherResult& other_result)
     return rv;
 }
 
-void CSession::ready(const CExplainOtherResult& explain_result)
+void CRouterSession::ready(const CExplainOtherResult& explain_result)
 {
     const auto& error = explain_result.error();
 
@@ -231,7 +231,7 @@ void CSession::ready(const CExplainOtherResult& explain_result)
     }
 }
 
-bool CSession::should_report(const COtherResult& other_result) const
+bool CRouterSession::should_report(const COtherResult& other_result) const
 {
     const auto& config = m_router.config();
 
@@ -263,7 +263,7 @@ bool CSession::should_report(const COtherResult& other_result) const
     return rv;
 }
 
-void CSession::generate_report(const COtherResult& other_result)
+void CRouterSession::generate_report(const COtherResult& other_result)
 {
     generate_report(other_result, nullptr, nullptr);
 }
@@ -289,7 +289,7 @@ json_t* load_json(std::string_view json)
 
 }
 
-void CSession::generate_report(const CExplainOtherResult& result)
+void CRouterSession::generate_report(const CExplainOtherResult& result)
 {
     std::string_view json;
 
@@ -317,9 +317,9 @@ void CSession::generate_report(const CExplainOtherResult& result)
     generate_report(result.other_result(), pExplain_other, pExplain_main);
 }
 
-void CSession::generate_report(const COtherResult& other_result,
-                               json_t* pExplain_other,
-                               json_t* pExplain_main)
+void CRouterSession::generate_report(const COtherResult& other_result,
+                                     json_t* pExplain_other,
+                                     json_t* pExplain_main)
 {
     const auto& main_result = other_result.main_result();
 
@@ -356,7 +356,7 @@ void CSession::generate_report(const COtherResult& other_result,
     static_cast<COtherBackend&>(other_result.backend()).exporter().ship(pJson);
 }
 
-json_t* CSession::generate_json(const CResult& result, json_t* pExplain)
+json_t* CRouterSession::generate_json(const CResult& result, json_t* pExplain)
 {
     const char* type = result.reply().error() ?
         "error" : (result.reply().is_resultset() ? "resultset" : "ok");

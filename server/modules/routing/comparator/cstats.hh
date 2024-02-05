@@ -75,13 +75,13 @@ struct COtherStats final : CStats
     json_t* to_json() const;
 };
 
-struct CSessionStats
+struct CRouterSessionStats
 {
     mxs::Target*                        pMain { nullptr };
     CMainStats                          main_stats;
     std::map<mxs::Target*, COtherStats> other_stats;
 
-    CSessionStats& operator += (const CSessionStats& rhs)
+    CRouterSessionStats& operator += (const CRouterSessionStats& rhs)
     {
         this->main_stats += rhs.main_stats;
 
@@ -104,11 +104,11 @@ public:
     {
     }
 
-    CRouterStats& operator += (const CSessionStats& rhs)
+    CRouterStats& operator += (const CRouterSessionStats& rhs)
     {
-        mxb_assert(m_session_stats.pMain == rhs.pMain);
+        mxb_assert(m_router_session_stats.pMain == rhs.pMain);
 
-        m_session_stats += rhs;
+        m_router_session_stats += rhs;
         return *this;
     }
 
@@ -117,6 +117,6 @@ public:
     json_t* to_json() const;
 
 private:
-    const SERVICE& m_service;
-    CSessionStats  m_session_stats;
+    const SERVICE&      m_service;
+    CRouterSessionStats m_router_session_stats;
 };

@@ -17,20 +17,20 @@
 
 class CRouter;
 
-class CSession final : public mxs::RouterSession
-                     , private COtherBackend::Handler
+class CRouterSession final : public mxs::RouterSession
+                           , private COtherBackend::Handler
 {
 public:
-    using Stats = CSessionStats;
+    using Stats = CRouterSessionStats;
 
-    CSession(const CSession&) = delete;
-    CSession& operator=(const CSession&) = delete;
+    CRouterSession(const CRouterSession&) = delete;
+    CRouterSession& operator=(const CRouterSession&) = delete;
 
-    CSession(MXS_SESSION* pSession,
-             CRouter* pRouter,
-             SCMainBackend sMain,
-             SCOtherBackends backends);
-    ~CSession();
+    CRouterSession(MXS_SESSION* pSession,
+                   CRouter* pRouter,
+                   SCMainBackend sMain,
+                   SCOtherBackends backends);
+    ~CRouterSession();
 
     bool routeQuery(GWBUF&& packet) override;
 

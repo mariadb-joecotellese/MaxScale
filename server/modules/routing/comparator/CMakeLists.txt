@@ -7,7 +7,7 @@ add_library(comparator SHARED
   cregistry.cc
   cresult.cc
   crouter.cc
-  csession.cc
+  croutersession.cc
   cstats.cc
   )
 

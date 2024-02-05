@@ -73,9 +73,9 @@ json_t* COtherStats::to_json() const
 
 
 /**
- * CSessionStats
+ * CRouterSessionStats
  */
-json_t* CSessionStats::to_json() const
+json_t* CRouterSessionStats::to_json() const
 {
     json_t* pJson = json_object();
 
@@ -102,9 +102,9 @@ json_t* CSessionStats::to_json() const
  */
 void CRouterStats::post_configure(const CConfig& config)
 {
-    mxb_assert(!m_session_stats.pMain);
+    mxb_assert(!m_router_session_stats.pMain);
 
-    m_session_stats.pMain = config.pMain;
+    m_router_session_stats.pMain = config.pMain;
 }
 
 json_t* CRouterStats::to_json() const
@@ -119,7 +119,7 @@ json_t* CRouterStats::to_json() const
     json_object_set_new(pSessions, "current", json_integer(nCurrent));
     json_object_set_new(pJson, "sessions", pSessions);
 
-    json_object_set_new(pJson, "summary", this->m_session_stats.to_json());
+    json_object_set_new(pJson, "summary", this->m_router_session_stats.to_json());
 
     return pJson;
 }

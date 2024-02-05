@@ -17,7 +17,7 @@
 #include "cregistry.hh"
 #include "cstats.hh"
 
-class CSession;
+class CRouterSession;
 
 class CRouter : public mxs::Router
               , private mxb::Worker::Callable
@@ -88,7 +88,7 @@ public:
     bool stop(json_t** ppOutput);
     bool summary(Summary summary, json_t** ppOutput);
 
-    void collect(const CSessionStats& stats);
+    void collect(const CRouterSessionStats& stats);
 
     CRegistry& registry()
     {
