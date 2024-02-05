@@ -196,11 +196,14 @@ public:
     using Result = CMainResult;
     using SResult = std::shared_ptr<Result>;
 
-    CMainBackend(mxs::Endpoint* pEndpoint,
-                 mxb::Worker* pWorker)
+    CMainBackend(mxs::Endpoint* pEndpoint)
         : Base(pEndpoint)
-        , m_worker(*pWorker)
     {
+    }
+
+    void set_router_session(mxs::RouterSession* pRouter_session)
+    {
+        m_pRouter_session = pRouter_session;
     }
 
     SResult prepare(const GWBUF& packet);
@@ -215,8 +218,8 @@ public:
     void execute_pending_explains() override;
 
 private:
-    uint8_t      m_command { 0 };
-    mxb::Worker& m_worker;
+    uint8_t             m_command { 0 };
+    mxs::RouterSession* m_pRouter_session { nullptr };
 };
 
 
@@ -279,8 +282,7 @@ namespace comparator
 {
 
 std::pair<SCMainBackend, SCOtherBackends>
-backends_from_endpoints(mxb::Worker* pWorker,
-                        const mxs::Target& main_target,
+backends_from_endpoints(const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
                         const CRouter& router);
 

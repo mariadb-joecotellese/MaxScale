@@ -42,6 +42,7 @@ CSession::CSession(MXS_SESSION* pSession,
 
     sQc = std::make_unique<QueryClassifier>(parser(), pSession);
     m_sMain->set_query_classifier(std::move(sQc));
+    m_sMain->set_router_session(this);
 
     for (auto& sOther : m_others)
     {

@@ -76,10 +76,10 @@ void CMainBackend::ready(const CExplainMainResult& explain_result)
 
 void CMainBackend::execute_pending_explains()
 {
-    // TODO: Replace this with MXS_SESSION::delay_routing() as that will handle
-    // TODO: session lifetime issues.
-    m_worker.lcall([this] {
+    mxb_assert(m_pRouter_session);
+    m_pRouter_session->lcall([this] {
             CBackend::execute_pending_explains();
+            return true;
         });
 }
 
@@ -180,8 +180,7 @@ namespace comparator
 {
 
 std::pair<SCMainBackend,SCOtherBackends>
-backends_from_endpoints(mxb::Worker* pWorker,
-                        const mxs::Target& main_target,
+backends_from_endpoints(const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
                         const CRouter& router)
 {
@@ -193,7 +192,7 @@ backends_from_endpoints(mxb::Worker* pWorker,
     {
         if (pEndpoint->target() == &main_target)
         {
-            sMain.reset(new CMainBackend(pEndpoint, pWorker));
+            sMain.reset(new CMainBackend(pEndpoint));
             break;
         }
     }
