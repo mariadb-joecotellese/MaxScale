@@ -366,8 +366,10 @@ QueryEvent SqliteStorage::next_event()
     auto start_time_64 = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
     auto end_time_64 = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
 
-    mxb::TimePoint start_time{mxb::Duration{*(reinterpret_cast<mxb::TimePoint::rep*>(&start_time_64))}};
-    mxb::TimePoint end_time{mxb::Duration{*(reinterpret_cast<mxb::TimePoint::rep*>(&end_time_64))}};
+    auto pS = reinterpret_cast<mxb::TimePoint::rep*>(&start_time_64);
+    auto pE = reinterpret_cast<mxb::TimePoint::rep*>(&end_time_64);
+    mxb::TimePoint start_time{mxb::Duration{*pS}};
+    mxb::TimePoint end_time{mxb::Duration{*pE}};
 
     auto canonical = select_canonical(can_id);
     auto can_args = select_canonical_args(event_id);

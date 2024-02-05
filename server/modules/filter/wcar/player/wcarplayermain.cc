@@ -6,10 +6,13 @@
 
 #include "wcarplayer.hh"
 #include <iostream>
+#include <maxbase/maxbase.hh>
 
 int main(int argc, char** argv)
 try
 {
+    mxb::MaxBase mxb(MXB_LOG_TARGET_STDOUT);
+
     PlayerConfig config(argc, argv);
     Player player(&config);
 
