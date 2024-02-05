@@ -1,6 +1,7 @@
 #include "wcarplayersession.hh"
 #include "wcarplayer.hh"
 #include <maxbase/stopwatch.hh>
+#include <maxbase/assert.hh>
 #include <maxbase/string.hh>
 #include <maxsimd/canonical.hh>
 #include <iostream>
@@ -36,21 +37,20 @@ PlayerSession::PlayerSession(const PlayerConfig* pConfig, Player* pPlayer, int64
 
 PlayerSession::~PlayerSession()
 {
-    m_request_stop = true;
-    m_condition.notify_one();
+    mxb_assert(m_queue.empty());
     m_thread.join();
 }
 
-void PlayerSession::queue_query(QueryEvent&& qevent)
+void PlayerSession::queue_query(QueryEvent&& qevent, int64_t commit_event_id)
 {
+    if (commit_event_id != -1)
+    {
+        mxb_assert(m_commit_event_id == -1);
+        m_commit_event_id = commit_event_id;
+    }
+
     std::lock_guard guard(m_mutex);
     m_queue.push_back(std::move(qevent));
-    m_condition.notify_one();
-}
-
-void PlayerSession::stop()
-{
-    m_request_stop = true;
     m_condition.notify_one();
 }
 
@@ -76,20 +76,29 @@ void PlayerSession::run()
     {
         std::unique_lock lock(m_mutex);
         m_condition.wait(lock, [this]{
-            return !m_queue.empty() || m_request_stop;
+            return !m_queue.empty();
         });
-
-        if (m_queue.empty() && m_request_stop)
-        {
-            break;
-        }
 
         auto qevent = std::move(m_queue.front());
         m_queue.pop_front();
         lock.unlock();
 
-        execute_stmt(m_pConn, qevent);
+        if (qevent.start_time == qevent.end_time)
+        {
+            m_player.session_finished(*this);
+            break;
+        }
+        else
+        {
+            execute_stmt(m_pConn, qevent);
+            if (qevent.event_id == m_commit_event_id)
+            {
+                auto rep = m_commit_event_id;
+                m_player.trxn_finished(rep);
+            }
+        }
     }
 
     mysql_close(m_pConn);
+    m_player.session_finished(*this);
 }

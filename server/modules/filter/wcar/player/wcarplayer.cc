@@ -28,12 +28,6 @@ void Player::replay()
 
         auto ite = sessions.find(event.session_id);
 
-        if (ite != end(sessions) && event.start_time == event.end_time)
-        {
-            ite->second->stop();
-            continue;
-        }
-
         if ((++count % 251) == 0)
         {
             std::cout << "\r" << count << std::flush;
@@ -46,7 +40,7 @@ void Player::replay()
             ite = ins.first;
         }
 
-        ite->second->queue_query(std::move(event));
+        ite->second->queue_query(std::move(event), -1);
     }
 
     std::cout << "\r" << count << std::endl;
