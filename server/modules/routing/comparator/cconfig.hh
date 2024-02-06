@@ -35,17 +35,6 @@ enum class Report
     ON_DISCREPANCY,
 };
 
-/* *INDENT-OFF* */
-constexpr ComparisonKind            DEFAULT_COMPARISON_KIND { ComparisonKind::READ_WRITE };
-constexpr int64_t                   DEFAULT_ENTRIES { 2 };
-constexpr Explain                   DEFAULT_EXPLAIN { Explain::BOTH };
-constexpr int64_t                   DEFAULT_MAX_EXECUTION_TIME_DIFFERENCE { 10 };
-constexpr int64_t                   DEFAULT_MAX_REQUEST_LAG { 10 };
-constexpr OnError                   DEFAULT_ON_ERROR { OnError::IGNORE };
-constexpr std::chrono::milliseconds DEFAULT_PERIOD { 60 * 60 * 1000 };
-constexpr Report                    DEFAULT_REPORT { Report::ON_DISCREPANCY };
-/* *INDENT-ON* */
-
 class CRouter;
 
 class CConfig : public mxs::config::Configuration
@@ -68,6 +57,9 @@ public:
 
     int64_t                    max_request_lag;
 
+    int64_t                    retain_faster_statements;
+    int64_t                    retain_slower_statements;
+
     SERVICE* pService;
 
     static mxs::config::Specification* specification();
@@ -78,3 +70,16 @@ protected:
 private:
     CRouter& m_instance;
 };
+
+/* *INDENT-OFF* */
+constexpr ComparisonKind            DEFAULT_COMPARISON_KIND { ComparisonKind::READ_WRITE };
+constexpr int64_t                   DEFAULT_ENTRIES { 2 };
+constexpr Explain                   DEFAULT_EXPLAIN { Explain::BOTH };
+constexpr int64_t                   DEFAULT_MAX_EXECUTION_TIME_DIFFERENCE { 10 };
+constexpr int64_t                   DEFAULT_MAX_REQUEST_LAG { 10 };
+constexpr OnError                   DEFAULT_ON_ERROR { OnError::IGNORE };
+constexpr std::chrono::milliseconds DEFAULT_PERIOD { 60 * 60 * 1000 };
+constexpr Report                    DEFAULT_REPORT { Report::ON_DISCREPANCY };
+constexpr int64_t                   DEFAULT_RETAIN_FASTER_STATEMENTS { 5 };
+constexpr int64_t                   DEFAULT_RETAIN_SLOWER_STATEMENTS { 5 };
+/* *INDENT-ON* */

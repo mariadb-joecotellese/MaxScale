@@ -122,6 +122,20 @@ config::ParamEnum<Report> report(
     DEFAULT_REPORT,
     config::Param::AT_RUNTIME);
 
+config::ParamCount retain_faster_statements(
+    &specification,
+    "retain_faster_statements",
+    "How many of the faster statements should be retained so that they are available in the summary.",
+    DEFAULT_RETAIN_FASTER_STATEMENTS,
+    config::Param::AT_RUNTIME);
+
+config::ParamCount retain_slower_statements(
+    &specification,
+    "retain_slower_statements",
+    "How many of the slower statements should be retained so that they are available in the summary.",
+    DEFAULT_RETAIN_SLOWER_STATEMENTS,
+    config::Param::AT_RUNTIME);
+
 config::ParamService service(
     &specification,
     "service",
@@ -160,12 +174,14 @@ CConfig::CConfig(const char* zName, CRouter* pInstance)
     add_native(&CConfig::pMain, &comparator::main);
     add_native(&CConfig::pService, &comparator::service);
 
-    add_native(&CConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
-    add_native(&CConfig::explain, &comparator::explain);
-    add_native(&CConfig::entries, &comparator::entries);
-    add_native(&CConfig::period, &comparator::period);
     add_native(&CConfig::comparison_kind, &comparator::comparison_kind);
+    add_native(&CConfig::entries, &comparator::entries);
+    add_native(&CConfig::explain, &comparator::explain);
+    add_native(&CConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
     add_native(&CConfig::max_request_lag, &comparator::max_request_lag);
+    add_native(&CConfig::period, &comparator::period);
+    add_native(&CConfig::retain_faster_statements, &comparator::retain_faster_statements);
+    add_native(&CConfig::retain_slower_statements, &comparator::retain_slower_statements);
 }
 
 bool CConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)
