@@ -16,19 +16,27 @@
 
 void CBackend::execute_pending_explains()
 {
-    if (!extraordinary_in_process())
-    {
-        while (!m_pending_explains.empty())
-        {
-            auto sExplain_result = std::move(m_pending_explains.front());
-            m_pending_explains.pop_front();
+    mxb_assert(m_pRouter_session);
 
-            execute(sExplain_result);
-        }
-    }
+        m_pRouter_session->lcall([this] {
+                bool rv = true;
+
+                if (!extraordinary_in_process())
+                {
+                    while (rv && !m_pending_explains.empty())
+                    {
+                        auto sExplain_result = std::move(m_pending_explains.front());
+                        m_pending_explains.pop_front();
+
+                        rv = execute(sExplain_result);
+                    }
+                }
+
+                return rv;
+            });
 }
 
-void CBackend::execute(const std::shared_ptr<CExplainResult>& sExplain_result)
+bool CBackend::execute(const std::shared_ptr<CExplainResult>& sExplain_result)
 {
     std::string sql { "EXPLAIN FORMAT=JSON "};
     sql += sExplain_result->sql();
@@ -38,9 +46,13 @@ void CBackend::execute(const std::shared_ptr<CExplainResult>& sExplain_result)
     GWBUF packet = phelper().create_packet(sql);
     packet.set_type(static_cast<GWBUF::Type>(GWBUF::TYPE_COLLECT_RESULT | GWBUF::TYPE_COLLECT_ROWS));
 
-    write(std::move(packet), mxs::Backend::EXPECT_RESPONSE);
+    bool rv = write(std::move(packet), mxs::Backend::EXPECT_RESPONSE);
 
+    // TODO: Need to consider just how a failure to write should affect
+    // TODO: the statistics.
     book_explain();
+
+    return rv;
 }
 
 void CBackend::schedule_explain(SCExplainResult&& sExplain_result)
@@ -72,15 +84,6 @@ void CMainBackend::ready(const CExplainMainResult& explain_result)
     m_stats.explain_duration += explain_result.duration();
 
     execute_pending_explains();
-}
-
-void CMainBackend::execute_pending_explains()
-{
-    mxb_assert(m_pRouter_session);
-    m_pRouter_session->lcall([this] {
-            CBackend::execute_pending_explains();
-            return true;
-        });
 }
 
 /**

@@ -32,6 +32,11 @@ public:
     using Result = CResult;
     using SResult = std::shared_ptr<Result>;
 
+    void set_router_session(mxs::RouterSession* pRouter_session)
+    {
+        m_pRouter_session = pRouter_session;
+    }
+
     void set_query_classifier(std::unique_ptr<mariadb::QueryClassifier>&& sQc)
     {
         m_sQc = std::move(sQc);
@@ -88,7 +93,7 @@ public:
         return *m_pParser_helper;
     }
 
-    virtual void execute_pending_explains();
+    void execute_pending_explains();
 
     using SCExplainResult = std::shared_ptr<CExplainResult>;
 
@@ -109,8 +114,9 @@ protected:
     std::deque<SResult>                       m_results;
 
 private:
-    void execute(const SCExplainResult& sExplain_result);
+    bool execute(const SCExplainResult& sExplain_result);
 
+    mxs::RouterSession*         m_pRouter_session { nullptr };
     std::deque<SCExplainResult> m_pending_explains;
 };
 
@@ -201,11 +207,6 @@ public:
     {
     }
 
-    void set_router_session(mxs::RouterSession* pRouter_session)
-    {
-        m_pRouter_session = pRouter_session;
-    }
-
     SResult prepare(const GWBUF& packet);
 
     uint8_t command() const
@@ -215,11 +216,8 @@ public:
 
     void ready(const CExplainMainResult& result);
 
-    void execute_pending_explains() override;
-
 private:
-    uint8_t             m_command { 0 };
-    mxs::RouterSession* m_pRouter_session { nullptr };
+    uint8_t m_command { 0 };
 };
 
 

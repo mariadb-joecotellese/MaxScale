@@ -49,6 +49,7 @@ CRouterSession::CRouterSession(MXS_SESSION* pSession,
         sQc = std::make_unique<QueryClassifier>(parser(), pSession);
         sOther->set_query_classifier(std::move(sQc));
         sOther->set_result_handler(this);
+        sOther->set_router_session(this);
     }
 }
 
