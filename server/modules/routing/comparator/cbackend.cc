@@ -8,11 +8,25 @@
 #include <maxscale/protocol/mariadb/mysql.hh>
 #include "cresult.hh"
 #include "crouter.hh"
+#include "croutersession.hh"
 
 
 /**
  * CBackend
  */
+
+void CBackend::set_router_session(CRouterSession* pRouter_session)
+{
+    mxb_assert(!m_pRouter_session);
+    m_pRouter_session = pRouter_session;
+
+    auto& parser = pRouter_session->parser();
+
+    m_pRouter_session = pRouter_session;
+    m_sQc = std::make_unique<mariadb::QueryClassifier>(parser, &pRouter_session->session());
+    m_pParser = &parser;
+    m_pParser_helper = &m_pParser->helper();
+}
 
 void CBackend::execute_pending_explains()
 {

@@ -25,6 +25,7 @@ using SCOtherBackends = std::vector<SCOtherBackend>;
 
 class CExporter;
 class CRouter;
+class CRouterSession;
 
 class CBackend : public mxs::Backend
 {
@@ -32,17 +33,7 @@ public:
     using Result = CResult;
     using SResult = std::shared_ptr<Result>;
 
-    void set_router_session(mxs::RouterSession* pRouter_session)
-    {
-        m_pRouter_session = pRouter_session;
-    }
-
-    void set_query_classifier(std::unique_ptr<mariadb::QueryClassifier>&& sQc)
-    {
-        m_sQc = std::move(sQc);
-        m_pParser = &m_sQc->parser();
-        m_pParser_helper = &m_pParser->helper();
-    }
+    void set_router_session(CRouterSession* pRouter_session);
 
     bool extraordinary_in_process() const
     {
@@ -116,7 +107,7 @@ protected:
 private:
     bool execute(const SCExplainResult& sExplain_result);
 
-    mxs::RouterSession*         m_pRouter_session { nullptr };
+    CRouterSession*             m_pRouter_session { nullptr };
     std::deque<SCExplainResult> m_pending_explains;
 };
 

@@ -38,18 +38,12 @@ CRouterSession::CRouterSession(MXS_SESSION* pSession,
     , m_others(std::move(others))
     , m_router(*pRouter)
 {
-    unique_ptr<QueryClassifier> sQc;
-
-    sQc = std::make_unique<QueryClassifier>(parser(), pSession);
-    m_sMain->set_query_classifier(std::move(sQc));
     m_sMain->set_router_session(this);
 
     for (auto& sOther : m_others)
     {
-        sQc = std::make_unique<QueryClassifier>(parser(), pSession);
-        sOther->set_query_classifier(std::move(sQc));
-        sOther->set_result_handler(this);
         sOther->set_router_session(this);
+        sOther->set_result_handler(this);
     }
 }
 
