@@ -37,7 +37,7 @@ public:
     PlayerSession(PlayerSession&&) = delete;
 
     int64_t session_id() const;
-    void    queue_query(QueryEvent&& qevent, int64_t commit_event_id);
+    void    queue_query(QueryEvent&& qevent, int64_t commit_event_id = -1);
 
     // The functions below are called only from the Player thread.
     bool    in_trxn() const;
@@ -47,7 +47,7 @@ public:
     void              add_pending(QueryEvent&& qevent);
     bool              has_pending_events() const;
     const QueryEvent& front_pending() const;
-    void              queue_front_pending(int64_t commit_event_id);
+    void              queue_front_pending(int64_t commit_event_id = -1);
 
 private:
     void run();
