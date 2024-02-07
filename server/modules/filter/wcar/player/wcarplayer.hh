@@ -27,6 +27,15 @@ private:
     // sim_time() can be directly compared to a captured time.
     mxb::TimePoint sim_time();
 
+    struct ExecutionInfo
+    {
+        bool                   can_execute;
+        Transactions::iterator trx_start_ite;
+    };
+
+    // This is called for events that can be scheduled according to the timeline.
+    ExecutionInfo get_execution_info(PlayerSession& session, const QueryEvent& qevent);
+
     const PlayerConfig& m_config;
     Transform           m_transform;
 

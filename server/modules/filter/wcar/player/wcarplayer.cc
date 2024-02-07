@@ -39,6 +39,32 @@ void Player::replay()
     }
 }
 
+Player::ExecutionInfo Player::get_execution_info(PlayerSession& session, const QueryEvent& qevent)
+{
+    ExecutionInfo exec {false, end(m_transform.transactions())};
+
+    if (m_front_trxn == end(m_transform.transactions()))
+    {
+        exec.can_execute = true;
+    }
+    else if (session.in_trxn())
+    {
+        exec.can_execute = qevent.event_id <= session.commit_event_id();
+    }
+    else
+    {
+        exec.can_execute = qevent.start_time < m_front_trxn->end_time;
+    }
+
+    if (exec.can_execute)
+    {
+        exec.trx_start_ite = m_transform.trx_start_mapping(qevent.event_id);
+    }
+
+    return exec;
+}
+
+
 void Player::trxn_finished(int64_t event_id)
 {
     std::lock_guard lock(m_trxn_mutex);
