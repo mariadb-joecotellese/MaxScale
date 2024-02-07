@@ -77,3 +77,42 @@ void Player::session_finished(const PlayerSession& session)
     std::lock_guard lock(m_session_mutex);
     m_finished_sessions.insert(session.session_id());
 }
+
+void Player::mark_completed_trxns(const std::unordered_set<int64_t>& finished_trxns)
+{
+    for (auto end_event_id : finished_trxns)
+    {
+        auto trx_ite = m_transform.trx_end_mapping(end_event_id);
+        mxb_assert(trx_ite != end(m_transform.transactions()));
+        trx_ite->completed = true;
+
+        auto session_ite = m_sessions.find(trx_ite->session_id);
+        mxb_assert(session_ite != end(m_sessions));
+        session_ite->second->reset_commit_event_id();
+    }
+
+    // Move m_front_trxn forwards, until one is found that has not completed yet.
+    while (m_front_trxn != end(m_transform.transactions()))
+    {
+        if (!m_front_trxn->completed)
+        {
+            break;
+        }
+
+        ++m_front_trxn;
+    }
+}
+
+void Player::remove_finished_sessions()
+{
+    std::unordered_set<int64_t> finished_sessions;
+
+    std::unique_lock lock(m_session_mutex);
+    finished_sessions.swap(m_finished_sessions);
+    lock.unlock();
+
+    for (auto session_id : finished_sessions)
+    {
+        m_sessions.erase(session_id);
+    }
+}

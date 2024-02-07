@@ -36,6 +36,13 @@ private:
     // This is called for events that can be scheduled according to the timeline.
     ExecutionInfo get_execution_info(PlayerSession& session, const QueryEvent& qevent);
 
+    // Mark completed transactions, move m_front_trxn forwards
+    void mark_completed_trxns(const std::unordered_set<int64_t>& finished_trxns);
+
+    // Remove finished session. This can be called lazily, but is
+    // necessary for waiting at simulation end.
+    void remove_finished_sessions();
+
     const PlayerConfig& m_config;
     Transform           m_transform;
 
