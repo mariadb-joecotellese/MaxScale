@@ -9,7 +9,7 @@
 
 bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent)
 {
-    auto sql = maxsimd::recreate_sql(*qevent.sCanonical, qevent.canonical_args);
+    auto sql = maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args);
 
     if (mysql_query(pConn, sql.c_str()))
     {

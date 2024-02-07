@@ -25,5 +25,12 @@ public:
     }
 
 private:
+    // Simulated time corresponding to the original timeline,
+    // sim_time() can be directly compared to a captured time.
+    mxb::TimePoint sim_time();
+
     const PlayerConfig& m_config;
+
+    // Delta between start of simulation and capture_time (positive)
+    mxb::Duration m_timeline_delta = mxb::Duration::zero();
 };
