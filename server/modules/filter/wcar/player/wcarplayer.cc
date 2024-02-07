@@ -53,3 +53,16 @@ void Player::replay()
 
     std::cout << "\r" << count << std::endl;
 }
+
+void Player::trxn_finished(int64_t event_id)
+{
+    std::lock_guard lock(m_trxn_mutex);
+    m_finished_trxns.insert(event_id);
+    m_trxn_condition.notify_one();
+}
+
+void Player::session_finished(const PlayerSession& session)
+{
+    std::lock_guard lock(m_session_mutex);
+    m_finished_sessions.insert(session.session_id());
+}

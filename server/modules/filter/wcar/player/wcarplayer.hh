@@ -16,13 +16,10 @@ public:
     void replay();
 
     // PlayerSession callback
-    void trxn_finished(int64_t event_id)
-    {
-    }
+    void trxn_finished(int64_t event_id);
+
     // PlayerSession callback
-    void session_finished(const PlayerSession& session)
-    {
-    }
+    void session_finished(const PlayerSession& session);
 
 private:
     // Simulated time corresponding to the original timeline,
@@ -33,4 +30,13 @@ private:
 
     // Delta between start of simulation and capture_time (positive)
     mxb::Duration m_timeline_delta = mxb::Duration::zero();
+
+    // For event_finished() callbacks.
+    std::mutex                  m_trxn_mutex;
+    std::condition_variable     m_trxn_condition;
+    std::unordered_set<int64_t> m_finished_trxns;
+
+    // For session_finished() callbacks.
+    std::mutex                  m_session_mutex;
+    std::unordered_set<int64_t> m_finished_sessions;
 };
