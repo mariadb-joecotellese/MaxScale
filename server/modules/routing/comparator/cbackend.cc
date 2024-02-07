@@ -120,17 +120,8 @@ void COtherBackend::ready(COtherResult& other_result)
     mxb_assert(m_pHandler);
 
     auto& main_result = other_result.main_result();
-    auto main_duration = main_result.duration();
-    auto other_duration = other_result.duration();
 
-    if (other_duration < main_duration)
-    {
-        ++m_stats.nFaster;
-    }
-    else if (other_duration > main_duration)
-    {
-        ++m_stats.nSlower;
-    }
+    m_stats.add_result(other_result, m_config);
 
     std::shared_ptr<CExplainMainResult> sExplain_main;
 
@@ -223,7 +214,7 @@ backends_from_endpoints(const mxs::Target& main_target,
 
         if (pTarget != &main_target)
         {
-            others.emplace_back(new COtherBackend(pEndpoint, router.exporter_for(pTarget)));
+            others.emplace_back(new COtherBackend(pEndpoint, &router.config(), router.exporter_for(pTarget)));
         }
     }
 

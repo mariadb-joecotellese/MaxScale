@@ -186,15 +186,20 @@ Explain CRouterSession::ready(COtherResult& other_result)
         auto id = other_result.id();
         CRegistry::Entries explainers;
 
-        auto entries = m_router.config().entries;
+        bool is_explained = m_router.registry().is_explained(now, hash, id, &explainers);
+        other_result.set_explainers(explainers);
 
-        if (entries == 0 || !m_router.registry().is_explained(now, hash, id, &explainers))
+        if (m_router.config().entries == 0)
+        {
+            is_explained = false;
+        }
+
+        if (!is_explained)
         {
             auto explain = m_router.config().explain;
 
             if (other_result.is_explainable() && explain != Explain::NONE)
             {
-                other_result.set_explainers(explainers);
                 rv = explain;
             }
             else

@@ -230,8 +230,10 @@ public:
     };
 
     COtherBackend(mxs::Endpoint* pEndpoint,
+                  const CConfig* pConfig,
                   std::shared_ptr<CExporter> sExporter)
         : Base(pEndpoint)
+        , m_config(*pConfig)
         , m_sExporter(std::move(sExporter))
     {
     }
@@ -263,8 +265,9 @@ private:
 private:
     using SCExporter = std::shared_ptr<CExporter>;
 
-    SCExporter m_sExporter;
-    Handler*   m_pHandler { nullptr };
+    const CConfig& m_config;
+    SCExporter     m_sExporter;
+    Handler*       m_pHandler { nullptr };
 };
 
 namespace comparator

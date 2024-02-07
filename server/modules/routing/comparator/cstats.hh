@@ -6,10 +6,13 @@
 #pragma once
 
 #include "comparatordefs.hh"
+#include <memory>
 #include <maxscale/target.hh>
 
-class CConfig;
 class SERVICE;
+
+class CConfig;
+class COtherResult;
 
 struct CStats
 {
@@ -23,7 +26,7 @@ struct CStats
     int64_t                  nExplain_requests { 0 };
     int64_t                  nExplain_responses { 0 };
 
-    CStats& operator += (const CStats& rhs)
+    void add(const CStats& rhs)
     {
         this->total_duration += rhs.total_duration;
         this->nRequest_packets += rhs.nRequest_packets;
@@ -34,8 +37,6 @@ struct CStats
         this->explain_duration += rhs.explain_duration;
         this->nExplain_requests += rhs.nExplain_requests;
         this->nExplain_responses += rhs.nExplain_responses;
-
-        return *this;
     }
 
     void fill_json(json_t* pJson) const;
@@ -45,11 +46,9 @@ struct CMainStats final : CStats
 {
     // TODO: Placeholder.
 
-    CMainStats& operator += (const CMainStats& rhs)
+    void add(const CMainStats& rhs)
     {
-        CStats::operator += (rhs);
-
-        return *this;
+        CStats::add(rhs);
     }
 
     json_t* to_json() const;
@@ -57,22 +56,41 @@ struct CMainStats final : CStats
 
 struct COtherStats final : CStats
 {
-    int64_t                  nRequests_skipped { 0 };
-    int64_t                  nFaster { 0 };
-    int64_t                  nSlower { 0 };
+    int64_t nRequests_skipped { 0 };
 
-    COtherStats& operator += (const COtherStats& rhs)
+    int64_t nFaster() const
     {
-        CStats::operator += (rhs);
-
-        this->nRequests_skipped += rhs.nRequests_skipped;
-        this->nFaster += rhs.nFaster;
-        this->nSlower += rhs.nSlower;
-
-        return *this;
+        return m_nFaster;
     }
 
+    int64_t nSlower() const
+    {
+        return m_nSlower;
+    }
+
+    using ResultsByPermille = std::multimap<int64_t, std::shared_ptr<const COtherResult>>;
+
+    const ResultsByPermille& faster_requests() const
+    {
+        return m_faster_requests;
+    }
+
+    const ResultsByPermille& slower_requests() const
+    {
+        return m_slower_requests;
+    }
+
+    void add_result(const COtherResult& result, const CConfig& config);
+
+    void add(const COtherStats& stats, const CConfig& config);
+
     json_t* to_json() const;
+
+private:
+    int64_t           m_nFaster { 0 };
+    int64_t           m_nSlower { 0 };
+    ResultsByPermille m_faster_requests;
+    ResultsByPermille m_slower_requests;
 };
 
 struct CRouterSessionStats
@@ -81,16 +99,23 @@ struct CRouterSessionStats
     CMainStats                          main_stats;
     std::map<mxs::Target*, COtherStats> other_stats;
 
-    CRouterSessionStats& operator += (const CRouterSessionStats& rhs)
+    void add(const CRouterSessionStats& rhs, const CConfig& config)
     {
-        this->main_stats += rhs.main_stats;
+        this->main_stats.add(rhs.main_stats);
 
         for (const auto& kv : rhs.other_stats)
         {
-            this->other_stats[kv.first] += kv.second;
-        }
+            auto it = this->other_stats.find(kv.first);
 
-        return *this;
+            if (it != this->other_stats.end())
+            {
+                it->second.add(kv.second, config);
+            }
+            else
+            {
+                other_stats.insert(kv);
+            }
+        }
     }
 
     json_t* to_json() const;
@@ -104,12 +129,11 @@ public:
     {
     }
 
-    CRouterStats& operator += (const CRouterSessionStats& rhs)
+    void add(const CRouterSessionStats& rhs, const CConfig& config)
     {
         mxb_assert(m_router_session_stats.pMain == rhs.pMain);
 
-        m_router_session_stats += rhs;
-        return *this;
+        m_router_session_stats.add(rhs, config);
     }
 
     void post_configure(const CConfig& config);

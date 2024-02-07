@@ -329,7 +329,7 @@ void CRouter::collect(const CRouterSessionStats& stats)
 {
     std::lock_guard<std::mutex> guard(m_stats_lock);
 
-    m_stats += stats;
+    m_stats.add(stats, m_config);
 }
 
 void CRouter::set_state(ComparatorState comparator_state, SyncState sync_state)
