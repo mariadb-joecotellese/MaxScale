@@ -1,7 +1,4 @@
 #include "wcarplayer.hh"
-#include "wcarplayerconfig.hh"
-#include "wcartransform.hh"
-#include "wcarplayersession.hh"
 #include <maxbase/stopwatch.hh>
 #include <maxsimd/canonical.hh>
 #include <iostream>
@@ -9,6 +6,8 @@
 
 Player::Player(const PlayerConfig* pConfig)
     : m_config(*pConfig)
+    , m_transform(&m_config)
+    , m_front_trxn(begin(m_transform.transactions()))
 {
 }
 
@@ -19,39 +18,25 @@ maxbase::TimePoint Player::sim_time()
 
 void Player::replay()
 {
-    mxb::StopWatch sw;
-    Transform xform(&m_config);
-
-    Storage& storage = xform.player_storage();
-
-    int64_t count = 0;
-    std::unordered_map<int64_t, std::unique_ptr<PlayerSession>> sessions;
-
-    for (auto&& qevent : storage)
+    for (auto&& qevent : m_transform.player_storage())
     {
         if (m_timeline_delta == mxb::Duration::zero())
         {
             m_timeline_delta = mxb::Clock::now() - qevent.start_time;
         }
 
-        auto ite = sessions.find(qevent.session_id);
+        auto session_ite = m_sessions.find(qevent.session_id);
 
-        if ((++count % 251) == 0)
+        if (session_ite == end(m_sessions))
         {
-            std::cout << "\r" << count << std::flush;
+            auto ins = m_sessions.emplace(qevent.session_id,
+                                          std::make_unique<PlayerSession>(&m_config, this,
+                                                                          qevent.session_id));
+            session_ite = ins.first;
         }
 
-        if (ite == end(sessions))
-        {
-            auto ins = sessions.emplace(qevent.session_id,
-                                        std::make_unique<PlayerSession>(&m_config, this, qevent.session_id));
-            ite = ins.first;
-        }
-
-        ite->second->queue_query(std::move(qevent), -1);
+        session_ite->second->queue_query(std::move(qevent), -1);
     }
-
-    std::cout << "\r" << count << std::endl;
 }
 
 void Player::trxn_finished(int64_t event_id)

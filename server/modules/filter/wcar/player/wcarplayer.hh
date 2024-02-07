@@ -7,6 +7,7 @@
 
 #include "wcarplayerconfig.hh"
 #include "wcarplayersession.hh"
+#include "wcartransform.hh"
 
 class Player
 {
@@ -27,9 +28,16 @@ private:
     mxb::TimePoint sim_time();
 
     const PlayerConfig& m_config;
+    Transform           m_transform;
 
     // Delta between start of simulation and capture_time (positive)
     mxb::Duration m_timeline_delta = mxb::Duration::zero();
+
+    // Active sessions
+    std::unordered_map<int64_t, std::unique_ptr<PlayerSession>> m_sessions;
+
+    // Iterator to the first incomplete transaction.
+    Transactions::const_iterator m_front_trxn;
 
     // For event_finished() callbacks.
     std::mutex                  m_trxn_mutex;
