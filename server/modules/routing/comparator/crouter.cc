@@ -13,6 +13,7 @@
 #include <maxscale/routingworker.hh>
 #include <maxsql/mariadb_connector.hh>
 #include "croutersession.hh"
+#include "../../../core/internal/config.hh"
 #include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/service.hh"
 
@@ -400,6 +401,8 @@ bool CRouter::rewire_service(const std::set<std::string>& from_targets,
                              const std::set<std::string>& to_targets)
 {
     bool rv = false;
+
+    UnmaskPasswords unmasker;
 
     Service* pService = static_cast<Service*>(m_config.pService);
     rv = runtime_unlink_service(pService, from_targets);

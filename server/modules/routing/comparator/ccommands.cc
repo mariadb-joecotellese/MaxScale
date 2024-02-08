@@ -16,6 +16,7 @@
 #include <maxscale/modulecmd.hh>
 #include <maxscale/utils.hh>
 #include <maxscale/protocol/mariadb/maxscale.hh>
+#include "../../../core/internal/config.hh"
 #include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/monitormanager.hh"
 #include "../../../core/internal/service.hh"
@@ -211,6 +212,7 @@ Service* create_comparator_service(const SERVICE& service,
     }
     else
     {
+        UnmaskPasswords unmasker;
         pC_service = create_comparator_service(name, service, main, other, zComparison_kind);
     }
 
