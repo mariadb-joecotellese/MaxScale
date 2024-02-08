@@ -27,30 +27,25 @@ class CExporter;
 class CRouter;
 class CRouterSession;
 
+
+/**
+ * @class CBackend
+ */
 class CBackend : public mxs::Backend
 {
 public:
+    ~CBackend() = default;
+
     using Result = CResult;
     using SResult = std::shared_ptr<Result>;
+    using SCExplainResult = std::shared_ptr<CExplainResult>;
+
 
     void set_router_session(CRouterSession* pRouter_session);
 
-    bool extraordinary_in_process() const
-    {
-        mxb_assert(m_sQc);
-        const auto& ri = m_sQc->current_route_info();
+    bool extraordinary_in_process() const;
 
-        return ri.load_data_active() || ri.multi_part_packet();
-    }
-
-    void process_result(const GWBUF& buffer, const mxs::Reply& reply)
-    {
-        mxb_assert(m_sQc);
-        m_sQc->update_from_reply(reply);
-
-        mxb_assert(!m_results.empty());
-        m_results.front()->process(buffer);
-    }
+    void process_result(const GWBUF& buffer, const mxs::Reply& reply);
 
     enum class Routing
     {
@@ -60,12 +55,7 @@ public:
 
     virtual Routing finish_result(const mxs::Reply& reply) = 0;
 
-    void close(close_type type = CLOSE_NORMAL) override
-    {
-        mxs::Backend::close(type);
-
-        m_results.clear();
-    }
+    void close(close_type type = CLOSE_NORMAL) override;
 
     int32_t nBacklog() const
     {
@@ -86,17 +76,11 @@ public:
 
     void execute_pending_explains();
 
-    using SCExplainResult = std::shared_ptr<CExplainResult>;
-
     void schedule_explain(SCExplainResult&&);
 
 protected:
-    CBackend(mxs::Endpoint* pEndpoint)
-        : mxs::Backend(pEndpoint)
-    {
-    }
+    CBackend(mxs::Endpoint* pEndpoint);
 
-protected:
     virtual void book_explain() = 0;
 
     std::unique_ptr<mariadb::QueryClassifier> m_sQc;
@@ -111,6 +95,10 @@ private:
     std::deque<SCExplainResult> m_pending_explains;
 };
 
+
+/**
+ * @class CBackendWithStats
+ */
 template<class Stats>
 class CBackendWithStats : public CBackend
 {
@@ -120,72 +108,88 @@ public:
         return m_stats;
     }
 
-    bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override
-    {
-        mxb_assert(m_sQc);
-        m_sQc->update_and_commit_route_info(buffer);
+    bool write(GWBUF&& buffer, response_type type = EXPECT_RESPONSE) override;
 
-        ++m_stats.nRequest_packets;
-
-        if (!extraordinary_in_process())
-        {
-            ++m_stats.nRequests;
-
-            if (type != NO_RESPONSE)
-            {
-                ++m_stats.nRequests_responding;
-
-                auto sql = phelper().get_sql(buffer);
-
-                if (!sql.empty())
-                {
-                    ++m_stats.nRequests_explainable;
-                }
-            }
-        }
-
-        return Backend::write(std::move(buffer), type);
-    }
-
-    Routing finish_result(const mxs::Reply& reply) override
-    {
-        mxb_assert(reply.is_complete());
-        mxb_assert(!m_results.empty());
-
-        auto sResult = std::move(m_results.front());
-        m_results.pop_front();
-
-        auto kind = sResult->kind();
-
-        ++m_stats.nResponses;
-        m_stats.total_duration += sResult->close(reply);
-
-        return kind == CResult::Kind::EXTERNAL ? Routing::CONTINUE : Routing::STOP;
-    }
+    Routing finish_result(const mxs::Reply& reply) override;
 
 protected:
-    CBackendWithStats(mxs::Endpoint* pEndpoint)
-        : CBackend(pEndpoint)
-    {
-    }
+    CBackendWithStats(mxs::Endpoint* pEndpoint);
 
-    void book_explain() override
-    {
-        ++m_stats.nExplain_requests;
-
-        // Tune general counters, since those related to the extra
-        // EXPLAIN requests should be exluded.
-        --m_stats.nRequest_packets;
-        --m_stats.nRequests;
-        --m_stats.nRequests_explainable;
-        --m_stats.nRequests_responding;
-    }
+    void book_explain() override;
 
 protected:
     Stats m_stats;
 };
 
 
+template<class Stats>
+CBackendWithStats<Stats>::CBackendWithStats(mxs::Endpoint* pEndpoint)
+    : CBackend(pEndpoint)
+{
+}
+
+template<class Stats>
+void CBackendWithStats<Stats>::book_explain()
+{
+    ++m_stats.nExplain_requests;
+
+    // Tune general counters, since those related to the extra
+    // EXPLAIN requests should be exluded.
+    --m_stats.nRequest_packets;
+    --m_stats.nRequests;
+    --m_stats.nRequests_explainable;
+    --m_stats.nRequests_responding;
+}
+
+template<class Stats>
+bool CBackendWithStats<Stats>::write(GWBUF&& buffer, response_type type)
+{
+    mxb_assert(m_sQc);
+    m_sQc->update_and_commit_route_info(buffer);
+
+    ++m_stats.nRequest_packets;
+
+    if (!extraordinary_in_process())
+    {
+        ++m_stats.nRequests;
+
+        if (type != NO_RESPONSE)
+        {
+            ++m_stats.nRequests_responding;
+
+            auto sql = phelper().get_sql(buffer);
+
+            if (!sql.empty())
+            {
+                ++m_stats.nRequests_explainable;
+            }
+        }
+    }
+
+    return Backend::write(std::move(buffer), type);
+}
+
+template<class Stats>
+CBackend::Routing CBackendWithStats<Stats>::finish_result(const mxs::Reply& reply)
+{
+    mxb_assert(reply.is_complete());
+    mxb_assert(!m_results.empty());
+
+    auto sResult = std::move(m_results.front());
+    m_results.pop_front();
+
+    auto kind = sResult->kind();
+
+    ++m_stats.nResponses;
+    m_stats.total_duration += sResult->close(reply);
+
+    return kind == CResult::Kind::EXTERNAL ? Routing::CONTINUE : Routing::STOP;
+}
+
+
+/**
+ * @class CMainBackend
+ */
 class CMainBackend final : public CBackendWithStats<CMainStats>
 {
 public:
@@ -193,10 +197,7 @@ public:
     using Result = CMainResult;
     using SResult = std::shared_ptr<Result>;
 
-    CMainBackend(mxs::Endpoint* pEndpoint)
-        : Base(pEndpoint)
-    {
-    }
+    CMainBackend(mxs::Endpoint* pEndpoint);
 
     SResult prepare(const GWBUF& packet);
 
@@ -212,6 +213,9 @@ private:
 };
 
 
+/**
+ * @class COtherBackend
+ */
 class COtherBackend final : public CBackendWithStats<COtherStats>
                           , private COtherResult::Handler
                           , private CExplainOtherResult::Handler
@@ -231,12 +235,7 @@ public:
 
     COtherBackend(mxs::Endpoint* pEndpoint,
                   const CConfig* pConfig,
-                  std::shared_ptr<CExporter> sExporter)
-        : Base(pEndpoint)
-        , m_config(*pConfig)
-        , m_sExporter(std::move(sExporter))
-    {
-    }
+                  std::shared_ptr<CExporter> sExporter);
 
     void bump_requests_skipped()
     {
@@ -270,6 +269,10 @@ private:
     Handler*       m_pHandler { nullptr };
 };
 
+
+/**
+ * @namespace comparator
+ */
 namespace comparator
 {
 

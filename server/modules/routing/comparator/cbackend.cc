@@ -14,6 +14,10 @@
 /**
  * CBackend
  */
+CBackend::CBackend(mxs::Endpoint* pEndpoint)
+    : mxs::Backend(pEndpoint)
+{
+}
 
 void CBackend::set_router_session(CRouterSession* pRouter_session)
 {
@@ -26,6 +30,23 @@ void CBackend::set_router_session(CRouterSession* pRouter_session)
     m_sQc = std::make_unique<mariadb::QueryClassifier>(parser, &pRouter_session->session());
     m_pParser = &parser;
     m_pParser_helper = &m_pParser->helper();
+}
+
+bool CBackend::extraordinary_in_process() const
+{
+    mxb_assert(m_sQc);
+    const auto& ri = m_sQc->current_route_info();
+
+    return ri.load_data_active() || ri.multi_part_packet();
+}
+
+void CBackend::process_result(const GWBUF& buffer, const mxs::Reply& reply)
+{
+    mxb_assert(m_sQc);
+    m_sQc->update_from_reply(reply);
+
+    mxb_assert(!m_results.empty());
+    m_results.front()->process(buffer);
 }
 
 void CBackend::execute_pending_explains()
@@ -48,6 +69,13 @@ void CBackend::execute_pending_explains()
 
                 return rv;
             });
+}
+
+void CBackend::close(close_type type)
+{
+    mxs::Backend::close(type);
+
+    m_results.clear();
 }
 
 bool CBackend::execute(const std::shared_ptr<CExplainResult>& sExplain_result)
@@ -74,9 +102,14 @@ void CBackend::schedule_explain(SCExplainResult&& sExplain_result)
     m_pending_explains.emplace_back(std::move(sExplain_result));
 }
 
+
 /**
  * CMainBackend
  */
+CMainBackend::CMainBackend(mxs::Endpoint* pEndpoint)
+    : Base(pEndpoint)
+{
+}
 
 CMainBackend::SResult CMainBackend::prepare(const GWBUF& packet)
 {
@@ -100,9 +133,18 @@ void CMainBackend::ready(const CExplainMainResult& explain_result)
     execute_pending_explains();
 }
 
+
 /**
  * COtherBackend
  */
+COtherBackend::COtherBackend(mxs::Endpoint* pEndpoint,
+                             const CConfig* pConfig,
+                             std::shared_ptr<CExporter> sExporter)
+    : Base(pEndpoint)
+    , m_config(*pConfig)
+    , m_sExporter(std::move(sExporter))
+{
+}
 
 void COtherBackend::prepare(const CMainBackend::SResult& sMain_result)
 {
@@ -180,10 +222,10 @@ void COtherBackend::ready(const CExplainOtherResult& explain_result)
     execute_pending_explains();
 }
 
+
 /**
  * namespace comparator
  */
-
 namespace comparator
 {
 
