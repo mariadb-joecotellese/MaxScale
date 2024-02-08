@@ -262,20 +262,7 @@ public:
 
     std::string_view json() const
     {
-        const auto& r = reply();
-        mxb_assert(r.is_complete());
-
-        std::string_view s;
-
-        if (!r.row_data().empty())
-        {
-            mxb_assert(r.row_data().size() == 1);
-            mxb_assert(r.row_data().front().size() == 1);
-
-            s = r.row_data().front().front();
-        }
-
-        return s;
+        return m_json;
     }
 
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
@@ -286,6 +273,8 @@ protected:
     {
     }
 
+private:
+    std::string m_json;
 };
 
 

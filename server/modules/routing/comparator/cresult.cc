@@ -159,6 +159,16 @@ std::chrono::nanoseconds CExplainResult::close(const mxs::Reply& reply)
 {
     CResult::close(reply);
 
+    mxb_assert(reply.is_complete());
+
+    if (!reply.row_data().empty())
+    {
+        mxb_assert(reply.row_data().size() == 1);
+        mxb_assert(reply.row_data().front().size() == 1);
+
+        m_json = reply.row_data().front().front();
+    }
+
     // Return 0, so that the duration of the EXPLAIN request is not
     // included in the total duration.
     return std::chrono::milliseconds { 0 };
