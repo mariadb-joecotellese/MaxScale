@@ -128,7 +128,7 @@ private:
     void route_stmt(GWBUF&& querybuf, const RoutingPlan& plan);
     void route_single_stmt(GWBUF&& buffer, const RoutingPlan& plan);
     void client_reply(GWBUF&& packet, const mxs::ReplyRoute& down, const mxs::Reply& reply);
-    void route_stored_query();
+    bool route_stored_query();
     void close_stale_connections();
 
     int64_t         get_current_rank();
@@ -262,6 +262,8 @@ private:
     bool is_locked_to_master() const override;
     bool supports_hint(Hint::Type hint_type) const override;
     void handle_ignorable_error(mxs::RWBackend* backend, const mxs::Reply::Error& error);
+
+    std::string get_delayed_retry_failure_reason() const;
 
     const mariadb::QueryClassifier::RouteInfo& route_info() const
     {
