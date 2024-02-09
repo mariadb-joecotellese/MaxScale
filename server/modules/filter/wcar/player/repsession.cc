@@ -1,5 +1,5 @@
-#include "wcarplayersession.hh"
-#include "wcarplayer.hh"
+#include "repsession.hh"
+#include "repplayer.hh"
 #include <maxbase/stopwatch.hh>
 #include <maxbase/assert.hh>
 #include <maxbase/string.hh>
@@ -27,21 +27,21 @@ bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent)
     return true;
 }
 
-PlayerSession::PlayerSession(const PlayerConfig* pConfig, Player* pPlayer, int64_t session_id)
+RepSession::RepSession(const RepConfig* pConfig, RepPlayer* pPlayer, int64_t session_id)
     : m_config(*pConfig)
     , m_player(*pPlayer)
     , m_session_id(session_id)
-    , m_thread(&PlayerSession::run, this)
+    , m_thread(&RepSession::run, this)
 {
 }
 
-PlayerSession::~PlayerSession()
+RepSession::~RepSession()
 {
     mxb_assert(m_queue.empty());
     m_thread.join();
 }
 
-void PlayerSession::queue_query(QueryEvent&& qevent, int64_t commit_event_id)
+void RepSession::queue_query(QueryEvent&& qevent, int64_t commit_event_id)
 {
     if (commit_event_id != -1)
     {
@@ -54,7 +54,7 @@ void PlayerSession::queue_query(QueryEvent&& qevent, int64_t commit_event_id)
     m_condition.notify_one();
 }
 
-void PlayerSession::run()
+void RepSession::run()
 {
     m_pConn = mysql_init(nullptr);
     if (m_pConn == nullptr)

@@ -5,8 +5,8 @@
  */
 #pragma once
 
-#include "wcarstorage.hh"
-#include "wcarconfig.hh"
+#include "capstorage.hh"
+#include "capconfig.hh"
 #include <unordered_map>
 #include <filesystem>
 #include <fstream>
@@ -25,10 +25,10 @@ enum class ReadWrite
     WRITE_ONLY
 };
 
-class BoostStorage final : public Storage
+class CapBoostStorage final : public Storage
 {
 public:
-    BoostStorage(const fs::path& base_path, ReadWrite access = ReadWrite::WRITE_ONLY);
+    CapBoostStorage(const fs::path& base_path, ReadWrite access = ReadWrite::WRITE_ONLY);
 
     void add_query_event(QueryEvent&& qevent) override;
     void add_query_event(std::vector<QueryEvent>& qevents) override;

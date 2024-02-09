@@ -3,8 +3,8 @@
  *
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
-#include "wcarsqlitestorage.hh"
-#include "wcarconfig.hh"
+#include "capsqlitestorage.hh"
+#include "capconfig.hh"
 #include <maxbase/assert.hh>
 
 using namespace std;
@@ -54,7 +54,7 @@ static const char SQL_CANONICAL_ARGUMENT_INSERT[] = "insert into argument values
 
 static const fs::path FILE_EXTENSION = "sqlite";
 
-SqliteStorage::SqliteStorage(const fs::path& path, Access access)
+CapSqliteStorage::CapSqliteStorage(const fs::path& path, Access access)
     : m_access(access)
     , m_path(path)
 {
@@ -98,7 +98,7 @@ SqliteStorage::SqliteStorage(const fs::path& path, Access access)
     }
 }
 
-SqliteStorage::~SqliteStorage()
+CapSqliteStorage::~CapSqliteStorage()
 {
     sqlite3_finalize(m_pCanonical_insert_stmt);
     sqlite3_finalize(m_pEvent_read_stmt);
@@ -106,7 +106,7 @@ SqliteStorage::~SqliteStorage()
     sqlite3_close_v2(m_pDb);
 }
 
-void SqliteStorage::sqlite_prepare(const string& sql, sqlite3_stmt** ppStmt)
+void CapSqliteStorage::sqlite_prepare(const string& sql, sqlite3_stmt** ppStmt)
 {
     if (sqlite3_prepare_v2(m_pDb, sql.c_str(), sql.length() + 1, ppStmt, nullptr) != SQLITE_OK)
     {
@@ -115,7 +115,7 @@ void SqliteStorage::sqlite_prepare(const string& sql, sqlite3_stmt** ppStmt)
     }
 }
 
-void SqliteStorage::insert_canonical(int64_t hash, int64_t id, const std::string& canonical)
+void CapSqliteStorage::insert_canonical(int64_t hash, int64_t id, const std::string& canonical)
 {
     int idx = 0;
     sqlite3_bind_int64(m_pCanonical_insert_stmt, ++idx, hash);
@@ -131,7 +131,7 @@ void SqliteStorage::insert_canonical(int64_t hash, int64_t id, const std::string
     sqlite3_reset(m_pCanonical_insert_stmt);
 }
 
-void SqliteStorage::insert_event(const QueryEvent& qevent, int64_t can_id)
+void CapSqliteStorage::insert_event(const QueryEvent& qevent, int64_t can_id)
 {
     int idx = 0;
     sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, qevent.event_id);
@@ -159,7 +159,7 @@ void SqliteStorage::insert_event(const QueryEvent& qevent, int64_t can_id)
     sqlite3_reset(m_pEvent_insert_stmt);
 }
 
-void SqliteStorage::insert_canonical_args(int64_t event_id, const maxsimd::CanonicalArgs& args)
+void CapSqliteStorage::insert_canonical_args(int64_t event_id, const maxsimd::CanonicalArgs& args)
 {
     for (const auto& arg : args)
     {
@@ -177,7 +177,7 @@ void SqliteStorage::insert_canonical_args(int64_t event_id, const maxsimd::Canon
     }
 }
 
-void SqliteStorage::sqlite_execute(const std::string& sql)
+void CapSqliteStorage::sqlite_execute(const std::string& sql)
 {
     char* pError = nullptr;
     if (sqlite3_exec(m_pDb, sql.c_str(), nullptr, nullptr, &pError) != SQLITE_OK)
@@ -188,12 +188,12 @@ void SqliteStorage::sqlite_execute(const std::string& sql)
     }
 }
 
-SqliteStorage::SelectCanIdRes SqliteStorage::select_can_id(int64_t hash)
+CapSqliteStorage::SelectCanIdRes CapSqliteStorage::select_can_id(int64_t hash)
 {
     auto select_can_id_cb = [](void* pData, int nColumns, char** ppColumn, char** ppNames){
         mxb_assert(nColumns == 1);
 
-        SqliteStorage::SelectCanIdRes* pSelect_res = static_cast<SqliteStorage::SelectCanIdRes*>(pData);
+        CapSqliteStorage::SelectCanIdRes* pSelect_res = static_cast<CapSqliteStorage::SelectCanIdRes*>(pData);
         pSelect_res->exists = true;
         pSelect_res->can_id = std::stol(ppColumn[0]);       // TODO throws, rethrow as WcarError, maybe.
 
@@ -214,7 +214,7 @@ SqliteStorage::SelectCanIdRes SqliteStorage::select_can_id(int64_t hash)
     return select_res;
 }
 
-void SqliteStorage::add_query_event(QueryEvent&& qevent)
+void CapSqliteStorage::add_query_event(QueryEvent&& qevent)
 {
     int64_t hash {static_cast<int64_t>(std::hash<std::string> {}(*qevent.sCanonical))};
     int64_t can_id;
@@ -239,7 +239,7 @@ void SqliteStorage::add_query_event(QueryEvent&& qevent)
     }
 }
 
-void SqliteStorage::add_query_event(std::vector<QueryEvent>& qevents)
+void CapSqliteStorage::add_query_event(std::vector<QueryEvent>& qevents)
 {
     sqlite_execute("begin transaction");
 
@@ -251,7 +251,7 @@ void SqliteStorage::add_query_event(std::vector<QueryEvent>& qevents)
     sqlite_execute("commit transaction");
 }
 
-Storage::Iterator SqliteStorage::begin()
+Storage::Iterator CapSqliteStorage::begin()
 {
     if (m_pEvent_read_stmt != nullptr)
     {
@@ -274,17 +274,17 @@ Storage::Iterator SqliteStorage::begin()
     return Storage::Iterator(this, next_event());
 }
 
-Storage::Iterator SqliteStorage::end() const
+Storage::Iterator CapSqliteStorage::end() const
 {
     return {nullptr, QueryEvent {}};
 }
 
-int64_t SqliteStorage::num_unread() const
+int64_t CapSqliteStorage::num_unread() const
 {
     return 42;      // TODO
 }
 
-std::string SqliteStorage::select_canonical(int64_t can_id)
+std::string CapSqliteStorage::select_canonical(int64_t can_id)
 {
 
     auto select_can_id_cb = [](void* pData, int nColumns, char** ppColumn, char** ppNames){
@@ -311,7 +311,7 @@ std::string SqliteStorage::select_canonical(int64_t can_id)
     return canonical;
 }
 
-maxsimd::CanonicalArgs SqliteStorage::select_canonical_args(int64_t event_id)
+maxsimd::CanonicalArgs CapSqliteStorage::select_canonical_args(int64_t event_id)
 {
 
     auto select_can_args_cb = [](void* pData, int nColumns, char** ppColumn, char** ppNames){
@@ -339,7 +339,7 @@ maxsimd::CanonicalArgs SqliteStorage::select_canonical_args(int64_t event_id)
     return canonical_args;
 }
 
-QueryEvent SqliteStorage::next_event()
+QueryEvent CapSqliteStorage::next_event()
 {
     mxb_assert(m_pEvent_read_stmt != nullptr);
     auto rc = sqlite3_step(m_pEvent_read_stmt);

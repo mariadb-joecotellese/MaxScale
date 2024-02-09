@@ -3,11 +3,11 @@
  *
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
-#include "wcarbooststorage.hh"
+#include "capbooststorage.hh"
 #include <maxbase/assert.hh>
 #include <algorithm>
 
-BoostStorage::BoostStorage(const fs::path& base_path, ReadWrite access)
+CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
     , m_canonical_path(base_path)
     , m_event_path(base_path)
@@ -33,7 +33,7 @@ BoostStorage::BoostStorage(const fs::path& base_path, ReadWrite access)
     }
 }
 
-std::fstream BoostStorage::open_file(const fs::path& path)
+std::fstream CapBoostStorage::open_file(const fs::path& path)
 {
     std::fstream stream;
     if (m_access == ReadWrite::READ_ONLY)
@@ -66,7 +66,7 @@ std::fstream BoostStorage::open_file(const fs::path& path)
     return stream;
 }
 
-void BoostStorage::add_query_event(QueryEvent&& qevent)
+void CapBoostStorage::add_query_event(QueryEvent&& qevent)
 {
     int64_t hash{static_cast<int64_t>(std::hash<std::string> {}(*qevent.sCanonical))};
     auto canon_ite = m_canonicals.find(hash);
@@ -86,7 +86,7 @@ void BoostStorage::add_query_event(QueryEvent&& qevent)
     save_event(can_id, qevent);
 }
 
-void BoostStorage::add_query_event(std::vector<QueryEvent>& qevents)
+void CapBoostStorage::add_query_event(std::vector<QueryEvent>& qevents)
 {
     for (auto& event : qevents)
     {
@@ -94,22 +94,22 @@ void BoostStorage::add_query_event(std::vector<QueryEvent>& qevents)
     }
 }
 
-Storage::Iterator BoostStorage::begin()
+Storage::Iterator CapBoostStorage::begin()
 {
     return Storage::Iterator(this, next_event());
 }
 
-Storage::Iterator BoostStorage::end() const
+Storage::Iterator CapBoostStorage::end() const
 {
     return Storage::Iterator(nullptr, QueryEvent {});
 }
 
-int64_t BoostStorage::num_unread() const
+int64_t CapBoostStorage::num_unread() const
 {
     return 42;      // TODO, num_unread only makes sense for InmemoryStorage
 }
 
-QueryEvent BoostStorage::next_event()
+QueryEvent CapBoostStorage::next_event()
 {
 
     if (m_events.empty())
@@ -129,13 +129,13 @@ QueryEvent BoostStorage::next_event()
     }
 }
 
-void BoostStorage::save_canonical(int64_t can_id, const std::string& canonical)
+void CapBoostStorage::save_canonical(int64_t can_id, const std::string& canonical)
 {
     (*m_sCanonical_oa) & can_id;
     (*m_sCanonical_oa) & canonical;
 }
 
-void BoostStorage::save_event(int64_t can_id, const QueryEvent& qevent)
+void CapBoostStorage::save_event(int64_t can_id, const QueryEvent& qevent)
 {
     (*m_sEvent_oa) & can_id;
     (*m_sEvent_oa) & qevent.event_id;
@@ -156,7 +156,7 @@ void BoostStorage::save_event(int64_t can_id, const QueryEvent& qevent)
     (*m_sEvent_oa) & *reinterpret_cast<const int64_t*>(&end_time_dur);
 }
 
-void BoostStorage::read_canonicals()
+void CapBoostStorage::read_canonicals()
 {
     int64_t can_id;
     std::string canonical;
@@ -184,7 +184,7 @@ void BoostStorage::read_canonicals()
     }
 }
 
-void BoostStorage::preload_more_events()
+void CapBoostStorage::preload_more_events()
 {
     // This will become something that needs to consider memory usage
     // rather than number of events.
@@ -237,7 +237,7 @@ void BoostStorage::preload_more_events()
     }
 }
 
-std::shared_ptr<std::string> BoostStorage::find_canonical(int64_t can_id)
+std::shared_ptr<std::string> CapBoostStorage::find_canonical(int64_t can_id)
 {
     // Linear search isn't that bad - there aren't that many canonicals,
     // and this is only called when loading events. If it becomes are

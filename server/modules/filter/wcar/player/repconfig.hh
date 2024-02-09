@@ -5,16 +5,16 @@
  */
 #pragma once
 
-#include "../wcarstorage.hh"
+#include "../capstorage.hh"
 #include <maxbase/host.hh>
 #include <mysql.h>
 #include <string>
 #include <filesystem>
 #include <memory>
 
-struct PlayerConfig
+struct RepConfig
 {
-    PlayerConfig(int argc, char** argv);
+    RepConfig(int argc, char** argv);
 
     std::string   user{"maxskysql"};
     std::string   password{"skysql"};

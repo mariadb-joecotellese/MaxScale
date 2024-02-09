@@ -5,22 +5,22 @@
  */
 #pragma once
 
-#include "wcarplayerconfig.hh"
-#include "wcarplayersession.hh"
-#include "wcartransform.hh"
+#include "repconfig.hh"
+#include "repsession.hh"
+#include "reptransform.hh"
 
-class Player
+class RepPlayer
 {
 public:
-    Player(const PlayerConfig* pConfig);
+    RepPlayer(const RepConfig* pConfig);
 
     void replay();
 
     // PlayerSession callback
     void trxn_finished(int64_t event_id);
 
-    // PlayerSession callback
-    void session_finished(const PlayerSession& session);
+    // RepSession callback
+    void session_finished(const RepSession& session);
 
 private:
     // Simulated time corresponding to the original timeline,
@@ -28,7 +28,7 @@ private:
     mxb::TimePoint sim_time();
 
     // Wait for qevent start to reach sim_time(), then schedule_event().
-    void timeline_add(PlayerSession& session, QueryEvent&& qevent);
+    void timeline_add(RepSession& session, QueryEvent&& qevent);
 
     struct ExecutionInfo
     {
@@ -37,10 +37,10 @@ private:
     };
 
     // This is called for events that can be scheduled according to the timeline.
-    ExecutionInfo get_execution_info(PlayerSession& session, const QueryEvent& qevent);
+    ExecutionInfo get_execution_info(RepSession& session, const QueryEvent& qevent);
 
     // Schedule an event.
-    void schedule_event(PlayerSession& session, QueryEvent&& qevent);
+    void schedule_event(RepSession& session, QueryEvent&& qevent);
 
     // The m_session_mutex is locked when this is called,
     // it is unlocked before return.
@@ -58,14 +58,14 @@ private:
     // then wait for sessions to finish.
     void wait_for_sessions_to_finish();
 
-    const PlayerConfig& m_config;
-    Transform           m_transform;
+    const RepConfig& m_config;
+    RepTransform     m_transform;
 
     // Delta between start of simulation and capture_time (positive)
     mxb::Duration m_timeline_delta = mxb::Duration::zero();
 
     // Active sessions
-    std::unordered_map<int64_t, std::unique_ptr<PlayerSession>> m_sessions;
+    std::unordered_map<int64_t, std::unique_ptr<RepSession>> m_sessions;
 
     // Iterator to the first incomplete transaction.
     Transactions::const_iterator m_front_trxn;

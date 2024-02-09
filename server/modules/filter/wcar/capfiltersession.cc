@@ -4,21 +4,21 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "wcarfiltersession.hh"
-#include "wcarfilter.hh"
+#include "capfiltersession.hh"
+#include "capfilter.hh"
 #include <maxbase/log.hh>
 #include <maxsimd/canonical.hh>
 #include <maxscale/protocol/mariadb/mysql.hh>
 #include <maxscale/protocol/mariadb/protocol_classes.hh>
 
 // static
-WcarFilterSession* WcarFilterSession::create(MXS_SESSION* pSession, SERVICE* pService,
-                                             const WcarFilter* pFilter)
+CapFilterSession* CapFilterSession::create(MXS_SESSION* pSession, SERVICE* pService,
+                                           const CapFilter* pFilter)
 {
-    return new WcarFilterSession(pSession, pService, pFilter);
+    return new CapFilterSession(pSession, pService, pFilter);
 }
 
-WcarFilterSession::WcarFilterSession(MXS_SESSION* pSession, SERVICE* pService, const WcarFilter* pFilter)
+CapFilterSession::CapFilterSession(MXS_SESSION* pSession, SERVICE* pService, const CapFilter* pFilter)
     : maxscale::FilterSession(pSession, pService)
     , m_filter(*pFilter)
 {
@@ -47,7 +47,7 @@ WcarFilterSession::WcarFilterSession(MXS_SESSION* pSession, SERVICE* pService, c
     }
 }
 
-WcarFilterSession::~WcarFilterSession()
+CapFilterSession::~CapFilterSession()
 {
     QueryEvent closing_event;
     // Non empty canonical to avoid checking, with a message for debug.
@@ -63,7 +63,7 @@ WcarFilterSession::~WcarFilterSession()
     pShared_data->send_update(closing_event);
 }
 
-bool WcarFilterSession::routeQuery(GWBUF&& buffer)
+bool CapFilterSession::routeQuery(GWBUF&& buffer)
 {
     m_query_event.canonical_args.clear();
     m_capture = true;
@@ -91,9 +91,9 @@ bool WcarFilterSession::routeQuery(GWBUF&& buffer)
     return mxs::FilterSession::routeQuery(std::move(buffer));
 }
 
-bool WcarFilterSession::clientReply(GWBUF&& buffer,
-                                    const maxscale::ReplyRoute& down,
-                                    const maxscale::Reply& reply)
+bool CapFilterSession::clientReply(GWBUF&& buffer,
+                                   const maxscale::ReplyRoute& down,
+                                   const maxscale::Reply& reply)
 {
     if (m_capture)
     {
@@ -107,7 +107,7 @@ bool WcarFilterSession::clientReply(GWBUF&& buffer,
     return mxs::FilterSession::clientReply(std::move(buffer), down, reply);
 }
 
-bool WcarFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* pQuery_event)
+bool CapFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* pQuery_event)
 {
     auto cmd = mariadb::get_command(buffer);
 

@@ -4,8 +4,8 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "wcarplayerconfig.hh"
-#include "wcartransform.hh"
+#include "repconfig.hh"
+#include "reptransform.hh"
 #include <getopt.h>
 #include <iostream>
 #include <iomanip>
@@ -64,7 +64,7 @@ auto OPT(int optval, H help)
     };
 }
 
-void PlayerConfig::show_help()
+void RepConfig::show_help()
 {
     std::cout << "Usage: player [OPTION]... FILE"
               << OPT('h', "this help text (with current option values)")
@@ -75,7 +75,7 @@ void PlayerConfig::show_help()
               << std::endl;
 }
 
-PlayerConfig::PlayerConfig(int argc, char** argv)
+RepConfig::RepConfig(int argc, char** argv)
 {
     bool help = false;
     bool error = false;

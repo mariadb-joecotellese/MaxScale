@@ -4,9 +4,9 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "wcardefs.hh"
-#include "wcarconfig.hh"
-#include "wcarfilter.hh"
+#include "capdefs.hh"
+#include "capconfig.hh"
+#include "capfilter.hh"
 
 extern "C" MXS_MODULE* MXS_CREATE_MODULE()
 {
@@ -19,13 +19,13 @@ extern "C" MXS_MODULE* MXS_CREATE_MODULE()
         MXS_FILTER_VERSION,
         "Workload Capture and Replay.",
         WCAR_VERSION_STRING,
-        WcarFilter::CAPABILITIES,
-        &mxs::FilterApi<WcarFilter>::s_api,
+        CapFilter::CAPABILITIES,
+        &mxs::FilterApi<CapFilter>::s_api,
         nullptr,    /* Process init. */
         nullptr,    /* Process finish. */
         nullptr,    /* Thread init. */
         nullptr,    /* Thread finish. */
-        WcarConfig::specification()
+        CapConfig::specification()
     };
 
     return &info;

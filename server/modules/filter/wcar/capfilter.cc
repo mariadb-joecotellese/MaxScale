@@ -4,11 +4,11 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "wcarfilter.hh"
-#include "wcarinmemorystorage.hh"
-#include "wcarsqlitestorage.hh"
-#include "wcarbooststorage.hh"
-#include "wcarconfig.hh"
+#include "capfilter.hh"
+#include "capinmemorystorage.hh"
+#include "capsqlitestorage.hh"
+#include "capbooststorage.hh"
+#include "capconfig.hh"
 #include <maxbase/stopwatch.hh>
 #include <string>
 #include <memory>
@@ -29,13 +29,13 @@ std::string generate_file_base_name()
 }
 }
 
-WcarFilter::WcarFilter(const std::string& name)
+CapFilter::CapFilter(const std::string& name)
     : m_config(name, [this]{
     return post_configure();
 })
 {}
 
-bool WcarFilter::post_configure()
+bool CapFilter::post_configure()
 {
     bool ok = true;
     auto base_path = m_config.capture_dir;
@@ -44,21 +44,21 @@ bool WcarFilter::post_configure()
     switch (m_config.storage_type)
     {
     case StorageType::SQLITE:
-        m_sStorage = std::make_unique<SqliteStorage>(base_path);
+        m_sStorage = std::make_unique<CapSqliteStorage>(base_path);
         break;
 
     case StorageType::BINARY:
-        m_sStorage = std::make_unique<BoostStorage>(base_path);
+        m_sStorage = std::make_unique<CapBoostStorage>(base_path);
         break;
     }
 
-    m_sRecorder = std::make_unique<WcarRecorder>(std::make_unique<RecorderContext>(m_sStorage.get()));
+    m_sRecorder = std::make_unique<CapRecorder>(std::make_unique<RecorderContext>(m_sStorage.get()));
     m_sRecorder->start();
 
     return ok;
 }
 
-WcarFilter::~WcarFilter()
+CapFilter::~CapFilter()
 {
     m_sRecorder->stop();
 
@@ -69,22 +69,22 @@ WcarFilter::~WcarFilter()
 }
 
 // static
-WcarFilter* WcarFilter::create(const char* zName)
+CapFilter* CapFilter::create(const char* zName)
 {
-    return new WcarFilter(zName);
+    return new CapFilter(zName);
 }
 
-WcarFilterSession* WcarFilter::newSession(MXS_SESSION* pSession, SERVICE* pService)
+CapFilterSession* CapFilter::newSession(MXS_SESSION* pSession, SERVICE* pService)
 {
-    return WcarFilterSession::create(pSession, pService, this);
+    return CapFilterSession::create(pSession, pService, this);
 }
 
-json_t* WcarFilter::diagnostics() const
+json_t* CapFilter::diagnostics() const
 {
     return m_config.to_json();
 }
 
-int64_t WcarFilter::get_next_event_id() const
+int64_t CapFilter::get_next_event_id() const
 {
     return m_event_id.fetch_add(1, std::memory_order_relaxed);
 }

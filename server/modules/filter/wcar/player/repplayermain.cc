@@ -4,7 +4,7 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "wcarplayer.hh"
+#include "repplayer.hh"
 #include <iostream>
 #include <maxbase/maxbase.hh>
 
@@ -13,8 +13,8 @@ try
 {
     mxb::MaxBase mxb(MXB_LOG_TARGET_STDOUT);
 
-    PlayerConfig config(argc, argv);
-    Player player(&config);
+    RepConfig config(argc, argv);
+    RepPlayer player(&config);
 
     player.replay();
 

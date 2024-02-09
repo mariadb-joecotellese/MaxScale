@@ -1,23 +1,23 @@
-#include "wcarplayer.hh"
+#include "repplayer.hh"
 #include <maxbase/stopwatch.hh>
 #include <maxbase/assert.hh>
 #include <maxsimd/canonical.hh>
 #include <iostream>
 #include <unordered_map>
 
-Player::Player(const PlayerConfig* pConfig)
+RepPlayer::RepPlayer(const RepConfig* pConfig)
     : m_config(*pConfig)
     , m_transform(&m_config)
     , m_front_trxn(begin(m_transform.transactions()))
 {
 }
 
-maxbase::TimePoint Player::sim_time()
+maxbase::TimePoint RepPlayer::sim_time()
 {
     return mxb::Clock::now() - m_timeline_delta;
 }
 
-void Player::replay()
+void RepPlayer::replay()
 {
     // TODO: add throttling. This loop will now schedule all events, i.e. everything
     // that cannot be executed now, will go to pending, potentially consuming all memory.
@@ -34,8 +34,8 @@ void Player::replay()
         if (session_ite == end(m_sessions))
         {
             auto ins = m_sessions.emplace(qevent.session_id,
-                                          std::make_unique<PlayerSession>(&m_config, this,
-                                                                          qevent.session_id));
+                                          std::make_unique<RepSession>(&m_config, this,
+                                                                       qevent.session_id));
             session_ite = ins.first;
         }
 
@@ -47,7 +47,7 @@ void Player::replay()
     std::cout << "Final wait: " << mxb::to_string(m_stopwatch.split()) << std::endl;
 }
 
-Player::ExecutionInfo Player::get_execution_info(PlayerSession& session, const QueryEvent& qevent)
+RepPlayer::ExecutionInfo RepPlayer::get_execution_info(RepSession& session, const QueryEvent& qevent)
 {
     ExecutionInfo exec {false, end(m_transform.transactions())};
 
@@ -72,21 +72,21 @@ Player::ExecutionInfo Player::get_execution_info(PlayerSession& session, const Q
     return exec;
 }
 
-void Player::trxn_finished(int64_t event_id)
+void RepPlayer::trxn_finished(int64_t event_id)
 {
     std::lock_guard lock(m_trxn_mutex);
     m_finished_trxns.insert(event_id);
     m_trxn_condition.notify_one();
 }
 
-void Player::session_finished(const PlayerSession& session)
+void RepPlayer::session_finished(const RepSession& session)
 {
     std::lock_guard lock(m_session_mutex);
     m_finished_sessions.insert(session.session_id());
     m_session_condition.notify_one();
 }
 
-void Player::timeline_add(PlayerSession& session, QueryEvent&& qevent)
+void RepPlayer::timeline_add(RepSession& session, QueryEvent&& qevent)
 {
     mxb::Duration dur = qevent.start_time - sim_time();
     mxb::TimePoint wait_until = mxb::Clock::now() + dur;
@@ -116,7 +116,7 @@ void Player::timeline_add(PlayerSession& session, QueryEvent&& qevent)
     schedule_event(session, std::move(qevent));
 }
 
-void Player::schedule_event(PlayerSession& session, QueryEvent&& qevent)
+void RepPlayer::schedule_event(RepSession& session, QueryEvent&& qevent)
 {
     if (session.has_pending_events())
     {
@@ -139,7 +139,7 @@ void Player::schedule_event(PlayerSession& session, QueryEvent&& qevent)
     }
 }
 
-bool Player::schedule_pending_events(std::unique_lock<std::mutex>& lock)
+bool RepPlayer::schedule_pending_events(std::unique_lock<std::mutex>& lock)
 {
     // m_trxn_mutex is locked at this point.
     std::unordered_set<int64_t> finished_trxns;
@@ -178,7 +178,7 @@ bool Player::schedule_pending_events(std::unique_lock<std::mutex>& lock)
     return has_more;
 }
 
-void Player::wait_for_sessions_to_finish()
+void RepPlayer::wait_for_sessions_to_finish()
 {
     bool more_pending = true;
     while (!m_sessions.empty())
@@ -203,7 +203,7 @@ void Player::wait_for_sessions_to_finish()
     mxb_assert(m_front_trxn == end(m_transform.transactions()));
 }
 
-void Player::mark_completed_trxns(const std::unordered_set<int64_t>& finished_trxns)
+void RepPlayer::mark_completed_trxns(const std::unordered_set<int64_t>& finished_trxns)
 {
     for (auto end_event_id : finished_trxns)
     {
@@ -228,7 +228,7 @@ void Player::mark_completed_trxns(const std::unordered_set<int64_t>& finished_tr
     }
 }
 
-void Player::remove_finished_sessions()
+void RepPlayer::remove_finished_sessions()
 {
     std::unordered_set<int64_t> finished_sessions;
 

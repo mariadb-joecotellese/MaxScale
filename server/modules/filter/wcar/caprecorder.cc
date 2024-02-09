@@ -3,13 +3,13 @@
  *
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
-#include "wcarrecorder.hh"
+#include "caprecorder.hh"
 
 namespace
 {
 }
 
-WcarRecorder::WcarRecorder(std::unique_ptr<RecorderContext>&& context)
+CapRecorder::CapRecorder(std::unique_ptr<RecorderContext>&& context)
     : Collector{std::move(context),
                 0,      // Support dynamic thread count
                 10000,  // Queue length.
@@ -18,18 +18,18 @@ WcarRecorder::WcarRecorder(std::unique_ptr<RecorderContext>&& context)
     Data::initialize_workers();
 }
 
-void WcarRecorder::init_for(maxscale::RoutingWorker* pWorker)
+void CapRecorder::init_for(maxscale::RoutingWorker* pWorker)
 {
     increase_client_count(pWorker->index());
 }
 
-void WcarRecorder::finish_for(maxscale::RoutingWorker* pWorker)
+void CapRecorder::finish_for(maxscale::RoutingWorker* pWorker)
 {
     decrease_client_count(pWorker->index());
 }
 
-void WcarRecorder::make_updates(RecorderContext* pContext,
-                                std::vector<typename SharedUpdate::UpdateType>& queue)
+void CapRecorder::make_updates(RecorderContext* pContext,
+                               std::vector<typename SharedUpdate::UpdateType>& queue)
 {
     try
     {

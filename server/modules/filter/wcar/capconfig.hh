@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "wcardefs.hh"
+#include "capdefs.hh"
 #include <maxbase/exception.hh>
 #include <maxscale/config2.hh>
 #include <functional>
@@ -24,11 +24,11 @@ enum class StorageMethod
     BATCH
 };
 
-class WcarConfig : public mxs::config::Configuration
+class CapConfig : public mxs::config::Configuration
 {
 public:
     static mxs::config::Specification* specification();
-    WcarConfig(const std::string& name, std::function<bool()> filter_post_configure);
+    CapConfig(const std::string& name, std::function<bool()> filter_post_configure);
 
     std::string   capture_dir;
     StorageType   storage_type;

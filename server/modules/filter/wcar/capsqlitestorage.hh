@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "wcarstorage.hh"
+#include "capstorage.hh"
 #include <filesystem>
 #include <sqlite3.h>
 
@@ -17,11 +17,11 @@ enum class Access
     READ_WRITE
 };
 
-class SqliteStorage final : public Storage
+class CapSqliteStorage final : public Storage
 {
 public:
-    SqliteStorage(const fs::path& path, Access access = Access::READ_WRITE);
-    ~SqliteStorage();
+    CapSqliteStorage(const fs::path& path, Access access = Access::READ_WRITE);
+    ~CapSqliteStorage();
 
     void add_query_event(QueryEvent&& qevent) override;
     void add_query_event(std::vector<QueryEvent>& qevents) override;

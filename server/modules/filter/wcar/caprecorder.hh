@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "wcarstorage.hh"
+#include "capstorage.hh"
 #include <maxscale/ccdefs.hh>
 #include <maxscale/routingworker.hh>
 #include <maxbase/collector.hh>
@@ -28,11 +28,11 @@ struct RecorderContext
 using SharedUpdate = maxbase::SharedData<RecorderContext, QueryEvent>;
 
 
-class WcarRecorder final : public mxb::Collector<SharedUpdate, mxb::CollectorMode::UPDATES_ONLY>
-                         , private maxscale::RoutingWorker::Data
+class CapRecorder final : public mxb::Collector<SharedUpdate, mxb::CollectorMode::UPDATES_ONLY>
+                        , private maxscale::RoutingWorker::Data
 {
 public:
-    WcarRecorder(std::unique_ptr<RecorderContext>&& context);
+    CapRecorder(std::unique_ptr<RecorderContext>&& context);
 private:
     void init_for(maxscale::RoutingWorker* pWorker) override;
     void finish_for(maxscale::RoutingWorker* pWorker) override;

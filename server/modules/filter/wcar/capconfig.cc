@@ -4,7 +4,7 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "wcarconfig.hh"
+#include "capconfig.hh"
 #include <maxscale/config.hh>
 #include <filesystem>
 
@@ -14,7 +14,7 @@ namespace fs = std::filesystem;
 cfg::Specification s_spec("wcar", cfg::Specification::FILTER);
 
 // static
-mxs::config::Specification* WcarConfig::specification()
+mxs::config::Specification* CapConfig::specification()
 {
     return &s_spec;
 }
@@ -40,16 +40,16 @@ cfg::ParamEnum<StorageMethod> s_storage_method(
 },
     StorageMethod::DIRECT);
 
-WcarConfig::WcarConfig(const std::string& name, std::function<bool ()> filter_post_configure)
+CapConfig::CapConfig(const std::string& name, std::function<bool ()> filter_post_configure)
     : cfg::Configuration(name, specification())
     , m_filter_post_configure(filter_post_configure)
 {
-    add_native(&WcarConfig::capture_dir, &s_capture_dir);
-    add_native(&WcarConfig::storage_type, &s_storage_type);
-    add_native(&WcarConfig::storage_method, &s_storage_method);
+    add_native(&CapConfig::capture_dir, &s_capture_dir);
+    add_native(&CapConfig::storage_type, &s_storage_type);
+    add_native(&CapConfig::storage_method, &s_storage_method);
 }
 
-bool WcarConfig::post_configure(const std::map<std::string, maxscale::ConfigParameters>& nested_params)
+bool CapConfig::post_configure(const std::map<std::string, maxscale::ConfigParameters>& nested_params)
 {
     // TODO fix ParamPath, it does not create the dir when the default value is used.
     std::filesystem::create_directories(capture_dir);

@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "wcarplayerconfig.hh"
+#include "repconfig.hh"
 #include <vector>
 #include <unordered_map>
 
@@ -28,13 +28,13 @@ using Transactions = std::vector<Transaction>;
 using TrxnMapping = std::unordered_map<int64_t, Transactions::iterator>;
 
 /**
- * @brief The Transform class massages the captured data to a suitable form
+ * @brief The RepTransform class massages the captured data to a suitable form
  *        for the Player to efficiently replay/simulate the workload.
  */
-class Transform
+class RepTransform
 {
 public:
-    Transform(const PlayerConfig* pConfig);
+    RepTransform(const RepConfig* pConfig);
     /**
      * @brief player_storage
      * @return Storage where the events are sorted by start_time
@@ -59,19 +59,19 @@ public:
 private:
     void transform_events(Storage& from, Storage& to);
 
-    const PlayerConfig&      m_config;
+    const RepConfig&         m_config;
     std::unique_ptr<Storage> m_player_storage;
     Transactions             m_trxs;
     TrxnMapping              m_trx_start_mapping;
     TrxnMapping              m_trx_end_mapping;
 };
 
-inline Transactions& Transform::transactions()
+inline Transactions& RepTransform::transactions()
 {
     return m_trxs;
 }
 
-inline Transactions::iterator Transform::trx_start_mapping(int64_t start_event_id)
+inline Transactions::iterator RepTransform::trx_start_mapping(int64_t start_event_id)
 {
     auto ite = m_trx_start_mapping.find(start_event_id);
     if (ite == end(m_trx_start_mapping))
@@ -84,7 +84,7 @@ inline Transactions::iterator Transform::trx_start_mapping(int64_t start_event_i
     }
 }
 
-inline Transactions::iterator Transform::trx_end_mapping(int64_t start_event_id)
+inline Transactions::iterator RepTransform::trx_end_mapping(int64_t start_event_id)
 {
     auto ite = m_trx_end_mapping.find(start_event_id);
     if (ite == end(m_trx_end_mapping))

@@ -5,25 +5,25 @@
  */
 #pragma once
 
-#include "wcardefs.hh"
-#include "wcarstorage.hh"
+#include "capdefs.hh"
+#include "capstorage.hh"
 #include <maxscale/filter.hh>
 
-class WcarFilter;
+class CapFilter;
 
-class WcarFilterSession final : public maxscale::FilterSession
+class CapFilterSession final : public maxscale::FilterSession
 {
 public:
-    ~WcarFilterSession();
+    ~CapFilterSession();
 
-    static WcarFilterSession* create(MXS_SESSION* pSession, SERVICE* pService, const WcarFilter* pFilter);
+    static CapFilterSession* create(MXS_SESSION* pSession, SERVICE* pService, const CapFilter* pFilter);
 
     bool routeQuery(GWBUF&& buffer) override;
     bool clientReply(GWBUF&& buffer, const mxs::ReplyRoute& down, const mxs::Reply& reply) override;
 
 private:
-    WcarFilterSession(MXS_SESSION* pSession, SERVICE* pService, const WcarFilter* pFilter);
-    WcarFilterSession(WcarFilterSession&&) = delete;
+    CapFilterSession(MXS_SESSION* pSession, SERVICE* pService, const CapFilter* pFilter);
+    CapFilterSession(CapFilterSession&&) = delete;
 
 private:
     /**
@@ -35,7 +35,7 @@ private:
      */
     bool generate_canonical_for(const GWBUF& buffer, QueryEvent* pQuery_event);
 
-    const WcarFilter& m_filter;
+    const CapFilter& m_filter;
 
     // TODO take into account a streaming client (writes without waits)
     bool       m_capture = false;

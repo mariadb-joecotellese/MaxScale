@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "wcarplayerconfig.hh"
+#include "repconfig.hh"
 #include <maxbase/stopwatch.hh>
 #include <maxbase/assert.hh>
 #include <deque>
@@ -13,28 +13,28 @@
 #include <mutex>
 #include <condition_variable>
 
-class Player;
+class RepPlayer;
 
 /**
- * @brief A PlayerSession is a single thread performing queries off of a queue.
+ * @brief A RepSession is a single thread performing queries off of a queue.
  *
  *        The player calls Session::queue_query() to initiate a query, and
  *        can ask for a callback on a future event_id.
  *
  *        Once the session ends (a close-event is seen) the db connection
  *        is closed, Player::session_finished() is called, and
- *        the thread function, PlayerSession::run(), returns.
+ *        the thread function, RepSession::run(), returns.
  *
- *        There is currently no PlayerSession::stop(), which will be needed once
+ *        There is currently no RepSession::stop(), which will be needed once
  *        an overall simulation timeout is implemented (or to gracefully respond
  *        to a kill signal).
  */
-class PlayerSession
+class RepSession
 {
 public:
-    PlayerSession(const PlayerConfig* pConfig, Player* pPlayer, int64_t session_id);
-    ~PlayerSession();
-    PlayerSession(PlayerSession&&) = delete;
+    RepSession(const RepConfig* pConfig, RepPlayer* pPlayer, int64_t session_id);
+    ~RepSession();
+    RepSession(RepSession&&) = delete;
 
     int64_t session_id() const;
     void    queue_query(QueryEvent&& qevent, int64_t commit_event_id = -1);
@@ -52,8 +52,8 @@ public:
 private:
     void run();
 
-    const PlayerConfig&     m_config;
-    Player&                 m_player;
+    const RepConfig&        m_config;
+    RepPlayer&              m_player;
     int64_t                 m_session_id;
     MYSQL*                  m_pConn;
     std::thread             m_thread;
@@ -66,43 +66,43 @@ private:
     std::deque<QueryEvent> m_pending_events;
 };
 
-inline int64_t PlayerSession::session_id() const
+inline int64_t RepSession::session_id() const
 {
     return m_session_id;
 }
 
-inline bool PlayerSession::in_trxn() const
+inline bool RepSession::in_trxn() const
 {
     return m_commit_event_id != -1;
 }
 
-inline int64_t PlayerSession::commit_event_id()
+inline int64_t RepSession::commit_event_id()
 {
     return m_commit_event_id;
 }
 
-inline void PlayerSession::reset_commit_event_id()
+inline void RepSession::reset_commit_event_id()
 {
     mxb_assert(m_commit_event_id != -1);
     m_commit_event_id = -1;
 }
 
-inline void PlayerSession::add_pending(QueryEvent&& qevent)
+inline void RepSession::add_pending(QueryEvent&& qevent)
 {
     m_pending_events.push_back(std::move(qevent));
 }
 
-inline bool PlayerSession::has_pending_events() const
+inline bool RepSession::has_pending_events() const
 {
     return !m_pending_events.empty();
 }
 
-inline const QueryEvent& PlayerSession::front_pending() const
+inline const QueryEvent& RepSession::front_pending() const
 {
     return m_pending_events.front();
 }
 
-inline void PlayerSession::queue_front_pending(int64_t commit_event_id)
+inline void RepSession::queue_front_pending(int64_t commit_event_id)
 {
     queue_query(std::move(m_pending_events.front()), commit_event_id);
     m_pending_events.pop_front();

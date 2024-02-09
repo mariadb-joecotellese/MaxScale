@@ -3,10 +3,10 @@
  *
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
-#include "wcarinmemorystorage.hh"
+#include "capinmemorystorage.hh"
 #include <maxbase/assert.hh>
 
-void InmemoryStorage::add_query_event(QueryEvent&& qevent)
+void CapInmemoryStorage::add_query_event(QueryEvent&& qevent)
 {
     int64_t hash{static_cast<int64_t>(std::hash<std::string> {}(*qevent.sCanonical))};
     auto canon_ite = m_canonicals.find(hash);
@@ -34,7 +34,7 @@ void InmemoryStorage::add_query_event(QueryEvent&& qevent)
     m_events.emplace_back(std::move(qevent));
 }
 
-void InmemoryStorage::add_query_event(std::vector<QueryEvent>& qevents)
+void CapInmemoryStorage::add_query_event(std::vector<QueryEvent>& qevents)
 {
     for (auto& event : qevents)
     {
@@ -42,22 +42,22 @@ void InmemoryStorage::add_query_event(std::vector<QueryEvent>& qevents)
     }
 }
 
-Storage::Iterator InmemoryStorage::begin()
+Storage::Iterator CapInmemoryStorage::begin()
 {
     return Storage::Iterator(this, next_event());
 }
 
-Storage::Iterator InmemoryStorage::end() const
+Storage::Iterator CapInmemoryStorage::end() const
 {
     return Storage::Iterator(nullptr, QueryEvent {});
 }
 
-int64_t InmemoryStorage::num_unread() const
+int64_t CapInmemoryStorage::num_unread() const
 {
     return m_events.size();
 }
 
-QueryEvent InmemoryStorage::next_event()
+QueryEvent CapInmemoryStorage::next_event()
 {
     if (m_events.empty())
     {

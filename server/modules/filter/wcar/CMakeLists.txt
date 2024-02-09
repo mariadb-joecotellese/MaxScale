@@ -1,17 +1,17 @@
 #include(${CMAKE_SOURCE_DIR}/cmake/BuildBoost.cmake)
 
 add_library(wcar-core
-  wcarinmemorystorage.cc
-  wcarsqlitestorage.cc
-  wcarbooststorage.cc
+  capinmemorystorage.cc
+  capsqlitestorage.cc
+  capbooststorage.cc
 )
 
 add_library(wcar SHARED
-  wcar.cc
-  wcarconfig.cc
-  wcarfilter.cc
-  wcarfiltersession.cc
-  wcarrecorder.cc
+  cap.cc
+  capconfig.cc
+  capfilter.cc
+  capfiltersession.cc
+  caprecorder.cc
 )
 
 target_link_libraries(wcar-core maxscale-common)

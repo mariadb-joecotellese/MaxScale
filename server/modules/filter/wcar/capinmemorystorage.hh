@@ -5,11 +5,11 @@
  */
 #pragma once
 
-#include "wcarstorage.hh"
+#include "capstorage.hh"
 #include <unordered_map>
 #include <deque>
 
-class InmemoryStorage final : public Storage
+class CapInmemoryStorage final : public Storage
 {
 public:
     void add_query_event(QueryEvent&& qevent) override;
