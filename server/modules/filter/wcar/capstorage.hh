@@ -25,6 +25,14 @@ struct QueryEvent
     int64_t                      event_id;
 };
 
+struct RepEvent
+{
+    int64_t        event_id;
+    mxb::TimePoint start_time;
+    mxb::TimePoint end_time;
+    int32_t        num_rows;
+};
+
 /** Abstract Storage for QueryEvents.
  *
  *  The Storage class is also a container with input iterators. As the iterators
