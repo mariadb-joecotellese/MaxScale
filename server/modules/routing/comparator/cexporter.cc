@@ -47,7 +47,7 @@ std::unique_ptr<CExporter> build_exporter(const CConfig& config, const mxs::Targ
     dir += "/";
     dir += MXB_MODULE_NAME;
     dir += "/";
-    dir += config.pService->name();
+    dir += config.service_name;
 
     if (mxs_mkdir_all(dir.c_str(), 0777))
     {

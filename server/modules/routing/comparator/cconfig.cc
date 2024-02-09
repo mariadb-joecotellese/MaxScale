@@ -5,6 +5,7 @@
  */
 
 #include "cconfig.hh"
+#include "../../../core/internal/service.hh"
 #include "crouter.hh"
 
 namespace
@@ -136,11 +137,10 @@ config::ParamCount retain_slower_statements(
     DEFAULT_RETAIN_SLOWER_STATEMENTS,
     config::Param::AT_RUNTIME);
 
-config::ParamService service(
+config::ParamString service(
     &specification,
     "service",
-    "The service the Comparator service is installed for",
-    config::Param::Kind::MANDATORY);
+    "The service the Comparator service is installed for");
 
 config::ParamDuration<std::chrono::milliseconds> period(
     &specification,
@@ -172,7 +172,7 @@ CConfig::CConfig(const char* zName, CRouter* pInstance)
     , m_instance(*pInstance)
 {
     add_native(&CConfig::pMain, &comparator::main);
-    add_native(&CConfig::pService, &comparator::service);
+    add_native(&CConfig::service_name, &comparator::service);
 
     add_native(&CConfig::comparison_kind, &comparator::comparison_kind);
     add_native(&CConfig::entries, &comparator::entries);
@@ -186,5 +186,12 @@ CConfig::CConfig(const char* zName, CRouter* pInstance)
 
 bool CConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)
 {
+    this->pService = Service::find(service_name);
+
+    if (!this->pService)
+    {
+        MXB_WARNING("Service %s not found; assuming it will be available later.", service_name.c_str());
+    }
+
     return m_instance.post_configure();
 }

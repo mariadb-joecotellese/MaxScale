@@ -60,7 +60,8 @@ public:
     int64_t                    retain_faster_statements;
     int64_t                    retain_slower_statements;
 
-    SERVICE* pService;
+    SERVICE*    pService;
+    std::string service_name;
 
     static mxs::config::Specification* specification();
 

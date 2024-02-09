@@ -145,7 +145,6 @@ private:
 
     using SExporter = std::shared_ptr<CExporter>;
 
-    std::string                             m_service_name;
     ComparatorState                         m_comparator_state { ComparatorState::PREPARED };
     SyncState                               m_sync_state { SyncState::NOT_APPLICABLE };
     CConfig                                 m_config;
