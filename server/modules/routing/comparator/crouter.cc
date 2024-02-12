@@ -167,6 +167,64 @@ bool CRouter::post_configure()
     return rv;
 }
 
+bool CRouter::check_configuration()
+{
+    // Called at MaxScale startup.
+
+    bool rv = true;
+
+    mxb_assert(m_config.pService);
+
+    const auto& children = m_config.pService->get_children();
+
+    auto it = std::find(children.begin(), children.end(), &m_service);
+
+    if (it != children.end())
+    {
+        // We seem to be a direct child of the service. We'll assume
+        // we are ready to go.
+        m_comparator_state = ComparatorState::COMPARING;
+        m_sync_state = SyncState::NOT_APPLICABLE;
+
+        // TODO: Ensure that our other server's replication status
+        // TODO: and our comparison_kind are compatible.
+
+        MXB_NOTICE("'%s' starting in the '%s' state.", m_service.name(), to_string(m_comparator_state));
+    }
+    else
+    {
+        it = std::find(children.begin(), children.end(), m_config.pMain);
+
+        if (it != children.end())
+        {
+            // Main found where it is supposed to be. So, we are prepared
+            // and must be started before comparing is done.
+            m_comparator_state = ComparatorState::PREPARED;
+            m_sync_state = SyncState::NOT_APPLICABLE;
+
+            // TODO: Ensure that our other server's replication status
+            // TODO: and our comparison_kind are compatible.
+
+            MXB_NOTICE("'%s' starting in the '%s' state. It needs to be started "
+                       "in order for the comparison to proceed.",
+                       m_service.name(), to_string(m_comparator_state));
+        }
+        else
+        {
+            const auto* zMy_name = m_service.name();
+            const auto* zHis_name = m_config.pService->name();
+
+            MXB_ERROR("Not able to figure out in what state '%s' should start up "
+                      "in. '%s' should either be a target of '%s', or the main "
+                      "server of '%s' should be a target of '%s'.",
+                      zMy_name, zMy_name, zHis_name, zMy_name, zHis_name);
+            rv = false;
+        }
+    }
+
+    return rv;
+}
+
 bool CRouter::start(json_t** ppOutput)
 {
     mxb_assert(MainWorker::is_current());

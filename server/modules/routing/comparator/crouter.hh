@@ -76,6 +76,8 @@ public:
 
     bool post_configure();
 
+    bool check_configuration();
+
     enum class Summary
     {
         RETURN,

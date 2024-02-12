@@ -186,12 +186,34 @@ CConfig::CConfig(const char* zName, CRouter* pInstance)
 
 bool CConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)
 {
-    this->pService = Service::find(service_name);
+    // The service will be found only if the comparator service is
+    // created at runtime, but not if the comparator service is
+    // created from a configuration file at MaxScale startup.
 
-    if (!this->pService)
-    {
-        MXB_WARNING("Service %s not found; assuming it will be available later.", service_name.c_str());
-    }
+    this->pService = Service::find(this->service_name);
 
     return m_instance.post_configure();
+}
+
+bool CConfig::check_configuration()
+{
+    // This function is only called at MaxScale startup and the
+    // service should now be found.
+
+    bool rv = false;
+
+    this->pService = Service::find(this->service_name);
+
+    if (this->pService)
+    {
+        rv = m_instance.check_configuration();
+    }
+    else
+    {
+        const auto& sn = this->service_name;
+        MXB_ERROR("Could not find service '%.*s' that '%s' depends on.",
+                  (int)sn.length(), sn.data(), name().c_str());
+    }
+
+    return rv;
 }

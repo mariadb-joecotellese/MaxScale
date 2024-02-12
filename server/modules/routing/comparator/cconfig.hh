@@ -68,6 +68,8 @@ public:
 protected:
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;
 
+    bool check_configuration() override;
+
 private:
     CRouter& m_instance;
 };
