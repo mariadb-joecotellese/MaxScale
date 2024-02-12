@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "comparatordefs.hh"
+#include "diffdefs.hh"
 #include <memory>
 #include <maxscale/target.hh>
 

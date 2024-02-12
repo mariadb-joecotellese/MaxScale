@@ -4,10 +4,10 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "cstats.hh"
+#include "diffstats.hh"
 #include <maxscale/service.hh>
-#include "cconfig.hh"
-#include "cresult.hh"
+#include "diffconfig.hh"
+#include "diffresult.hh"
 
 using std::chrono::duration_cast;
 

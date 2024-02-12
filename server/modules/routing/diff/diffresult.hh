@@ -5,11 +5,11 @@
  */
 #pragma once
 
-#include "comparatordefs.hh"
+#include "diffdefs.hh"
 #include <memory>
 #include <maxbase/checksum.hh>
 #include <maxscale/target.hh>
-#include "cregistry.hh"
+#include "diffregistry.hh"
 
 class CBackend;
 class CMainBackend;

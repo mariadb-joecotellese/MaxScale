@@ -4,9 +4,9 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "cconfig.hh"
+#include "diffconfig.hh"
 #include "../../../core/internal/service.hh"
-#include "crouter.hh"
+#include "diffrouter.hh"
 
 namespace
 {

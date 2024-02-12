@@ -4,10 +4,10 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 #pragma once
-#include "comparatordefs.hh"
+#include "diffdefs.hh"
 #include <shared_mutex>
 #include <unordered_map>
-#include "cconfig.hh"
+#include "diffconfig.hh"
 
 class CRegistry final
 {

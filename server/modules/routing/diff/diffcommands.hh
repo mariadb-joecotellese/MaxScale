@@ -4,6 +4,6 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "comparatordefs.hh"
+#include "diffdefs.hh"
 
 void comparator_register_commands();

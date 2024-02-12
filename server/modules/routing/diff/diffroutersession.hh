@@ -5,15 +5,15 @@
  */
 #pragma once
 
-#include "comparatordefs.hh"
+#include "diffdefs.hh"
 #include <deque>
 #include <maxscale/backend.hh>
 #include <maxscale/buffer.hh>
 #include <maxscale/queryclassifier.hh>
-#include "cbackend.hh"
-#include "cregistry.hh"
-#include "cresult.hh"
-#include "cstats.hh"
+#include "diffbackend.hh"
+#include "diffregistry.hh"
+#include "diffresult.hh"
+#include "diffstats.hh"
 
 class CRouter;
 

@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "comparatordefs.hh"
+#include "diffdefs.hh"
 #include <deque>
 #include <vector>
 #include <memory>
@@ -14,8 +14,8 @@
 #include <maxscale/parser.hh>
 #include <maxscale/queryclassifier.hh>
 #include <maxscale/router.hh>
-#include "cresult.hh"
-#include "cstats.hh"
+#include "diffresult.hh"
+#include "diffstats.hh"
 
 class CMainBackend;
 class COtherBackend;

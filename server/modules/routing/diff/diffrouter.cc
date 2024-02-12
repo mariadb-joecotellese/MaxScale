@@ -4,7 +4,7 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "crouter.hh"
+#include "diffrouter.hh"
 #include <fstream>
 #include <iomanip>
 #include <maxbase/format.hh>
@@ -12,7 +12,7 @@
 #include <maxscale/protocol/mariadb/gtid.hh>
 #include <maxscale/routingworker.hh>
 #include <maxsql/mariadb_connector.hh>
-#include "croutersession.hh"
+#include "diffroutersession.hh"
 #include "../../../core/internal/config.hh"
 #include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/service.hh"

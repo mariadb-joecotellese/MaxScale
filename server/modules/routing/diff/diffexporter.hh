@@ -5,10 +5,10 @@
  */
 #pragma once
 
-#include "comparatordefs.hh"
+#include "diffdefs.hh"
 #include <maxbase/jansson.hh>
 #include <maxscale/target.hh>
-#include "cconfig.hh"
+#include "diffconfig.hh"
 
 class CExporter
 {

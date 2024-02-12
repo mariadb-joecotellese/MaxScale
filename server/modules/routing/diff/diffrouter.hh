@@ -5,17 +5,17 @@
  */
 #pragma once
 
-#include "comparatordefs.hh"
+#include "diffdefs.hh"
 #include <shared_mutex>
 #include <maxbase/worker.hh>
 #include <maxscale/router.hh>
 #include <maxscale/backend.hh>
 #include <maxscale/protocol/mariadb/module_names.hh>
 #include <maxscale/service.hh>
-#include "cconfig.hh"
-#include "cexporter.hh"
-#include "cregistry.hh"
-#include "cstats.hh"
+#include "diffconfig.hh"
+#include "diffexporter.hh"
+#include "diffregistry.hh"
+#include "diffstats.hh"
 
 class CRouterSession;
 

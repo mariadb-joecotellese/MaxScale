@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "comparatordefs.hh"
+#include "diffdefs.hh"
 
 #include <maxscale/ccdefs.hh>
 #include <maxscale/config2.hh>

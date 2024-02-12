@@ -3,10 +3,10 @@
  *
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
-#include "croutersession.hh"
+#include "diffroutersession.hh"
 #include <maxscale/protocol/mariadb/mysql.hh>
-#include "cresult.hh"
-#include "crouter.hh"
+#include "diffresult.hh"
+#include "diffrouter.hh"
 
 using namespace maxscale;
 using mariadb::QueryClassifier;

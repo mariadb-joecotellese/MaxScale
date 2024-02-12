@@ -16,7 +16,7 @@ if (BUILD_KAFKAIMPORTER)
 endif()
 
 add_subdirectory(cat)
-add_subdirectory(comparator)
+add_subdirectory(diff)
 add_subdirectory(hintrouter)
 add_subdirectory(readconnroute)
 add_subdirectory(readwritesplit)

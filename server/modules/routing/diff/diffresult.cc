@@ -4,10 +4,10 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
-#include "cresult.hh"
+#include "diffresult.hh"
 #include <vector>
-#include "cbackend.hh"
-#include "cregistry.hh"
+#include "diffbackend.hh"
+#include "diffregistry.hh"
 
 namespace
 {
