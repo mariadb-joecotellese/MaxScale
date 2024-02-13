@@ -15,7 +15,7 @@
 #include <maxscale/utils.hh>
 
 // Exports to a file
-class FileExporter final : public CExporter
+class FileExporter final : public DiffExporter
 {
 public:
     FileExporter(int fd)
@@ -39,9 +39,9 @@ private:
     int m_fd;
 };
 
-std::unique_ptr<CExporter> build_exporter(const CConfig& config, const mxs::Target& target)
+std::unique_ptr<DiffExporter> build_exporter(const DiffConfig& config, const mxs::Target& target)
 {
-    std::unique_ptr<CExporter> sExporter;
+    std::unique_ptr<DiffExporter> sExporter;
 
     std::string dir = mxs::datadir();
     dir += "/";

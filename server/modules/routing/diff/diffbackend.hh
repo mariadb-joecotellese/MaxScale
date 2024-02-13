@@ -17,31 +17,31 @@
 #include "diffresult.hh"
 #include "diffstats.hh"
 
-class CMainBackend;
-class COtherBackend;
-using SCMainBackend = std::unique_ptr<CMainBackend>;
-using SCOtherBackend = std::unique_ptr<COtherBackend>;
-using SCOtherBackends = std::vector<SCOtherBackend>;
+class DiffMainBackend;
+class DiffOtherBackend;
+using SDiffMainBackend = std::unique_ptr<DiffMainBackend>;
+using SDiffOtherBackend = std::unique_ptr<DiffOtherBackend>;
+using SDiffOtherBackends = std::vector<SDiffOtherBackend>;
 
-class CExporter;
-class CRouter;
-class CRouterSession;
+class DiffExporter;
+class DiffRouter;
+class DiffRouterSession;
 
 
 /**
- * @class CBackend
+ * @class DiffBackend
  */
-class CBackend : public mxs::Backend
+class DiffBackend : public mxs::Backend
 {
 public:
-    ~CBackend() = default;
+    ~DiffBackend() = default;
 
-    using Result = CResult;
+    using Result = DiffResult;
     using SResult = std::shared_ptr<Result>;
-    using SCExplainResult = std::shared_ptr<CExplainResult>;
+    using SDiffExplainResult = std::shared_ptr<DiffExplainResult>;
 
 
-    void set_router_session(CRouterSession* pRouter_session);
+    void set_router_session(DiffRouterSession* pRouter_session);
 
     bool extraordinary_in_process() const;
 
@@ -76,10 +76,10 @@ public:
 
     void execute_pending_explains();
 
-    void schedule_explain(SCExplainResult&&);
+    void schedule_explain(SDiffExplainResult&&);
 
 protected:
-    CBackend(mxs::Endpoint* pEndpoint);
+    DiffBackend(mxs::Endpoint* pEndpoint);
 
     virtual void book_explain() = 0;
 
@@ -89,18 +89,18 @@ protected:
     std::deque<SResult>                       m_results;
 
 private:
-    bool execute(const SCExplainResult& sExplain_result);
+    bool execute(const SDiffExplainResult& sExplain_result);
 
-    CRouterSession*             m_pRouter_session { nullptr };
-    std::deque<SCExplainResult> m_pending_explains;
+    DiffRouterSession*             m_pRouter_session { nullptr };
+    std::deque<SDiffExplainResult> m_pending_explains;
 };
 
 
 /**
- * @class CBackendWithStats
+ * @class DiffBackendWithStats
  */
 template<class Stats>
-class CBackendWithStats : public CBackend
+class DiffBackendWithStats : public DiffBackend
 {
 public:
     const Stats& stats() const
@@ -113,7 +113,7 @@ public:
     Routing finish_result(const mxs::Reply& reply) override;
 
 protected:
-    CBackendWithStats(mxs::Endpoint* pEndpoint);
+    DiffBackendWithStats(mxs::Endpoint* pEndpoint);
 
     void book_explain() override;
 
@@ -123,13 +123,13 @@ protected:
 
 
 template<class Stats>
-CBackendWithStats<Stats>::CBackendWithStats(mxs::Endpoint* pEndpoint)
-    : CBackend(pEndpoint)
+DiffBackendWithStats<Stats>::DiffBackendWithStats(mxs::Endpoint* pEndpoint)
+    : DiffBackend(pEndpoint)
 {
 }
 
 template<class Stats>
-void CBackendWithStats<Stats>::book_explain()
+void DiffBackendWithStats<Stats>::book_explain()
 {
     ++m_stats.nExplain_requests;
 
@@ -142,7 +142,7 @@ void CBackendWithStats<Stats>::book_explain()
 }
 
 template<class Stats>
-bool CBackendWithStats<Stats>::write(GWBUF&& buffer, response_type type)
+bool DiffBackendWithStats<Stats>::write(GWBUF&& buffer, response_type type)
 {
     mxb_assert(m_sQc);
     m_sQc->update_and_commit_route_info(buffer);
@@ -170,7 +170,7 @@ bool CBackendWithStats<Stats>::write(GWBUF&& buffer, response_type type)
 }
 
 template<class Stats>
-CBackend::Routing CBackendWithStats<Stats>::finish_result(const mxs::Reply& reply)
+DiffBackend::Routing DiffBackendWithStats<Stats>::finish_result(const mxs::Reply& reply)
 {
     mxb_assert(reply.is_complete());
     mxb_assert(!m_results.empty());
@@ -183,21 +183,21 @@ CBackend::Routing CBackendWithStats<Stats>::finish_result(const mxs::Reply& repl
     ++m_stats.nResponses;
     m_stats.total_duration += sResult->close(reply);
 
-    return kind == CResult::Kind::EXTERNAL ? Routing::CONTINUE : Routing::STOP;
+    return kind == DiffResult::Kind::EXTERNAL ? Routing::CONTINUE : Routing::STOP;
 }
 
 
 /**
- * @class CMainBackend
+ * @class DiffMainBackend
  */
-class CMainBackend final : public CBackendWithStats<CMainStats>
+class DiffMainBackend final : public DiffBackendWithStats<DiffMainStats>
 {
 public:
-    using Base = CBackendWithStats<CMainStats>;
-    using Result = CMainResult;
+    using Base = DiffBackendWithStats<DiffMainStats>;
+    using Result = DiffMainResult;
     using SResult = std::shared_ptr<Result>;
 
-    CMainBackend(mxs::Endpoint* pEndpoint);
+    DiffMainBackend(mxs::Endpoint* pEndpoint);
 
     SResult prepare(const GWBUF& packet);
 
@@ -206,7 +206,7 @@ public:
         return m_command;
     }
 
-    void ready(const CExplainMainResult& result);
+    void ready(const DiffExplainMainResult& result);
 
 private:
     uint8_t m_command { 0 };
@@ -214,28 +214,28 @@ private:
 
 
 /**
- * @class COtherBackend
+ * @class DiffOtherBackend
  */
-class COtherBackend final : public CBackendWithStats<COtherStats>
-                          , private COtherResult::Handler
-                          , private CExplainOtherResult::Handler
+class DiffOtherBackend final : public DiffBackendWithStats<DiffOtherStats>
+                             , private DiffOtherResult::Handler
+                             , private DiffExplainOtherResult::Handler
 
 {
 public:
-    using Base = CBackendWithStats<COtherStats>;
-    using Result = COtherResult;
+    using Base = DiffBackendWithStats<DiffOtherStats>;
+    using Result = DiffOtherResult;
     using SResult = std::shared_ptr<Result>;
 
     class Handler
     {
     public:
-        virtual Explain ready(COtherResult& other_result) = 0;
-        virtual void ready(const CExplainOtherResult& explain_result) = 0;
+        virtual Explain ready(DiffOtherResult& other_result) = 0;
+        virtual void ready(const DiffExplainOtherResult& explain_result) = 0;
     };
 
-    COtherBackend(mxs::Endpoint* pEndpoint,
-                  const CConfig* pConfig,
-                  std::shared_ptr<CExporter> sExporter);
+    DiffOtherBackend(mxs::Endpoint* pEndpoint,
+                     const DiffConfig* pConfig,
+                     std::shared_ptr<DiffExporter> sExporter);
 
     void bump_requests_skipped()
     {
@@ -247,38 +247,38 @@ public:
         m_pHandler = pHandler;
     }
 
-    CExporter& exporter() const
+    DiffExporter& exporter() const
     {
         return *m_sExporter.get();
     }
 
-    void prepare(const CMainBackend::SResult& sMain_result);
+    void prepare(const DiffMainBackend::SResult& sMain_result);
 
 private:
-    // COtherResult::Handler
-    void ready(COtherResult& other_result) override;
+    // DiffOtherResult::Handler
+    void ready(DiffOtherResult& other_result) override;
 
-    // CExplainResult::Handler
-    void ready(const CExplainOtherResult& other_result) override;
+    // DiffExplainResult::Handler
+    void ready(const DiffExplainOtherResult& other_result) override;
 
 private:
-    using SCExporter = std::shared_ptr<CExporter>;
+    using SDiffExporter = std::shared_ptr<DiffExporter>;
 
-    const CConfig& m_config;
-    SCExporter     m_sExporter;
-    Handler*       m_pHandler { nullptr };
+    const DiffConfig& m_config;
+    SDiffExporter     m_sExporter;
+    Handler*          m_pHandler { nullptr };
 };
 
 
 /**
- * @namespace comparator
+ * @namespace diff
  */
-namespace comparator
+namespace diff
 {
 
-std::pair<SCMainBackend, SCOtherBackends>
+std::pair<SDiffMainBackend, SDiffOtherBackends>
 backends_from_endpoints(const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
-                        const CRouter& router);
+                        const DiffRouter& router);
 
 }

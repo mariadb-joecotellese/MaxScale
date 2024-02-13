@@ -20,19 +20,19 @@ struct ThisUnit
 }
 
 /**
- * CResult
+ * DiffResult
  */
-CResult::~CResult()
+DiffResult::~DiffResult()
 {
 }
 
-void CResult::process(const GWBUF& buffer)
+void DiffResult::process(const GWBUF& buffer)
 {
     mxb_assert(!closed());
     m_checksum.update(buffer);
 }
 
-std::chrono::nanoseconds CResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds DiffResult::close(const mxs::Reply& reply)
 {
     mxb_assert(!closed());
     m_reply = reply;
@@ -43,20 +43,20 @@ std::chrono::nanoseconds CResult::close(const mxs::Reply& reply)
 
 
 /**
- * CMainResult
+ * DiffMainResult
  */
-CMainResult::CMainResult(CMainBackend* pBackend, const GWBUF& packet)
-    : CResult(pBackend)
+DiffMainResult::DiffMainResult(DiffMainBackend* pBackend, const GWBUF& packet)
+    : DiffResult(pBackend)
     , m_id(this_unit.id++)
     , m_packet(packet.shallow_clone())
 {
 }
 
-CMainResult::~CMainResult()
+DiffMainResult::~DiffMainResult()
 {
 }
 
-std::string_view CMainResult::sql() const
+std::string_view DiffMainResult::sql() const
 {
     if (m_sql.empty())
     {
@@ -66,7 +66,7 @@ std::string_view CMainResult::sql() const
     return m_sql;
 }
 
-uint8_t CMainResult::command() const
+uint8_t DiffMainResult::command() const
 {
     if (m_command == 0)
     {
@@ -76,7 +76,7 @@ uint8_t CMainResult::command() const
     return m_command;
 }
 
-std::string_view CMainResult::canonical() const
+std::string_view DiffMainResult::canonical() const
 {
     if (m_canonical.empty())
     {
@@ -86,24 +86,24 @@ std::string_view CMainResult::canonical() const
     return m_canonical;
 }
 
-CResult::Hash CMainResult::hash() const
+DiffResult::Hash DiffMainResult::hash() const
 {
     if (m_hash == 0)
     {
-        m_hash = CRegistry::hash_for(canonical());
+        m_hash = DiffRegistry::hash_for(canonical());
     }
 
     return m_hash;
 }
 
-std::chrono::nanoseconds CMainResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds DiffMainResult::close(const mxs::Reply& reply)
 {
-    auto rv = CResult::close(reply);
+    auto rv = DiffResult::close(reply);
 
     // A dependent may end up removing itself.
     auto dependents = m_dependents;
 
-    for (std::shared_ptr<COtherResult> sDependent : dependents)
+    for (std::shared_ptr<DiffOtherResult> sDependent : dependents)
     {
         sDependent->main_was_closed();
     }
@@ -112,25 +112,25 @@ std::chrono::nanoseconds CMainResult::close(const mxs::Reply& reply)
 }
 
 /**
- * COtherResult
+ * DiffOtherResult
  */
 
-COtherResult::COtherResult(COtherBackend* pBackend,
-                           Handler* pHandler,
-                           std::shared_ptr<CMainResult> sMain_result)
-    : CResult(pBackend)
+DiffOtherResult::DiffOtherResult(DiffOtherBackend* pBackend,
+                                 Handler* pHandler,
+                                 std::shared_ptr<DiffMainResult> sMain_result)
+    : DiffResult(pBackend)
     , m_handler(*pHandler)
     , m_sMain_result(sMain_result)
 {
 }
 
-COtherResult::~COtherResult()
+DiffOtherResult::~DiffOtherResult()
 {
 }
 
-std::chrono::nanoseconds COtherResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds DiffOtherResult::close(const mxs::Reply& reply)
 {
-    auto rv = CResult::close(reply);
+    auto rv = DiffResult::close(reply);
 
     if (m_sMain_result->closed())
     {
@@ -141,7 +141,7 @@ std::chrono::nanoseconds COtherResult::close(const mxs::Reply& reply)
     return rv;
 }
 
-void COtherResult::main_was_closed()
+void DiffOtherResult::main_was_closed()
 {
     if (closed())
     {
@@ -152,12 +152,12 @@ void COtherResult::main_was_closed()
 
 
 /**
- * CExplainResult
+ * DiffExplainResult
  */
 
-std::chrono::nanoseconds CExplainResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds DiffExplainResult::close(const mxs::Reply& reply)
 {
-    CResult::close(reply);
+    DiffResult::close(reply);
 
     mxb_assert(reply.is_complete());
 
@@ -175,44 +175,44 @@ std::chrono::nanoseconds CExplainResult::close(const mxs::Reply& reply)
 }
 
 /**
- * CExplainMainResult
+ * DiffExplainMainResult
  */
-CExplainMainResult::CExplainMainResult(CMainBackend* pBackend,
-                                       std::shared_ptr<CMainResult> sMain_result)
-    : CExplainResult(pBackend)
+DiffExplainMainResult::DiffExplainMainResult(DiffMainBackend* pBackend,
+                                             std::shared_ptr<DiffMainResult> sMain_result)
+    : DiffExplainResult(pBackend)
     , m_sMain_result(sMain_result)
 {
     mxb_assert(m_sMain_result);
 }
 
-CExplainMainResult::~CExplainMainResult()
+DiffExplainMainResult::~DiffExplainMainResult()
 {
 }
 
-std::chrono::nanoseconds CExplainMainResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds DiffExplainMainResult::close(const mxs::Reply& reply)
 {
-    auto rv = CExplainResult::close(reply);
+    auto rv = DiffExplainResult::close(reply);
 
     // A dependent may end up removing itself.
     auto dependents = m_dependents;
 
-    for (std::shared_ptr<CExplainOtherResult> sDependent : dependents)
+    for (std::shared_ptr<DiffExplainOtherResult> sDependent : dependents)
     {
         sDependent->main_was_closed();
     }
 
-    static_cast<CMainBackend&>(backend()).ready(*this);
+    static_cast<DiffMainBackend&>(backend()).ready(*this);
 
     return rv;
 }
 
 /**
- * CExplainOtherResult
+ * DiffExplainOtherResult
  */
-CExplainOtherResult::CExplainOtherResult(Handler* pHandler,
-                                         std::shared_ptr<const COtherResult> sOther_result,
-                                         std::shared_ptr<CExplainMainResult> sExplain_main_result)
-    : CExplainResult(&sOther_result->backend())
+DiffExplainOtherResult::DiffExplainOtherResult(Handler* pHandler,
+                                               std::shared_ptr<const DiffOtherResult> sOther_result,
+                                               std::shared_ptr<DiffExplainMainResult> sExplain_main_result)
+    : DiffExplainResult(&sOther_result->backend())
     , m_handler(*pHandler)
     , m_sOther_result(sOther_result)
     , m_sExplain_main_result(sExplain_main_result)
@@ -220,13 +220,13 @@ CExplainOtherResult::CExplainOtherResult(Handler* pHandler,
     mxb_assert(m_sOther_result);
 }
 
-CExplainOtherResult::~CExplainOtherResult()
+DiffExplainOtherResult::~DiffExplainOtherResult()
 {
 }
 
-std::chrono::nanoseconds CExplainOtherResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds DiffExplainOtherResult::close(const mxs::Reply& reply)
 {
-    auto rv = CExplainResult::close(reply);
+    auto rv = DiffExplainResult::close(reply);
 
     if (!m_sExplain_main_result || m_sExplain_main_result->closed())
     {
@@ -241,7 +241,7 @@ std::chrono::nanoseconds CExplainOtherResult::close(const mxs::Reply& reply)
     return rv;
 }
 
-void CExplainOtherResult::main_was_closed()
+void DiffExplainOtherResult::main_was_closed()
 {
     if (closed())
     {

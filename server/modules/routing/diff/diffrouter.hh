@@ -17,15 +17,15 @@
 #include "diffregistry.hh"
 #include "diffstats.hh"
 
-class CRouterSession;
+class DiffRouterSession;
 
-class CRouter : public mxs::Router
-              , private mxb::Worker::Callable
+class DiffRouter : public mxs::Router
+                 , private mxb::Worker::Callable
 {
 public:
-    using Stats = CRouterStats;
+    using Stats = DiffRouterStats;
 
-    enum class ComparatorState
+    enum class DiffState
     {
         PREPARED,      // Setup for action.
         SYNCHRONIZING, // Started, suspending sessions, stopping replication, etc.
@@ -35,24 +35,24 @@ public:
 
     enum class SyncState
     {
-        NOT_APPLICABLE,       // The comparator state is not SYNCHRONIZING.
+        NOT_APPLICABLE,       // The diff state is not SYNCHRONIZING.
         STOPPING_REPLICATION, // The replication is being stopped. Mat be delayed due to lag.
         SUSPENDING_SESSIONS   // The sessions are being suspended.
     };
 
-    static const char* to_string(ComparatorState comparator_state);
+    static const char* to_string(DiffState diff_state);
     static const char* to_string(SyncState sync_state);
 
-    CRouter(const CRouter&) = delete;
-    CRouter& operator=(const CRouter&) = delete;
+    DiffRouter(const DiffRouter&) = delete;
+    DiffRouter& operator=(const DiffRouter&) = delete;
 
-    ~CRouter();
-    static CRouter*     create(SERVICE* pService);
+    ~DiffRouter();
+    static DiffRouter*  create(SERVICE* pService);
     mxs::RouterSession* newSession(MXS_SESSION* pSession, const mxs::Endpoints& endpoints) override;
     json_t*             diagnostics() const override;
     uint64_t            getCapabilities() const override;
 
-    std::shared_ptr<CExporter> exporter_for(const mxs::Target* pTarget) const;
+    std::shared_ptr<DiffExporter> exporter_for(const mxs::Target* pTarget) const;
 
     mxs::Target* get_main() const
     {
@@ -69,7 +69,7 @@ public:
         return {MXS_MARIADB_PROTOCOL_NAME};
     }
 
-    const CConfig& config() const
+    const DiffConfig& config() const
     {
         return m_config;
     }
@@ -90,15 +90,15 @@ public:
     bool stop(json_t** ppOutput);
     bool summary(Summary summary, json_t** ppOutput);
 
-    void collect(const CRouterSessionStats& stats);
+    void collect(const DiffRouterSessionStats& stats);
 
-    CRegistry& registry()
+    DiffRegistry& registry()
     {
         return m_registry;
     }
 
 private:
-    void set_state(ComparatorState comparator_state,
+    void set_state(DiffState diff_state,
                    SyncState sync_state = SyncState::NOT_APPLICABLE);
     void set_sync_state(SyncState sync_state);
 
@@ -143,18 +143,18 @@ private:
 
     bool update_exporters();
 
-    CRouter(SERVICE* pService);
+    DiffRouter(SERVICE* pService);
 
-    using SExporter = std::shared_ptr<CExporter>;
+    using SExporter = std::shared_ptr<DiffExporter>;
 
-    ComparatorState                         m_comparator_state { ComparatorState::PREPARED };
+    DiffState                               m_diff_state { DiffState::PREPARED };
     SyncState                               m_sync_state { SyncState::NOT_APPLICABLE };
-    CConfig                                 m_config;
+    DiffConfig                              m_config;
     SERVICE&                                m_service;
     mxb::Worker::DCId                       m_dcstart { mxb::Worker::NO_CALL };
     std::map<const mxs::Target*, SExporter> m_exporters;
     mutable std::shared_mutex               m_exporters_rwlock;
     Stats                                   m_stats;
     std::mutex                              m_stats_lock;
-    CRegistry                               m_registry;
+    DiffRegistry                            m_registry;
 };

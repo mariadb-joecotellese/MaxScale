@@ -12,14 +12,14 @@
 
 
 /**
- * CBackend
+ * DiffBackend
  */
-CBackend::CBackend(mxs::Endpoint* pEndpoint)
+DiffBackend::DiffBackend(mxs::Endpoint* pEndpoint)
     : mxs::Backend(pEndpoint)
 {
 }
 
-void CBackend::set_router_session(CRouterSession* pRouter_session)
+void DiffBackend::set_router_session(DiffRouterSession* pRouter_session)
 {
     mxb_assert(!m_pRouter_session);
     m_pRouter_session = pRouter_session;
@@ -32,7 +32,7 @@ void CBackend::set_router_session(CRouterSession* pRouter_session)
     m_pParser_helper = &m_pParser->helper();
 }
 
-bool CBackend::extraordinary_in_process() const
+bool DiffBackend::extraordinary_in_process() const
 {
     mxb_assert(m_sQc);
     const auto& ri = m_sQc->current_route_info();
@@ -40,7 +40,7 @@ bool CBackend::extraordinary_in_process() const
     return ri.load_data_active() || ri.multi_part_packet();
 }
 
-void CBackend::process_result(const GWBUF& buffer, const mxs::Reply& reply)
+void DiffBackend::process_result(const GWBUF& buffer, const mxs::Reply& reply)
 {
     mxb_assert(m_sQc);
     m_sQc->update_from_reply(reply);
@@ -49,36 +49,36 @@ void CBackend::process_result(const GWBUF& buffer, const mxs::Reply& reply)
     m_results.front()->process(buffer);
 }
 
-void CBackend::execute_pending_explains()
+void DiffBackend::execute_pending_explains()
 {
     mxb_assert(m_pRouter_session);
 
-        m_pRouter_session->lcall([this] {
-                bool rv = true;
+    m_pRouter_session->lcall([this] {
+            bool rv = true;
 
-                if (!extraordinary_in_process())
+            if (!extraordinary_in_process())
+            {
+                while (rv && !m_pending_explains.empty())
                 {
-                    while (rv && !m_pending_explains.empty())
-                    {
-                        auto sExplain_result = std::move(m_pending_explains.front());
-                        m_pending_explains.pop_front();
+                    auto sExplain_result = std::move(m_pending_explains.front());
+                    m_pending_explains.pop_front();
 
-                        rv = execute(sExplain_result);
-                    }
+                    rv = execute(sExplain_result);
                 }
+            }
 
-                return rv;
-            });
+            return rv;
+        });
 }
 
-void CBackend::close(close_type type)
+void DiffBackend::close(close_type type)
 {
     mxs::Backend::close(type);
 
     m_results.clear();
 }
 
-bool CBackend::execute(const std::shared_ptr<CExplainResult>& sExplain_result)
+bool DiffBackend::execute(const std::shared_ptr<DiffExplainResult>& sExplain_result)
 {
     std::string sql { "EXPLAIN FORMAT=JSON "};
     sql += sExplain_result->sql();
@@ -97,30 +97,30 @@ bool CBackend::execute(const std::shared_ptr<CExplainResult>& sExplain_result)
     return rv;
 }
 
-void CBackend::schedule_explain(SCExplainResult&& sExplain_result)
+void DiffBackend::schedule_explain(SDiffExplainResult&& sExplain_result)
 {
     m_pending_explains.emplace_back(std::move(sExplain_result));
 }
 
 
 /**
- * CMainBackend
+ * DiffMainBackend
  */
-CMainBackend::CMainBackend(mxs::Endpoint* pEndpoint)
+DiffMainBackend::DiffMainBackend(mxs::Endpoint* pEndpoint)
     : Base(pEndpoint)
 {
 }
 
-CMainBackend::SResult CMainBackend::prepare(const GWBUF& packet)
+DiffMainBackend::SResult DiffMainBackend::prepare(const GWBUF& packet)
 {
-    auto sMain_result = std::make_shared<CMainResult>(this, packet);
+    auto sMain_result = std::make_shared<DiffMainResult>(this, packet);
 
     m_results.push_back(sMain_result);
 
     return sMain_result;
 }
 
-void CMainBackend::ready(const CExplainMainResult& explain_result)
+void DiffMainBackend::ready(const DiffExplainMainResult& explain_result)
 {
     ++m_stats.nExplain_responses;
 
@@ -135,29 +135,29 @@ void CMainBackend::ready(const CExplainMainResult& explain_result)
 
 
 /**
- * COtherBackend
+ * DiffOtherBackend
  */
-COtherBackend::COtherBackend(mxs::Endpoint* pEndpoint,
-                             const CConfig* pConfig,
-                             std::shared_ptr<CExporter> sExporter)
+DiffOtherBackend::DiffOtherBackend(mxs::Endpoint* pEndpoint,
+                                   const DiffConfig* pConfig,
+                                   std::shared_ptr<DiffExporter> sExporter)
     : Base(pEndpoint)
     , m_config(*pConfig)
     , m_sExporter(std::move(sExporter))
 {
 }
 
-void COtherBackend::prepare(const CMainBackend::SResult& sMain_result)
+void DiffOtherBackend::prepare(const DiffMainBackend::SResult& sMain_result)
 {
     // std::make_shared can't be used, because the private COtherResult::Handler base is inaccessible.
-    auto* pOther_result = new COtherResult(this, this, sMain_result);
-    auto sOther_result = std::shared_ptr<COtherResult>(pOther_result);
+    auto* pOther_result = new DiffOtherResult(this, this, sMain_result);
+    auto sOther_result = std::shared_ptr<DiffOtherResult>(pOther_result);
 
     sOther_result->register_at_main();
 
     m_results.emplace_back(std::move(sOther_result));
 }
 
-void COtherBackend::ready(COtherResult& other_result)
+void DiffOtherBackend::ready(DiffOtherResult& other_result)
 {
     mxb_assert(m_pHandler);
 
@@ -165,7 +165,7 @@ void COtherBackend::ready(COtherResult& other_result)
 
     m_stats.add_result(other_result, m_config);
 
-    std::shared_ptr<CExplainMainResult> sExplain_main;
+    std::shared_ptr<DiffExplainMainResult> sExplain_main;
 
     switch (m_pHandler->ready(other_result))
     {
@@ -176,9 +176,9 @@ void COtherBackend::ready(COtherResult& other_result)
         {
             mxb_assert(main_result.is_explainable());
 
-            auto& main_backend = static_cast<CMainBackend&>(main_result.backend());
+            auto& main_backend = static_cast<DiffMainBackend&>(main_result.backend());
             auto sMain_result = main_result.shared_from_this();
-            auto* pExplain_main = new CExplainMainResult(&main_backend, sMain_result);
+            auto* pExplain_main = new DiffExplainMainResult(&main_backend, sMain_result);
             sExplain_main.reset(pExplain_main);
 
             main_backend.schedule_explain(sExplain_main);
@@ -192,8 +192,8 @@ void COtherBackend::ready(COtherResult& other_result)
 
             auto sOther_result = other_result.shared_from_this();
 
-            auto* pExplain_result = new CExplainOtherResult(this, sOther_result, sExplain_main);
-            auto sExplain_result = std::shared_ptr<CExplainOtherResult>(pExplain_result);
+            auto* pExplain_result = new DiffExplainOtherResult(this, sOther_result, sExplain_main);
+            auto sExplain_result = std::shared_ptr<DiffExplainOtherResult>(pExplain_result);
 
             sExplain_result->register_at_main();
 
@@ -205,7 +205,7 @@ void COtherBackend::ready(COtherResult& other_result)
     execute_pending_explains();
 }
 
-void COtherBackend::ready(const CExplainOtherResult& explain_result)
+void DiffOtherBackend::ready(const DiffExplainOtherResult& explain_result)
 {
     mxb_assert(m_pHandler);
 
@@ -224,30 +224,30 @@ void COtherBackend::ready(const CExplainOtherResult& explain_result)
 
 
 /**
- * namespace comparator
+ * namespace diff
  */
-namespace comparator
+namespace diff
 {
 
-std::pair<SCMainBackend,SCOtherBackends>
+std::pair<SDiffMainBackend,SDiffOtherBackends>
 backends_from_endpoints(const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
-                        const CRouter& router)
+                        const DiffRouter& router)
 {
     mxb_assert(endpoints.size() > 1);
 
-    SCMainBackend sMain;
+    SDiffMainBackend sMain;
 
     for (auto* pEndpoint : endpoints)
     {
         if (pEndpoint->target() == &main_target)
         {
-            sMain.reset(new CMainBackend(pEndpoint));
+            sMain.reset(new DiffMainBackend(pEndpoint));
             break;
         }
     }
 
-    SCOtherBackends others;
+    SDiffOtherBackends others;
     others.reserve(endpoints.size() - 1);
 
     for (auto* pEndpoint : endpoints)
@@ -256,7 +256,8 @@ backends_from_endpoints(const mxs::Target& main_target,
 
         if (pTarget != &main_target)
         {
-            others.emplace_back(new COtherBackend(pEndpoint, &router.config(), router.exporter_for(pTarget)));
+            auto sExporter = router.exporter_for(pTarget);
+            others.emplace_back(new DiffOtherBackend(pEndpoint, &router.config(), sExporter));
         }
     }
 

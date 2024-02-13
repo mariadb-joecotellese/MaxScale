@@ -11,10 +11,10 @@
 
 class SERVICE;
 
-class CConfig;
-class COtherResult;
+class DiffConfig;
+class DiffOtherResult;
 
-struct CStats
+struct DiffStats
 {
     std::chrono::nanoseconds total_duration { 0 };
     int64_t                  nRequest_packets { 0 };
@@ -26,7 +26,7 @@ struct CStats
     int64_t                  nExplain_requests { 0 };
     int64_t                  nExplain_responses { 0 };
 
-    void add(const CStats& rhs)
+    void add(const DiffStats& rhs)
     {
         this->total_duration += rhs.total_duration;
         this->nRequest_packets += rhs.nRequest_packets;
@@ -42,19 +42,19 @@ struct CStats
     void fill_json(json_t* pJson) const;
 };
 
-struct CMainStats final : CStats
+struct DiffMainStats final : DiffStats
 {
     // TODO: Placeholder.
 
-    void add(const CMainStats& rhs)
+    void add(const DiffMainStats& rhs)
     {
-        CStats::add(rhs);
+        DiffStats::add(rhs);
     }
 
     json_t* to_json() const;
 };
 
-struct COtherStats final : CStats
+struct DiffOtherStats final : DiffStats
 {
     int64_t nRequests_skipped { 0 };
 
@@ -68,7 +68,7 @@ struct COtherStats final : CStats
         return m_nSlower;
     }
 
-    using ResultsByPermille = std::multimap<int64_t, std::shared_ptr<const COtherResult>>;
+    using ResultsByPermille = std::multimap<int64_t, std::shared_ptr<const DiffOtherResult>>;
 
     const ResultsByPermille& faster_requests() const
     {
@@ -80,9 +80,9 @@ struct COtherStats final : CStats
         return m_slower_requests;
     }
 
-    void add_result(const COtherResult& result, const CConfig& config);
+    void add_result(const DiffOtherResult& result, const DiffConfig& config);
 
-    void add(const COtherStats& stats, const CConfig& config);
+    void add(const DiffOtherStats& stats, const DiffConfig& config);
 
     json_t* to_json() const;
 
@@ -93,13 +93,13 @@ private:
     ResultsByPermille m_slower_requests;
 };
 
-struct CRouterSessionStats
+struct DiffRouterSessionStats
 {
-    mxs::Target*                        pMain { nullptr };
-    CMainStats                          main_stats;
-    std::map<mxs::Target*, COtherStats> other_stats;
+    mxs::Target*                           pMain { nullptr };
+    DiffMainStats                          main_stats;
+    std::map<mxs::Target*, DiffOtherStats> other_stats;
 
-    void add(const CRouterSessionStats& rhs, const CConfig& config)
+    void add(const DiffRouterSessionStats& rhs, const DiffConfig& config)
     {
         this->main_stats.add(rhs.main_stats);
 
@@ -121,26 +121,26 @@ struct CRouterSessionStats
     json_t* to_json() const;
 };
 
-class CRouterStats
+class DiffRouterStats
 {
 public:
-    CRouterStats(const SERVICE* pService)
+    DiffRouterStats(const SERVICE* pService)
         : m_service(*pService)
     {
     }
 
-    void add(const CRouterSessionStats& rhs, const CConfig& config)
+    void add(const DiffRouterSessionStats& rhs, const DiffConfig& config)
     {
         mxb_assert(m_router_session_stats.pMain == rhs.pMain);
 
         m_router_session_stats.add(rhs, config);
     }
 
-    void post_configure(const CConfig& config);
+    void post_configure(const DiffConfig& config);
 
     json_t* to_json() const;
 
 private:
-    const SERVICE&      m_service;
-    CRouterSessionStats m_router_session_stats;
+    const SERVICE&         m_service;
+    DiffRouterSessionStats m_router_session_stats;
 };

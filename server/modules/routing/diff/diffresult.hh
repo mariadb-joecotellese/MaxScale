@@ -11,16 +11,16 @@
 #include <maxscale/target.hh>
 #include "diffregistry.hh"
 
-class CBackend;
-class CMainBackend;
-class COtherBackend;
+class DiffBackend;
+class DiffMainBackend;
+class DiffOtherBackend;
 
 /**
- * @class CResult
+ * @class DiffResult
  *
  * The result of executing one particular statement.
  */
-class CResult
+class DiffResult
 {
 public:
     enum class Kind
@@ -31,12 +31,12 @@ public:
 
     using Hash = CHash;
 
-    CResult(const CResult&) = delete;
-    CResult& operator=(const CResult&) = delete;
+    DiffResult(const DiffResult&) = delete;
+    DiffResult& operator=(const DiffResult&) = delete;
 
     using Clock = std::chrono::steady_clock;
 
-    virtual ~CResult();
+    virtual ~DiffResult();
 
     virtual Kind kind() const
     {
@@ -60,7 +60,7 @@ public:
         m_reply.clear();
     }
 
-    CBackend& backend() const
+    DiffBackend& backend() const
     {
         return m_backend;
     }
@@ -83,18 +83,18 @@ public:
         return std::chrono::duration_cast<std::chrono::nanoseconds>(m_end - m_start);
     }
 
-    void set_explainers(const CRegistry::Entries& explainers)
+    void set_explainers(const DiffRegistry::Entries& explainers)
     {
         m_explainers = explainers;
     }
 
-    const CRegistry::Entries& explainers() const
+    const DiffRegistry::Entries& explainers() const
     {
         return m_explainers;
     }
 
 protected:
-    CResult(CBackend* pBackend)
+    DiffResult(DiffBackend* pBackend)
         : m_backend(*pBackend)
         , m_start(Clock::now())
         , m_end(Clock::time_point::max())
@@ -103,25 +103,25 @@ protected:
     }
 
 private:
-    CBackend&          m_backend;
-    Clock::time_point  m_start;
-    Clock::time_point  m_end;
-    mxb::CRC32         m_checksum;
-    mxs::Reply         m_reply;
-    CRegistry::Entries m_explainers;
+    DiffBackend&          m_backend;
+    Clock::time_point     m_start;
+    Clock::time_point     m_end;
+    mxb::CRC32            m_checksum;
+    mxs::Reply            m_reply;
+    DiffRegistry::Entries m_explainers;
 };
 
 
-class COtherResult;
+class DiffOtherResult;
 
-class CMainResult final : public CResult
-                        , public std::enable_shared_from_this<CMainResult>
+class DiffMainResult final : public DiffResult
+                           , public std::enable_shared_from_this<DiffMainResult>
 
 {
 public:
-    CMainResult(CMainBackend* pBackend, const GWBUF& packet);
+    DiffMainResult(DiffMainBackend* pBackend, const GWBUF& packet);
 
-    ~CMainResult();
+    ~DiffMainResult();
 
     Kind kind() const override
     {
@@ -149,15 +149,15 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend class COtherResult;
+    friend class DiffOtherResult;
 
-    void add_dependent(std::shared_ptr<COtherResult> sDependent)
+    void add_dependent(std::shared_ptr<DiffOtherResult> sDependent)
     {
         mxb_assert(m_dependents.find(sDependent) == m_dependents.end());
         m_dependents.insert(sDependent);
     }
 
-    void remove_dependent(std::shared_ptr<COtherResult> sDependent)
+    void remove_dependent(std::shared_ptr<DiffOtherResult> sDependent)
     {
         auto it = m_dependents.find(sDependent);
 
@@ -167,38 +167,38 @@ private:
     }
 
 private:
-    const int64_t                           m_id;
-    GWBUF                                   m_packet;
-    mutable std::string_view                m_sql;
-    mutable uint32_t                        m_command {0};
-    mutable std::string_view                m_canonical;
-    mutable Hash                            m_hash {0};
-    std::set<std::shared_ptr<COtherResult>> m_dependents;
+    const int64_t                              m_id;
+    GWBUF                                      m_packet;
+    mutable std::string_view                   m_sql;
+    mutable uint32_t                           m_command {0};
+    mutable std::string_view                   m_canonical;
+    mutable Hash                               m_hash {0};
+    std::set<std::shared_ptr<DiffOtherResult>> m_dependents;
 };
 
 
-class COtherResult final : public CResult
-                         , public std::enable_shared_from_this<COtherResult>
+class DiffOtherResult final : public DiffResult
+                            , public std::enable_shared_from_this<DiffOtherResult>
 {
 public:
     class Handler
     {
     public:
-        virtual void ready(COtherResult& other_result) = 0;
+        virtual void ready(DiffOtherResult& other_result) = 0;
     };
 
-    COtherResult(COtherBackend* pBackend,
-                 Handler* pHandler,
-                 std::shared_ptr<CMainResult> sMain_result);
+    DiffOtherResult(DiffOtherBackend* pBackend,
+                    Handler* pHandler,
+                    std::shared_ptr<DiffMainResult> sMain_result);
 
-    ~COtherResult();
+    ~DiffOtherResult();
 
     void register_at_main()
     {
         m_sMain_result->add_dependent(shared_from_this());
     }
 
-    CMainResult& main_result() const
+    DiffMainResult& main_result() const
     {
         mxb_assert(m_sMain_result);
         return *m_sMain_result.get();
@@ -237,17 +237,17 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend CMainResult;
+    friend DiffMainResult;
 
     void main_was_closed();
 
 private:
-    Handler&                     m_handler;
-    std::shared_ptr<CMainResult> m_sMain_result;
+    Handler&                        m_handler;
+    std::shared_ptr<DiffMainResult> m_sMain_result;
 };
 
 
-class CExplainResult : public CResult
+class DiffExplainResult : public DiffResult
 {
 public:
     virtual std::string_view sql() const = 0;
@@ -268,8 +268,8 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 protected:
-    CExplainResult(CBackend* pBackend)
-        : CResult(pBackend)
+    DiffExplainResult(DiffBackend* pBackend)
+        : DiffResult(pBackend)
     {
     }
 
@@ -278,14 +278,14 @@ private:
 };
 
 
-class CExplainOtherResult;
+class DiffExplainOtherResult;
 
-class CExplainMainResult final : public CExplainResult
+class DiffExplainMainResult final : public DiffExplainResult
 {
 public:
-    CExplainMainResult(CMainBackend* pBackend, std::shared_ptr<CMainResult> sMain_result);
+    DiffExplainMainResult(DiffMainBackend* pBackend, std::shared_ptr<DiffMainResult> sMain_result);
 
-    ~CExplainMainResult();
+    ~DiffExplainMainResult();
 
     std::string_view sql() const override
     {
@@ -295,15 +295,15 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend class CExplainOtherResult;
+    friend class DiffExplainOtherResult;
 
-    void add_dependent(std::shared_ptr<CExplainOtherResult> sDependent)
+    void add_dependent(std::shared_ptr<DiffExplainOtherResult> sDependent)
     {
         mxb_assert(m_dependents.find(sDependent) == m_dependents.end());
         m_dependents.insert(sDependent);
     }
 
-    void remove_dependent(std::shared_ptr<CExplainOtherResult> sDependent)
+    void remove_dependent(std::shared_ptr<DiffExplainOtherResult> sDependent)
     {
         auto it = m_dependents.find(sDependent);
 
@@ -313,26 +313,26 @@ private:
     }
 
 private:
-    std::shared_ptr<CMainResult>                   m_sMain_result;
-    std::set<std::shared_ptr<CExplainOtherResult>> m_dependents;
+    std::shared_ptr<DiffMainResult>                m_sMain_result;
+    std::set<std::shared_ptr<DiffExplainOtherResult>> m_dependents;
 };
 
 
-class CExplainOtherResult final : public CExplainResult
-                                , public std::enable_shared_from_this<CExplainOtherResult>
+class DiffExplainOtherResult final : public DiffExplainResult
+                                   , public std::enable_shared_from_this<DiffExplainOtherResult>
 
 {
 public:
     class Handler
     {
     public:
-        virtual void ready(const CExplainOtherResult& explain_other_result) = 0;
+        virtual void ready(const DiffExplainOtherResult& explain_other_result) = 0;
     };
 
-    CExplainOtherResult(Handler* pHandler,
-                        std::shared_ptr<const COtherResult> sOther_result,
-                        std::shared_ptr<CExplainMainResult> sExplain_main_result);
-    ~CExplainOtherResult();
+    DiffExplainOtherResult(Handler* pHandler,
+                           std::shared_ptr<const DiffOtherResult> sOther_result,
+                           std::shared_ptr<DiffExplainMainResult> sExplain_main_result);
+    ~DiffExplainOtherResult();
 
     void register_at_main()
     {
@@ -347,12 +347,12 @@ public:
         return m_sOther_result->sql();
     }
 
-    const COtherResult& other_result() const
+    const DiffOtherResult& other_result() const
     {
         return *m_sOther_result.get();
     }
 
-    const CExplainMainResult* explain_main_result() const
+    const DiffExplainMainResult* explain_main_result() const
     {
         return m_sExplain_main_result.get();
     }
@@ -360,12 +360,12 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend CExplainMainResult;
+    friend DiffExplainMainResult;
 
     void main_was_closed();
 
 private:
-    Handler&                            m_handler;
-    std::shared_ptr<const COtherResult> m_sOther_result;
-    std::shared_ptr<CExplainMainResult> m_sExplain_main_result;
+    Handler&                               m_handler;
+    std::shared_ptr<const DiffOtherResult> m_sOther_result;
+    std::shared_ptr<DiffExplainMainResult> m_sExplain_main_result;
 };

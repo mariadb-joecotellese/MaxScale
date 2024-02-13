@@ -35,15 +35,15 @@ enum class Report
     ON_DISCREPANCY,
 };
 
-class CRouter;
+class DiffRouter;
 
-class CConfig : public mxs::config::Configuration
+class DiffConfig : public mxs::config::Configuration
 {
 public:
-    CConfig(const CConfig&) = delete;
-    CConfig& operator=(const CConfig&) = delete;
+    DiffConfig(const DiffConfig&) = delete;
+    DiffConfig& operator=(const DiffConfig&) = delete;
 
-    CConfig(const char* zName, CRouter* pInstance);
+    DiffConfig(const char* zName, DiffRouter* pInstance);
 
     mxs::Target* pMain;
 
@@ -71,7 +71,7 @@ protected:
     bool check_configuration() override;
 
 private:
-    CRouter& m_instance;
+    DiffRouter& m_instance;
 };
 
 /* *INDENT-OFF* */

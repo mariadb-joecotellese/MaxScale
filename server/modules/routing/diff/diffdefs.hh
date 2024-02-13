@@ -5,13 +5,13 @@
  */
 #pragma once
 
-#define MXB_MODULE_NAME "comparator"
+#define MXB_MODULE_NAME "diff"
 
 #include <maxscale/ccdefs.hh>
 #include <maxscale/log.hh>
 #include <maxscale/router.hh>
 #include <maxscale/routing.hh>
 
-const uint64_t COMPARATOR_CAPABILITIES = RCAP_TYPE_REQUEST_TRACKING | RCAP_TYPE_RUNTIME_CONFIG;
+const uint64_t DIFF_CAPABILITIES = RCAP_TYPE_REQUEST_TRACKING | RCAP_TYPE_RUNTIME_CONFIG;
 
 using CHash = uint64_t;

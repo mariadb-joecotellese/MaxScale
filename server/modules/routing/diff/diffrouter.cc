@@ -22,7 +22,7 @@ using namespace mxs;
 using std::chrono::duration_cast;
 
 
-CRouter::CRouter(SERVICE* pService)
+DiffRouter::DiffRouter(SERVICE* pService)
     : mxb::Worker::Callable(mxs::MainWorker::get())
     , m_config(pService->name(), this)
     , m_service(*pService)
@@ -30,26 +30,26 @@ CRouter::CRouter(SERVICE* pService)
 {
 }
 
-CRouter::~CRouter()
+DiffRouter::~DiffRouter()
 {
     summary(Summary::SAVE, nullptr);
 }
 
 // static
-const char* CRouter::to_string(ComparatorState comparator_state)
+const char* DiffRouter::to_string(DiffState diff_state)
 {
-    switch (comparator_state)
+    switch (diff_state)
     {
-    case ComparatorState::PREPARED:
+    case DiffState::PREPARED:
         return "prepared";
 
-    case ComparatorState::SYNCHRONIZING:
+    case DiffState::SYNCHRONIZING:
         return "synchronizing";
 
-    case ComparatorState::COMPARING:
+    case DiffState::COMPARING:
         return "comparing";
 
-    case ComparatorState::STOPPING:
+    case DiffState::STOPPING:
         return "stopping";
     }
 
@@ -58,7 +58,7 @@ const char* CRouter::to_string(ComparatorState comparator_state)
 }
 
 // static
-const char* CRouter::to_string(SyncState sync_state)
+const char* DiffRouter::to_string(SyncState sync_state)
 {
     switch (sync_state)
     {
@@ -78,12 +78,12 @@ const char* CRouter::to_string(SyncState sync_state)
 }
 
 // static
-CRouter* CRouter::create(SERVICE* pService)
+DiffRouter* DiffRouter::create(SERVICE* pService)
 {
-    return new CRouter(pService);
+    return new DiffRouter(pService);
 }
 
-RouterSession* CRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpoints)
+RouterSession* DiffRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpoints)
 {
     const auto& children = m_service.get_children();
 
@@ -93,7 +93,7 @@ RouterSession* CRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpo
         return nullptr;
     }
 
-    auto [ sMain, backends ] = comparator::backends_from_endpoints(*m_config.pMain, endpoints, *this);
+    auto [ sMain, backends ] = diff::backends_from_endpoints(*m_config.pMain, endpoints, *this);
     bool connected = false;
 
     if (sMain->can_connect() && sMain->connect())
@@ -113,13 +113,13 @@ RouterSession* CRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpo
 
     if (connected)
     {
-        pRouter_session = new CRouterSession(pSession, this, std::move(sMain), std::move(backends));
+        pRouter_session = new DiffRouterSession(pSession, this, std::move(sMain), std::move(backends));
     }
 
     return pRouter_session;
 }
 
-std::shared_ptr<CExporter> CRouter::exporter_for(const mxs::Target* pTarget) const
+std::shared_ptr<DiffExporter> DiffRouter::exporter_for(const mxs::Target* pTarget) const
 {
     std::shared_lock<std::shared_mutex> guard(m_exporters_rwlock);
 
@@ -129,17 +129,17 @@ std::shared_ptr<CExporter> CRouter::exporter_for(const mxs::Target* pTarget) con
     return it->second;
 }
 
-json_t* CRouter::diagnostics() const
+json_t* DiffRouter::diagnostics() const
 {
     return nullptr;
 }
 
-uint64_t CRouter::getCapabilities() const
+uint64_t DiffRouter::getCapabilities() const
 {
-    return COMPARATOR_CAPABILITIES;
+    return DIFF_CAPABILITIES;
 }
 
-bool CRouter::post_configure()
+bool DiffRouter::post_configure()
 {
     bool rv= true;
 
@@ -167,7 +167,7 @@ bool CRouter::post_configure()
     return rv;
 }
 
-bool CRouter::check_configuration()
+bool DiffRouter::check_configuration()
 {
     // Called at MaxScale startup.
 
@@ -183,13 +183,13 @@ bool CRouter::check_configuration()
     {
         // We seem to be a direct child of the service. We'll assume
         // we are ready to go.
-        m_comparator_state = ComparatorState::COMPARING;
+        m_diff_state = DiffState::COMPARING;
         m_sync_state = SyncState::NOT_APPLICABLE;
 
         // TODO: Ensure that our other server's replication status
         // TODO: and our comparison_kind are compatible.
 
-        MXB_NOTICE("'%s' starting in the '%s' state.", m_service.name(), to_string(m_comparator_state));
+        MXB_NOTICE("'%s' starting in the '%s' state.", m_service.name(), to_string(m_diff_state));
     }
     else
     {
@@ -199,7 +199,7 @@ bool CRouter::check_configuration()
         {
             // Main found where it is supposed to be. So, we are prepared
             // and must be started before comparing is done.
-            m_comparator_state = ComparatorState::PREPARED;
+            m_diff_state = DiffState::PREPARED;
             m_sync_state = SyncState::NOT_APPLICABLE;
 
             // TODO: Ensure that our other server's replication status
@@ -207,7 +207,7 @@ bool CRouter::check_configuration()
 
             MXB_NOTICE("'%s' starting in the '%s' state. It needs to be started "
                        "in order for the comparison to proceed.",
-                       m_service.name(), to_string(m_comparator_state));
+                       m_service.name(), to_string(m_diff_state));
         }
         else
         {
@@ -225,25 +225,25 @@ bool CRouter::check_configuration()
     return rv;
 }
 
-bool CRouter::start(json_t** ppOutput)
+bool DiffRouter::start(json_t** ppOutput)
 {
     mxb_assert(MainWorker::is_current());
 
-    if (m_comparator_state != ComparatorState::PREPARED)
+    if (m_diff_state != DiffState::PREPARED)
     {
         MXB_ERROR("State of '%s' is '%s'. Can be started only when in state '%s'.",
-                  m_service.name(), to_string(m_comparator_state), to_string(ComparatorState::PREPARED));
+                  m_service.name(), to_string(m_diff_state), to_string(DiffState::PREPARED));
         return false;
     }
 
-    set_state(ComparatorState::SYNCHRONIZING, SyncState::SUSPENDING_SESSIONS);
+    set_state(DiffState::SYNCHRONIZING, SyncState::SUSPENDING_SESSIONS);
 
     RoutingWorker::SessionResult sr = suspend_sessions();
 
     MainWorker::get()->lcall([this, sr]() {
             setup(sr);
 
-            if (m_comparator_state == ComparatorState::SYNCHRONIZING)
+            if (m_diff_state == DiffState::SYNCHRONIZING)
             {
                 start_setup_dcall();
             }
@@ -254,7 +254,7 @@ bool CRouter::start(json_t** ppOutput)
     return true;
 }
 
-bool CRouter::status(json_t** ppOutput)
+bool DiffRouter::status(json_t** ppOutput)
 {
     RoutingWorker::SessionResult sr = suspended_sessions();
 
@@ -263,44 +263,44 @@ bool CRouter::status(json_t** ppOutput)
     return true;
 }
 
-bool CRouter::stop(json_t** ppOutput)
+bool DiffRouter::stop(json_t** ppOutput)
 {
     mxb_assert(MainWorker::is_current());
 
     bool rv = false;
 
-    switch (m_comparator_state)
+    switch (m_diff_state)
     {
-    case ComparatorState::PREPARED:
+    case DiffState::PREPARED:
         MXB_ERROR("The state of '%s' is '%s' and hence it cannot be stopped.",
-                  m_service.name(), to_string(m_comparator_state));
+                  m_service.name(), to_string(m_diff_state));
         break;
 
-    case ComparatorState::SYNCHRONIZING:
+    case DiffState::SYNCHRONIZING:
         mxb_assert(m_dcstart != 0);
         cancel_dcall(m_dcstart);
         m_dcstart = 0;
 
         resume_sessions();
 
-        set_state(ComparatorState::PREPARED);
+        set_state(DiffState::PREPARED);
         rv = true;
         break;
 
-    case ComparatorState::STOPPING:
+    case DiffState::STOPPING:
         MXB_ERROR("'%s' is already being stopped.", m_service.name());
         break;
 
-    case ComparatorState::COMPARING:
+    case DiffState::COMPARING:
         {
-            set_state(ComparatorState::STOPPING, SyncState::SUSPENDING_SESSIONS);
+            set_state(DiffState::STOPPING, SyncState::SUSPENDING_SESSIONS);
 
             RoutingWorker::SessionResult sr = suspend_sessions();
 
             MainWorker::get()->lcall([this, sr]() {
                     teardown(sr);
 
-                    if (m_comparator_state == ComparatorState::STOPPING)
+                    if (m_diff_state == DiffState::STOPPING)
                     {
                         start_teardown_dcall();
                     }
@@ -342,7 +342,7 @@ bool save_stats(const std::string& path, json_t* pOutput)
 
 }
 
-bool CRouter::summary(Summary summary, json_t** ppOutput)
+bool DiffRouter::summary(Summary summary, json_t** ppOutput)
 {
     bool rv = true;
 
@@ -383,68 +383,68 @@ bool CRouter::summary(Summary summary, json_t** ppOutput)
     return rv;
 }
 
-void CRouter::collect(const CRouterSessionStats& stats)
+void DiffRouter::collect(const DiffRouterSessionStats& stats)
 {
     std::lock_guard<std::mutex> guard(m_stats_lock);
 
     m_stats.add(stats, m_config);
 }
 
-void CRouter::set_state(ComparatorState comparator_state, SyncState sync_state)
+void DiffRouter::set_state(DiffState diff_state, SyncState sync_state)
 {
-    m_comparator_state = comparator_state;
+    m_diff_state = diff_state;
     m_sync_state = sync_state;
 
 #ifdef SS_DEBUG
-    switch (m_comparator_state)
+    switch (m_diff_state)
     {
-    case ComparatorState::PREPARED:
-    case ComparatorState::COMPARING:
+    case DiffState::PREPARED:
+    case DiffState::COMPARING:
         mxb_assert(m_sync_state == SyncState::NOT_APPLICABLE);
         break;
 
-    case ComparatorState::SYNCHRONIZING:
+    case DiffState::SYNCHRONIZING:
         mxb_assert(m_sync_state != SyncState::NOT_APPLICABLE);
         break;
 
-    case ComparatorState::STOPPING:
+    case DiffState::STOPPING:
         mxb_assert(m_sync_state == SyncState::SUSPENDING_SESSIONS);
     }
 #endif
 }
 
-void CRouter::set_sync_state(SyncState sync_state)
+void DiffRouter::set_sync_state(SyncState sync_state)
 {
     m_sync_state = sync_state;
 
-    mxb_assert(m_comparator_state == ComparatorState::SYNCHRONIZING
+    mxb_assert(m_diff_state == DiffState::SYNCHRONIZING
                && m_sync_state != SyncState::NOT_APPLICABLE);
 }
 
-mxs::RoutingWorker::SessionResult CRouter::restart_sessions()
+mxs::RoutingWorker::SessionResult DiffRouter::restart_sessions()
 {
     return mxs::RoutingWorker::restart_sessions(m_config.pService->name());
 }
 
-mxs::RoutingWorker::SessionResult CRouter::suspend_sessions()
+mxs::RoutingWorker::SessionResult DiffRouter::suspend_sessions()
 {
     return mxs::RoutingWorker::suspend_sessions(m_config.pService->name());
 }
 
-mxs::RoutingWorker::SessionResult CRouter::resume_sessions()
+mxs::RoutingWorker::SessionResult DiffRouter::resume_sessions()
 {
     return mxs::RoutingWorker::resume_sessions(m_config.pService->name());
 }
 
-mxs::RoutingWorker::SessionResult CRouter::suspended_sessions()
+mxs::RoutingWorker::SessionResult DiffRouter::suspended_sessions()
 {
     return mxs::RoutingWorker::suspended_sessions(m_config.pService->name());
 }
 
-void CRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOutput)
+void DiffRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOutput)
 {
     json_t* pOutput = json_object();
-    json_object_set_new(pOutput, "state", json_string(to_string(m_comparator_state)));
+    json_object_set_new(pOutput, "state", json_string(to_string(m_diff_state)));
     json_object_set_new(pOutput, "sync_state", json_string(to_string(m_sync_state)));
     json_t* pSessions = json_object();
     json_object_set_new(pSessions, "total", json_integer(sr.total));
@@ -454,8 +454,8 @@ void CRouter::get_status(mxs::RoutingWorker::SessionResult sr, json_t** ppOutput
     *ppOutput = pOutput;
 }
 
-bool CRouter::rewire_service(const std::set<std::string>& from_targets,
-                             const std::set<std::string>& to_targets)
+bool DiffRouter::rewire_service(const std::set<std::string>& from_targets,
+                                const std::set<std::string>& to_targets)
 {
     bool rv = false;
 
@@ -483,7 +483,7 @@ bool CRouter::rewire_service(const std::set<std::string>& from_targets,
     return rv;
 }
 
-bool CRouter::rewire_service_for_comparison()
+bool DiffRouter::rewire_service_for_comparison()
 {
     bool rv = false;
 
@@ -500,7 +500,7 @@ bool CRouter::rewire_service_for_comparison()
     return rv;
 }
 
-bool CRouter::rewire_service_for_normalcy()
+bool DiffRouter::rewire_service_for_normalcy()
 {
     bool rv = false;
 
@@ -517,7 +517,7 @@ bool CRouter::rewire_service_for_normalcy()
     return rv;
 }
 
-bool CRouter::reset_replication(const SERVER& server)
+bool DiffRouter::reset_replication(const SERVER& server)
 {
     bool rv = false;
 
@@ -559,7 +559,7 @@ bool CRouter::reset_replication(const SERVER& server)
     return rv;
 }
 
-bool CRouter::stop_replication(const SERVER& server)
+bool DiffRouter::stop_replication(const SERVER& server)
 {
     bool rv = false;
 
@@ -592,7 +592,7 @@ bool CRouter::stop_replication(const SERVER& server)
     return rv;
 }
 
-void CRouter::reset_replication()
+void DiffRouter::reset_replication()
 {
     // TODO: For now it should be ensured that the immediate
     // TODO: children are all servers.
@@ -665,7 +665,7 @@ std::optional<GtidPosByDomain> get_gtid_pos_by_domain(const SERVICE& service, co
 
 }
 
-CRouter::ReplicationStatus CRouter::stop_replication()
+DiffRouter::ReplicationStatus DiffRouter::stop_replication()
 {
     ReplicationStatus rv = ReplicationStatus::ERROR;
 
@@ -745,7 +745,7 @@ CRouter::ReplicationStatus CRouter::stop_replication()
     return rv;
 }
 
-void CRouter::restart_and_resume()
+void DiffRouter::restart_and_resume()
 {
     RoutingWorker::SessionResult sr = restart_sessions();
 
@@ -765,7 +765,7 @@ void CRouter::restart_and_resume()
     }
 }
 
-void CRouter::setup(const RoutingWorker::SessionResult& sr)
+void DiffRouter::setup(const RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
@@ -784,7 +784,7 @@ void CRouter::setup(const RoutingWorker::SessionResult& sr)
             if (rewire_service_for_comparison())
             {
                 restart_and_resume();
-                set_state(ComparatorState::COMPARING);
+                set_state(DiffState::COMPARING);
             }
             else
             {
@@ -800,7 +800,7 @@ void CRouter::setup(const RoutingWorker::SessionResult& sr)
                                m_config.pService->name());
 
                     resume_sessions();
-                    set_state(ComparatorState::PREPARED);
+                    set_state(DiffState::PREPARED);
                 }
                 else
                 {
@@ -820,19 +820,19 @@ void CRouter::setup(const RoutingWorker::SessionResult& sr)
                       "Resuming sessions according to original configuration.",
                       m_config.pService->name());
             resume_sessions();
-            set_state(ComparatorState::PREPARED);
+            set_state(DiffState::PREPARED);
             break;
         }
     }
 }
 
-bool CRouter::setup_dcall()
+bool DiffRouter::setup_dcall()
 {
     RoutingWorker::SessionResult sr = suspend_sessions();
 
     setup(sr);
 
-    bool call_again = (m_comparator_state == ComparatorState::SYNCHRONIZING);
+    bool call_again = (m_diff_state == DiffState::SYNCHRONIZING);
 
     if (!call_again)
     {
@@ -842,7 +842,7 @@ bool CRouter::setup_dcall()
     return call_again;
 }
 
-void CRouter::start_setup_dcall()
+void DiffRouter::start_setup_dcall()
 {
     mxb_assert(m_dcstart == 0);
 
@@ -851,7 +851,7 @@ void CRouter::start_setup_dcall()
         });
 }
 
-void CRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
+void DiffRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
@@ -870,17 +870,17 @@ void CRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
             mxb_assert(!true);
         }
 
-        set_state(ComparatorState::PREPARED);
+        set_state(DiffState::PREPARED);
     }
 }
 
-bool CRouter::teardown_dcall()
+bool DiffRouter::teardown_dcall()
 {
     RoutingWorker::SessionResult sr = suspend_sessions();
 
     teardown(sr);
 
-    bool call_again = (m_comparator_state == ComparatorState::STOPPING);
+    bool call_again = (m_diff_state == DiffState::STOPPING);
 
     if (!call_again)
     {
@@ -890,7 +890,7 @@ bool CRouter::teardown_dcall()
     return call_again;
 }
 
-void CRouter::start_teardown_dcall()
+void DiffRouter::start_teardown_dcall()
 {
     mxb_assert(m_dcstart == 0);
 
@@ -899,7 +899,7 @@ void CRouter::start_teardown_dcall()
         });
 }
 
-bool CRouter::update_exporters()
+bool DiffRouter::update_exporters()
 {
     bool rv = true;
 

@@ -12,9 +12,9 @@
 using std::chrono::duration_cast;
 
 /**
- * CStats
+ * DiffStats
  */
-void CStats::fill_json(json_t* pJson) const
+void DiffStats::fill_json(json_t* pJson) const
 {
     std::chrono::milliseconds ms;
 
@@ -37,9 +37,9 @@ void CStats::fill_json(json_t* pJson) const
 
 
 /**
- * CMainStats
+ * DiffMainStats
  */
-json_t* CMainStats::to_json() const
+json_t* DiffMainStats::to_json() const
 {
     json_t* pJson = json_object();
 
@@ -52,9 +52,9 @@ json_t* CMainStats::to_json() const
 
 
 /**
- * COtherStats
+ * DiffOtherStats
  */
-void COtherStats::add_result(const COtherResult& other_result, const CConfig& config)
+void DiffOtherStats::add_result(const DiffOtherResult& other_result, const DiffConfig& config)
 {
     std::chrono::nanoseconds other_duration = other_result.duration();
     std::chrono::nanoseconds main_duration = other_result.main_result().duration();
@@ -110,9 +110,9 @@ void COtherStats::add_result(const COtherResult& other_result, const CConfig& co
     }
 }
 
-void COtherStats::add(const COtherStats& rhs, const CConfig& config)
+void DiffOtherStats::add(const DiffOtherStats& rhs, const DiffConfig& config)
 {
-    CStats::add(rhs);
+    DiffStats::add(rhs);
 
     this->nRequests_skipped += rhs.nRequests_skipped;
 
@@ -151,7 +151,7 @@ void COtherStats::add(const COtherStats& rhs, const CConfig& config)
     }
 }
 
-json_t* COtherStats::to_json() const
+json_t* DiffOtherStats::to_json() const
 {
     json_t* pJson = json_object();
 
@@ -178,7 +178,7 @@ json_t* COtherStats::to_json() const
             json_object_set_new(pEntry, "id", json_integer(sOther_result->id()));
 
             json_t* pExplainers = json_array();
-            const CRegistry::Entries& explainers = sOther_result->explainers();
+            const DiffRegistry::Entries& explainers = sOther_result->explainers();
 
             for (const auto& explainer : explainers)
             {
@@ -203,9 +203,9 @@ json_t* COtherStats::to_json() const
 
 
 /**
- * CRouterSessionStats
+ * DiffRouterSessionStats
  */
-json_t* CRouterSessionStats::to_json() const
+json_t* DiffRouterSessionStats::to_json() const
 {
     json_t* pJson = json_object();
 
@@ -228,16 +228,16 @@ json_t* CRouterSessionStats::to_json() const
 }
 
 /**
- * CRouterStats
+ * DiffRouterStats
  */
-void CRouterStats::post_configure(const CConfig& config)
+void DiffRouterStats::post_configure(const DiffConfig& config)
 {
     mxb_assert(!m_router_session_stats.pMain);
 
     m_router_session_stats.pMain = config.pMain;
 }
 
-json_t* CRouterStats::to_json() const
+json_t* DiffRouterStats::to_json() const
 {
     json_t* pJson = json_object();
 

@@ -37,7 +37,7 @@ void register_summary_command();
 void register_unprepare_command();
 }
 
-void comparator_register_commands()
+void diff_register_commands()
 {
     register_prepare_command();
     register_start_command();
@@ -129,11 +129,11 @@ bool check_prepare_prerequisites(const SERVICE& service,
     return rv;
 }
 
-Service* create_comparator_service(const string& name,
-                                   const SERVICE& service,
-                                   const SERVER& main,
-                                   const SERVER& other,
-                                   const char* zComparison_kind)
+Service* create_diff_service(const string& name,
+                             const SERVICE& service,
+                             const SERVER& main,
+                             const SERVER& other,
+                             const char* zComparison_kind)
 {
     auto& sValues = service.config();
 
@@ -180,13 +180,13 @@ Service* create_comparator_service(const string& name,
 
         if (!pC_service)
         {
-            MXB_ERROR("Could create Comparator service '%s', but it could not subsequently "
+            MXB_ERROR("Could create Diff service '%s', but it could not subsequently "
                       "be looked up.", name.c_str());
         }
     }
     else
     {
-        MXB_ERROR("Could not create Comparator service '%s', please check earlier errors.", name.c_str());
+        MXB_ERROR("Could not create Diff service '%s', please check earlier errors.", name.c_str());
     }
 
     json_decref(pJson);
@@ -194,26 +194,26 @@ Service* create_comparator_service(const string& name,
     return pC_service;
 }
 
-Service* create_comparator_service(const SERVICE& service,
-                                   const SERVER& main,
-                                   const SERVER& other,
-                                   const char* zComparison_kind)
+Service* create_diff_service(const SERVICE& service,
+                             const SERVER& main,
+                             const SERVER& other,
+                             const char* zComparison_kind)
 {
     Service* pC_service = nullptr;
 
-    string name { "Comparator" };
+    string name { "Diff" };
     name += service.name();
 
     if (const char* zType = mxs::Config::get_object_type(name))
     {
-        MXB_ERROR("Cannot create Comparator service for the service '%s', a %s "
+        MXB_ERROR("Cannot create Diff service for the service '%s', a %s "
                   "with the name '%s' exists already.",
                   service.name(), zType, name.c_str());
     }
     else
     {
         UnmaskPasswords unmasker;
-        pC_service = create_comparator_service(name, service, main, other, zComparison_kind);
+        pC_service = create_diff_service(name, service, main, other, zComparison_kind);
     }
 
     return pC_service;
@@ -291,12 +291,12 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
         if (rv)
         {
-            Service* pC_service = create_comparator_service(*pService, *pMain, *pOther, zComparison_kind);
+            Service* pC_service = create_diff_service(*pService, *pMain, *pOther, zComparison_kind);
 
             if (pC_service)
             {
                 json_t* pOutput = json_object();
-                auto s = mxb::string_printf("Comparator service '%s' created. Server '%s' ready "
+                auto s = mxb::string_printf("Diff service '%s' created. Server '%s' ready "
                                             "to be evaluated.",
                                             pC_service->name(),
                                             pOther->name());
@@ -326,7 +326,7 @@ void register_prepare_command()
                                                   command_prepare,
                                                   MXS_ARRAY_NELEMS(command_prepare_argv),
                                                   command_prepare_argv,
-                                                  "Prepare Comparator for Service");
+                                                  "Prepare Diff for Service");
     mxb_assert(rv);
 }
 
@@ -349,7 +349,7 @@ static int command_start_argc = MXS_ARRAY_NELEMS(command_start_argv);
 bool command_start(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
     auto* pService = pArgs->argv[0].value.service;
-    auto* pRouter = static_cast<CRouter*>(pService->router());
+    auto* pRouter = static_cast<DiffRouter*>(pService->router());
 
     return pRouter->start(ppOutput);
 };
@@ -364,7 +364,7 @@ void register_start_command()
                                                   command_start,
                                                   MXS_ARRAY_NELEMS(command_start_argv),
                                                   command_start_argv,
-                                                  "Start Comparator for Service");
+                                                  "Start Diff for Service");
     mxb_assert(rv);
 }
 
@@ -387,7 +387,7 @@ static int command_status_argc = MXS_ARRAY_NELEMS(command_status_argv);
 bool command_status(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
     auto* pService = pArgs->argv[0].value.service;
-    auto* pRouter = static_cast<CRouter*>(pService->router());
+    auto* pRouter = static_cast<DiffRouter*>(pService->router());
 
     return pRouter->status(ppOutput);
 };
@@ -402,7 +402,7 @@ void register_status_command()
                                                   command_status,
                                                   MXS_ARRAY_NELEMS(command_status_argv),
                                                   command_status_argv,
-                                                  "comparator service status");
+                                                  "diff service status");
     mxb_assert(rv);
 }
 
@@ -425,7 +425,7 @@ static int command_stop_argc = MXS_ARRAY_NELEMS(command_stop_argv);
 bool command_stop(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
     auto* pService = pArgs->argv[0].value.service;
-    auto* pRouter = static_cast<CRouter*>(pService->router());
+    auto* pRouter = static_cast<DiffRouter*>(pService->router());
 
     return pRouter->stop(ppOutput);
 };
@@ -440,7 +440,7 @@ void register_stop_command()
                                                   command_stop,
                                                   MXS_ARRAY_NELEMS(command_stop_argv),
                                                   command_stop_argv,
-                                                  "comparator service stop");
+                                                  "diff service stop");
     mxb_assert(rv);
 }
 
@@ -460,11 +460,11 @@ static modulecmd_arg_type_t command_summary_argv[] =
      "saved, or both returned and saved. 'save' is the default."},
 };
 
-std::map<std::string, CRouter::Summary> summary_keywords =
+std::map<std::string, DiffRouter::Summary> summary_keywords =
 {
-    { "return", CRouter::Summary::RETURN },
-    { "save", CRouter::Summary::SAVE },
-    { "both", CRouter::Summary::BOTH },
+    { "return", DiffRouter::Summary::RETURN },
+    { "save", DiffRouter::Summary::SAVE },
+    { "both", DiffRouter::Summary::BOTH },
 };
 
 static int command_summary_argc = MXS_ARRAY_NELEMS(command_summary_argv);
@@ -475,9 +475,9 @@ bool command_summary(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     bool rv = true;
 
     auto* pService = pArgs->argv[0].value.service;
-    auto* pRouter = static_cast<CRouter*>(pService->router());
+    auto* pRouter = static_cast<DiffRouter*>(pService->router());
 
-    CRouter::Summary summary = CRouter::Summary::SAVE;
+    DiffRouter::Summary summary = DiffRouter::Summary::SAVE;
 
     if (pArgs->argc == 2)
     {
@@ -524,7 +524,7 @@ void register_summary_command()
                                                   command_summary,
                                                   MXS_ARRAY_NELEMS(command_summary_argv),
                                                   command_summary_argv,
-                                                  "comparator service summary");
+                                                  "diff service summary");
     mxb_assert(rv);
 }
 
@@ -589,7 +589,7 @@ void register_unprepare_command()
                                                   command_unprepare,
                                                   MXS_ARRAY_NELEMS(command_unprepare_argv),
                                                   command_unprepare_argv,
-                                                  "Unprepare/destroy comparator service");
+                                                  "Unprepare/destroy diff service");
     mxb_assert(rv);
 }
 

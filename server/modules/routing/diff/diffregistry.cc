@@ -16,17 +16,17 @@ struct ThisUnit
 
 }
 
-CRegistry::CRegistry()
+DiffRegistry::DiffRegistry()
 {
 }
 
 //static
-CRegistry::Hash CRegistry::hash_for(std::string_view canonical_sql)
+DiffRegistry::Hash DiffRegistry::hash_for(std::string_view canonical_sql)
 {
     return this_unit.hash(canonical_sql);
 }
 
-bool CRegistry::is_explained(mxb::TimePoint now, Hash hash, int64_t id, Entries* pEntries)
+bool DiffRegistry::is_explained(mxb::TimePoint now, Hash hash, int64_t id, Entries* pEntries)
 {
     bool rv = false;
 
@@ -94,7 +94,7 @@ bool CRegistry::is_explained(mxb::TimePoint now, Hash hash, int64_t id, Entries*
 }
 
 
-bool CRegistry::needs_updating(mxb::TimePoint now, std::vector<Entry>& entries)
+bool DiffRegistry::needs_updating(mxb::TimePoint now, std::vector<Entry>& entries)
 {
     bool rv = false;
 

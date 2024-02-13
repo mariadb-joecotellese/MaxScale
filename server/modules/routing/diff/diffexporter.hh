@@ -10,10 +10,10 @@
 #include <maxscale/target.hh>
 #include "diffconfig.hh"
 
-class CExporter
+class DiffExporter
 {
 public:
-    virtual ~CExporter() = default;
+    virtual ~DiffExporter() = default;
 
     /**
      * Ship a JSON object outside of MaxScale
@@ -23,4 +23,4 @@ public:
     virtual void ship(json_t* pJson) = 0;
 };
 
-std::unique_ptr<CExporter> build_exporter(const CConfig& config, const mxs::Target& target);
+std::unique_ptr<DiffExporter> build_exporter(const DiffConfig& config, const mxs::Target& target);

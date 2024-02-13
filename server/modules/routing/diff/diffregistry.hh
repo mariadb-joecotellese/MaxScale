@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include "diffconfig.hh"
 
-class CRegistry final
+class DiffRegistry final
 {
 public:
     struct Entry
@@ -21,11 +21,11 @@ public:
     using Entries = std::vector<Entry>;
     using Hash = CHash;
 
-    CRegistry(const CRegistry&) = delete;
-    CRegistry& operator=(const CRegistry&);
+    DiffRegistry(const DiffRegistry&) = delete;
+    DiffRegistry& operator=(const DiffRegistry&);
 
-    CRegistry();
-    ~CRegistry() = default;
+    DiffRegistry();
+    ~DiffRegistry() = default;
 
     /**
      * Specify how many times a statement should be explained.

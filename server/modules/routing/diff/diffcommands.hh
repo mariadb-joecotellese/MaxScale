@@ -6,4 +6,4 @@
 
 #include "diffdefs.hh"
 
-void comparator_register_commands();
+void diff_register_commands();

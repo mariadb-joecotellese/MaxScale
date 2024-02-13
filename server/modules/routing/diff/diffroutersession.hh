@@ -15,22 +15,22 @@
 #include "diffresult.hh"
 #include "diffstats.hh"
 
-class CRouter;
+class DiffRouter;
 
-class CRouterSession final : public mxs::RouterSession
-                           , private COtherBackend::Handler
+class DiffRouterSession final : public mxs::RouterSession
+                              , private DiffOtherBackend::Handler
 {
 public:
-    using Stats = CRouterSessionStats;
+    using Stats = DiffRouterSessionStats;
 
-    CRouterSession(const CRouterSession&) = delete;
-    CRouterSession& operator=(const CRouterSession&) = delete;
+    DiffRouterSession(const DiffRouterSession&) = delete;
+    DiffRouterSession& operator=(const DiffRouterSession&) = delete;
 
-    CRouterSession(MXS_SESSION* pSession,
-                   CRouter* pRouter,
-                   SCMainBackend sMain,
-                   SCOtherBackends backends);
-    ~CRouterSession();
+    DiffRouterSession(MXS_SESSION* pSession,
+                      DiffRouter* pRouter,
+                      SDiffMainBackend sMain,
+                      SDiffOtherBackends backends);
+    ~DiffRouterSession();
 
     bool routeQuery(GWBUF&& packet) override;
 
@@ -40,23 +40,23 @@ public:
                      mxs::Endpoint* pProblem, const mxs::Reply& reply) override;
 
 private:
-    // COtherBackend::Handler
-    Explain ready(COtherResult& other_result) override;
-    void ready(const CExplainOtherResult& explain_other_result) override;
+    // DiffOtherBackend::Handler
+    Explain ready(DiffOtherResult& other_result) override;
+    void ready(const DiffExplainOtherResult& explain_other_result) override;
 
 private:
-    bool should_report(const COtherResult& result) const;
+    bool should_report(const DiffOtherResult& result) const;
 
-    void generate_report(const COtherResult& result);
-    void generate_report(const CExplainOtherResult& result);
+    void generate_report(const DiffOtherResult& result);
+    void generate_report(const DiffExplainOtherResult& result);
 
-    void generate_report(const COtherResult& other_result,
+    void generate_report(const DiffOtherResult& other_result,
                          json_t* pExplain_other,
                          json_t* pExplain_main);
-    json_t* generate_json(const CResult& result, json_t* pExplain);
+    json_t* generate_json(const DiffResult& result, json_t* pExplain);
 
-    SCMainBackend   m_sMain;
-    SCOtherBackends m_others;
-    int             m_responses = 0;
-    CRouter&        m_router;
+    SDiffMainBackend   m_sMain;
+    SDiffOtherBackends m_others;
+    int                m_responses = 0;
+    DiffRouter&        m_router;
 };

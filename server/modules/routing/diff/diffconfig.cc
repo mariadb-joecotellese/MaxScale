@@ -37,7 +37,7 @@ protected:
     }
 };
 
-namespace comparator
+namespace diff
 {
 
 Specification specification(MXB_MODULE_NAME, config::Specification::ROUTER);
@@ -140,7 +140,7 @@ config::ParamCount retain_slower_statements(
 config::ParamString service(
     &specification,
     "service",
-    "The service the Comparator service is installed for");
+    "The service the Diff service is installed for");
 
 config::ParamDuration<std::chrono::milliseconds> period(
     &specification,
@@ -160,34 +160,34 @@ bool Specification::do_post_validate(Params& params) const
 }
 
 // static
-mxs::config::Specification* CConfig::specification()
+mxs::config::Specification* DiffConfig::specification()
 {
-    return &comparator::specification;
+    return &diff::specification;
 }
 
-CConfig::CConfig(const char* zName, CRouter* pInstance)
-    : mxs::config::Configuration(zName, &comparator::specification)
-    , on_error(this, &comparator::on_error)
-    , report(this, &comparator::report)
+DiffConfig::DiffConfig(const char* zName, DiffRouter* pInstance)
+    : mxs::config::Configuration(zName, &diff::specification)
+    , on_error(this, &diff::on_error)
+    , report(this, &diff::report)
     , m_instance(*pInstance)
 {
-    add_native(&CConfig::pMain, &comparator::main);
-    add_native(&CConfig::service_name, &comparator::service);
+    add_native(&DiffConfig::pMain, &diff::main);
+    add_native(&DiffConfig::service_name, &diff::service);
 
-    add_native(&CConfig::comparison_kind, &comparator::comparison_kind);
-    add_native(&CConfig::entries, &comparator::entries);
-    add_native(&CConfig::explain, &comparator::explain);
-    add_native(&CConfig::max_execution_time_difference, &comparator::max_execution_time_difference);
-    add_native(&CConfig::max_request_lag, &comparator::max_request_lag);
-    add_native(&CConfig::period, &comparator::period);
-    add_native(&CConfig::retain_faster_statements, &comparator::retain_faster_statements);
-    add_native(&CConfig::retain_slower_statements, &comparator::retain_slower_statements);
+    add_native(&DiffConfig::comparison_kind, &diff::comparison_kind);
+    add_native(&DiffConfig::entries, &diff::entries);
+    add_native(&DiffConfig::explain, &diff::explain);
+    add_native(&DiffConfig::max_execution_time_difference, &diff::max_execution_time_difference);
+    add_native(&DiffConfig::max_request_lag, &diff::max_request_lag);
+    add_native(&DiffConfig::period, &diff::period);
+    add_native(&DiffConfig::retain_faster_statements, &diff::retain_faster_statements);
+    add_native(&DiffConfig::retain_slower_statements, &diff::retain_slower_statements);
 }
 
-bool CConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)
+bool DiffConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)
 {
-    // The service will be found only if the comparator service is
-    // created at runtime, but not if the comparator service is
+    // The service will be found only if the diff service is
+    // created at runtime, but not if the diff service is
     // created from a configuration file at MaxScale startup.
 
     this->pService = Service::find(this->service_name);
@@ -195,7 +195,7 @@ bool CConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>&
     return m_instance.post_configure();
 }
 
-bool CConfig::check_configuration()
+bool DiffConfig::check_configuration()
 {
     // This function is only called at MaxScale startup and the
     // service should now be found.

@@ -15,7 +15,7 @@ using std::unique_ptr;
 namespace
 {
 
-inline bool is_checksum_discrepancy(const CResult& result, mxb::CRC32 main_checksum)
+inline bool is_checksum_discrepancy(const DiffResult& result, mxb::CRC32 main_checksum)
 {
     return result.checksum() != main_checksum;
 }
@@ -29,10 +29,10 @@ inline bool is_execution_time_discrepancy(const std::chrono::nanoseconds& durati
 
 }
 
-CRouterSession::CRouterSession(MXS_SESSION* pSession,
-                               CRouter* pRouter,
-                               SCMainBackend sMain,
-                               SCOtherBackends others)
+DiffRouterSession::DiffRouterSession(MXS_SESSION* pSession,
+                                     DiffRouter* pRouter,
+                                     SDiffMainBackend sMain,
+                                     SDiffOtherBackends others)
     : RouterSession(pSession)
     , m_sMain(std::move(sMain))
     , m_others(std::move(others))
@@ -47,7 +47,7 @@ CRouterSession::CRouterSession(MXS_SESSION* pSession,
     }
 }
 
-CRouterSession::~CRouterSession()
+DiffRouterSession::~DiffRouterSession()
 {
     Stats stats { m_sMain->backend()->target(), m_sMain->stats() };
 
@@ -59,7 +59,7 @@ CRouterSession::~CRouterSession()
     m_router.collect(stats);
 }
 
-bool CRouterSession::routeQuery(GWBUF&& packet)
+bool DiffRouterSession::routeQuery(GWBUF&& packet)
 {
     bool rv = false;
 
@@ -70,7 +70,7 @@ bool CRouterSession::routeQuery(GWBUF&& packet)
         mxs::Backend::response_type type = expecting_response
             ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::NO_RESPONSE;
 
-        std::shared_ptr<CMainResult> sMain_result;
+        std::shared_ptr<DiffMainResult> sMain_result;
 
         if (type != mxs::Backend::NO_RESPONSE)
         {
@@ -137,13 +137,13 @@ bool CRouterSession::routeQuery(GWBUF&& packet)
     return rv;
 }
 
-bool CRouterSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mxs::Reply& reply)
+bool DiffRouterSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, const mxs::Reply& reply)
 {
-    auto* pBackend = static_cast<CBackend*>(down.endpoint()->get_userdata());
+    auto* pBackend = static_cast<DiffBackend*>(down.endpoint()->get_userdata());
 
     pBackend->process_result(packet, reply);
 
-    CBackend::Routing routing = CBackend::Routing::CONTINUE;
+    DiffBackend::Routing routing = DiffBackend::Routing::CONTINUE;
 
     if (reply.is_complete())
     {
@@ -153,7 +153,7 @@ bool CRouterSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, co
 
     bool rv = true;
 
-    if (pBackend == m_sMain.get() && routing == CBackend::Routing::CONTINUE)
+    if (pBackend == m_sMain.get() && routing == DiffBackend::Routing::CONTINUE)
     {
         rv = RouterSession::clientReply(std::move(packet), down, reply);
     }
@@ -161,12 +161,12 @@ bool CRouterSession::clientReply(GWBUF&& packet, const mxs::ReplyRoute& down, co
     return rv;
 }
 
-bool CRouterSession::handleError(mxs::ErrorType type,
-                                 const std::string& message,
-                                 mxs::Endpoint* pProblem,
-                                 const mxs::Reply& reply)
+bool DiffRouterSession::handleError(mxs::ErrorType type,
+                                    const std::string& message,
+                                    mxs::Endpoint* pProblem,
+                                    const mxs::Reply& reply)
 {
-    auto* pBackend = static_cast<CBackend*>(pProblem->get_userdata());
+    auto* pBackend = static_cast<DiffBackend*>(pProblem->get_userdata());
 
     pBackend->close();
 
@@ -175,7 +175,7 @@ bool CRouterSession::handleError(mxs::ErrorType type,
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
-Explain CRouterSession::ready(COtherResult& other_result)
+Explain DiffRouterSession::ready(DiffOtherResult& other_result)
 {
     Explain rv = Explain::NONE;
 
@@ -184,7 +184,7 @@ Explain CRouterSession::ready(COtherResult& other_result)
         auto now = m_pSession->worker()->epoll_tick_now();
         auto hash = other_result.hash();
         auto id = other_result.id();
-        CRegistry::Entries explainers;
+        DiffRegistry::Entries explainers;
 
         bool is_explained = m_router.registry().is_explained(now, hash, id, &explainers);
         other_result.set_explainers(explainers);
@@ -212,7 +212,7 @@ Explain CRouterSession::ready(COtherResult& other_result)
     return rv;
 }
 
-void CRouterSession::ready(const CExplainOtherResult& explain_result)
+void DiffRouterSession::ready(const DiffExplainOtherResult& explain_result)
 {
     const auto& error = explain_result.error();
 
@@ -231,7 +231,7 @@ void CRouterSession::ready(const CExplainOtherResult& explain_result)
     }
 }
 
-bool CRouterSession::should_report(const COtherResult& other_result) const
+bool DiffRouterSession::should_report(const DiffOtherResult& other_result) const
 {
     const auto& config = m_router.config();
 
@@ -263,7 +263,7 @@ bool CRouterSession::should_report(const COtherResult& other_result) const
     return rv;
 }
 
-void CRouterSession::generate_report(const COtherResult& other_result)
+void DiffRouterSession::generate_report(const DiffOtherResult& other_result)
 {
     generate_report(other_result, nullptr, nullptr);
 }
@@ -289,7 +289,7 @@ json_t* load_json(std::string_view json)
 
 }
 
-void CRouterSession::generate_report(const CExplainOtherResult& result)
+void DiffRouterSession::generate_report(const DiffExplainOtherResult& result)
 {
     std::string_view json;
 
@@ -302,7 +302,7 @@ void CRouterSession::generate_report(const CExplainOtherResult& result)
     }
 
     json_t* pExplain_main = nullptr;
-    const CExplainMainResult* pMain_result = result.explain_main_result();
+    const DiffExplainMainResult* pMain_result = result.explain_main_result();
 
     if (pMain_result)
     {
@@ -317,9 +317,9 @@ void CRouterSession::generate_report(const CExplainOtherResult& result)
     generate_report(result.other_result(), pExplain_other, pExplain_main);
 }
 
-void CRouterSession::generate_report(const COtherResult& other_result,
-                                     json_t* pExplain_other,
-                                     json_t* pExplain_main)
+void DiffRouterSession::generate_report(const DiffOtherResult& other_result,
+                                        json_t* pExplain_other,
+                                        json_t* pExplain_main)
 {
     const auto& main_result = other_result.main_result();
 
@@ -333,7 +333,7 @@ void CRouterSession::generate_report(const COtherResult& other_result,
     json_t* pOther = generate_json(other_result, pExplain_other);
     json_t* pMain = generate_json(main_result, pExplain_main);
 
-    const CRegistry::Entries& explainers = other_result.explainers();
+    const DiffRegistry::Entries& explainers = other_result.explainers();
 
     if (!explainers.empty())
     {
@@ -353,10 +353,10 @@ void CRouterSession::generate_report(const COtherResult& other_result,
 
     json_object_set_new(pJson, "results", pArr);
 
-    static_cast<COtherBackend&>(other_result.backend()).exporter().ship(pJson);
+    static_cast<DiffOtherBackend&>(other_result.backend()).exporter().ship(pJson);
 }
 
-json_t* CRouterSession::generate_json(const CResult& result, json_t* pExplain)
+json_t* DiffRouterSession::generate_json(const DiffResult& result, json_t* pExplain)
 {
     const char* type = result.reply().error() ?
         "error" : (result.reply().is_resultset() ? "resultset" : "ok");
