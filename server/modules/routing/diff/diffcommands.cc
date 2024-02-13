@@ -57,73 +57,120 @@ static modulecmd_arg_type_t command_prepare_argv[] =
 {
     {MODULECMD_ARG_SERVICE, "Service name"},
     {MODULECMD_ARG_SERVER,  "Main server name"},
-    {MODULECMD_ARG_SERVER,  "Other server name"},
-    {MODULECMD_ARG_STRING,  "'read_only' or 'read_write'"}
+    {MODULECMD_ARG_SERVER,  "Other server name"}
 };
 
 static int command_prepare_argc = MXS_ARRAY_NELEMS(command_prepare_argv);
 
-bool check_prepare_prerequisites(const SERVICE& service,
-                                 const SERVER& main,
-                                 const SERVER& other)
+struct ReplicationStatus
 {
-    bool rv = false;
+    std::string host;
+    int         port { 0 };
+    std::string slave_io_state;
+};
+
+std::optional<ReplicationStatus> get_replication_status(const SERVER& server,
+                                                        const std::string& user,
+                                                        const std::string& password)
+{
+    std::optional<ReplicationStatus> rv;
 
     MariaDB mdb;
-
     MariaDB::ConnectionSettings& settings = mdb.connection_settings();
 
-    const auto& sConfig = service.config();
-    settings.user = sConfig->user;
-    settings.password = sConfig->password;
+    settings.user = user;
+    settings.password = password;
 
-    if (mdb.open(other.address(), other.port()))
+    if (mdb.open(server.address(), server.port()))
     {
         auto sResult = mdb.query("SHOW SLAVE STATUS");
 
         if (sResult)
         {
+            ReplicationStatus rstatus;
             if (sResult->get_col_count() != 0 && sResult->next_row())
             {
-                auto master_host = sResult->get_string("Master_Host");
-                int master_port = sResult->get_int("Master_Port");
-
-                // TODO: One may be expressed using an IP and the other using a hostname.
-                if (master_host == main.address() && master_port == main.port())
-                {
-                    auto slave_io_state = sResult->get_string("Slave_IO_State");
-
-                    if (!slave_io_state.empty())
-                    {
-                        // The server to test replicates from the server used, so all things green.
-                        rv = true;
-                    }
-                    else
-                    {
-                        MXB_ERROR("Server '%s' is configured to replicate from %s:%d, "
-                                  "but is currently not replicating.",
-                                  other.name(), master_host.c_str(), master_port);
-                    }
-                }
-                else
-                {
-                    MXB_ERROR("Server '%s' replicates from %s:%d and not from '%s' (%s:%d).",
-                              other.name(),
-                              master_host.c_str(), master_port,
-                              main.name(), main.address(), main.port());
-
-                }
+                rstatus.host = sResult->get_string("Master_Host");
+                rstatus.port = sResult->get_int("Master_Port");
+                rstatus.slave_io_state = sResult->get_string("Slave_IO_State");
             }
-            else
-            {
-                MXB_ERROR("Server %s does not replicate from any server.", other.name());
-            }
+
+            rv = rstatus;
         }
     }
     else
     {
         MXB_ERROR("Could not connect to server at %s:%d: %s",
-                  other.address(), other.port(), mdb.error());
+                  server.address(), server.port(), mdb.error());
+    }
+
+    return rv;
+}
+
+bool is_replicating_from(const ReplicationStatus& rs, const SERVER& server)
+{
+    // TODO: One may be expressed using an IP and the other using a hostname.
+    return rs.host == server.address() && rs.port == server.port();
+}
+
+bool are_replicating_from_same(const ReplicationStatus& rs1, const ReplicationStatus& rs2)
+{
+    return rs1.host == rs2.host && rs1.port == rs2.port;
+}
+
+std::optional<ComparisonKind> check_prepare_prerequisites(const SERVICE& service,
+                                                          const SERVER& main,
+                                                          const SERVER& other)
+{
+    std::optional<ComparisonKind> rv;
+
+    const auto& sConfig = service.config();
+
+    auto rs_other = get_replication_status(other, sConfig->user, sConfig->password);
+
+    if (rs_other)
+    {
+        if (is_replicating_from(*rs_other, main))
+        {
+            MXB_INFO("'other' is configured to replicate from 'main'. A read-write situation.");
+
+            if (!rs_other->slave_io_state.empty())
+            {
+                rv = ComparisonKind::READ_WRITE;
+            }
+            else
+            {
+                MXB_ERROR("Server '%s' is configured to replicate from %s:%d, "
+                          "but is currently not replicating.",
+                          other.name(), rs_other->host.c_str(), rs_other->port);
+            }
+        }
+        else
+        {
+            // Other is not replicating from main. Let's see if main and other
+            // are replicating from the same server.
+            auto rs_main = get_replication_status(main, sConfig->user, sConfig->password);
+
+            if (rs_main)
+            {
+                if (are_replicating_from_same(*rs_other, *rs_main))
+                {
+                    MXB_INFO("'other' and 'main' are replicating from the same server. "
+                             "A read-only situation.");
+
+                    if (!rs_other->slave_io_state.empty() && !rs_main->slave_io_state.empty())
+                    {
+                        rv = ComparisonKind::READ_ONLY;
+                    }
+                    else
+                    {
+                        MXB_ERROR("Servers '%s' and '%s' are configured to replicate from %s:%d, "
+                                  "but either or both are currently not replicating.",
+                                  other.name(), main.name(), rs_other->host.c_str(), rs_other->port);
+                    }
+                }
+            }
+        }
     }
 
     return rv;
@@ -133,9 +180,12 @@ Service* create_diff_service(const string& name,
                              const SERVICE& service,
                              const SERVER& main,
                              const SERVER& other,
-                             const char* zComparison_kind)
+                             ComparisonKind comparison_kind)
 {
     auto& sValues = service.config();
+
+    const char* zComparison_kind =
+        comparison_kind == ComparisonKind::READ_WRITE ?  "read_write" : "read_only";
 
     json_t* pParameters = json_object();
     json_object_set_new(pParameters, CN_USER, json_string(sValues->user.c_str()));
@@ -197,7 +247,7 @@ Service* create_diff_service(const string& name,
 Service* create_diff_service(const SERVICE& service,
                              const SERVER& main,
                              const SERVER& other,
-                             const char* zComparison_kind)
+                             ComparisonKind comparison_kind)
 {
     Service* pC_service = nullptr;
 
@@ -213,7 +263,7 @@ Service* create_diff_service(const SERVICE& service,
     else
     {
         UnmaskPasswords unmasker;
-        pC_service = create_diff_service(name, service, main, other, zComparison_kind);
+        pC_service = create_diff_service(name, service, main, other, comparison_kind);
     }
 
     return pC_service;
@@ -246,13 +296,6 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
     Service* pService = static_cast<Service*>(pArgs->argv[0].value.service);
     SERVER* pMain = pArgs->argv[1].value.server;
     SERVER* pOther = pArgs->argv[2].value.server;
-    const char* zComparison_kind = pArgs->argv[3].value.string;
-    ComparisonKind comparison_kind;
-
-    if (!get_comparison_kind(zComparison_kind, &comparison_kind))
-    {
-        return false;
-    }
 
     bool rv = true;
 
@@ -263,47 +306,49 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
     if (it != end)
     {
-        switch (comparison_kind)
+        std::optional<ComparisonKind> ck = check_prepare_prerequisites(*pService, *pMain, *pOther);
+
+        if (ck)
         {
-        case ComparisonKind::READ_WRITE:
-            if (!status_is_master(pMain->status()))
+            switch (*ck)
             {
-                MXB_ERROR("'read_write' comparison specified, but '%s' is not the primary.",
-                          pMain->name());
-                rv = false;
+            case ComparisonKind::READ_WRITE:
+                if (!status_is_master(pMain->status()))
+                {
+                    MXB_ERROR("'read_write' comparison implied, but '%s' is not the primary.",
+                              pMain->name());
+                    rv = false;
+                }
+                break;
+
+            case ComparisonKind::READ_ONLY:
+                if (!status_is_slave(pMain->status()))
+                {
+                    MXB_ERROR("'read_only' comparison implied, but '%s' is not a replica.",
+                              pMain->name());
+                    rv = false;
+                }
+                break;
             }
-            break;
 
-        case ComparisonKind::READ_ONLY:
-            if (!status_is_slave(pMain->status()))
+            if (rv)
             {
-                MXB_ERROR("'read_only' comparison specified, but '%s' is not a replica.",
-                          pMain->name());
-                rv = false;
-            }
-            break;
-        }
+                Service* pC_service = create_diff_service(*pService, *pMain, *pOther, *ck);
 
-        if (rv)
-        {
-            rv = check_prepare_prerequisites(*pService, *pMain, *pOther);
-        }
-
-        if (rv)
-        {
-            Service* pC_service = create_diff_service(*pService, *pMain, *pOther, zComparison_kind);
-
-            if (pC_service)
-            {
-                json_t* pOutput = json_object();
-                auto s = mxb::string_printf("Diff service '%s' created. Server '%s' ready "
-                                            "to be evaluated.",
-                                            pC_service->name(),
-                                            pOther->name());
-                json_object_set_new(pOutput, "status", json_string(s.c_str()));
-                *ppOutput = pOutput;
-
-                rv = true;
+                if (pC_service)
+                {
+                    json_t* pOutput = json_object();
+                    auto s = mxb::string_printf("Diff service '%s' created. Server '%s' ready "
+                                                "to be evaluated.",
+                                                pC_service->name(),
+                                                pOther->name());
+                    json_object_set_new(pOutput, "status", json_string(s.c_str()));
+                    *ppOutput = pOutput;
+                }
+                else
+                {
+                    rv = false;
+                }
             }
         }
     }
