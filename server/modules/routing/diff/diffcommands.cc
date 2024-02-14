@@ -9,7 +9,6 @@
 #include <vector>
 #include <maxbase/format.hh>
 #include <maxbase/string.hh>
-#include <maxsql/mariadb_connector.hh>
 #include <maxscale/cn_strings.hh>
 #include <maxscale/config.hh>
 #include <maxscale/json_api.hh>
@@ -21,8 +20,8 @@
 #include "../../../core/internal/monitormanager.hh"
 #include "../../../core/internal/service.hh"
 #include "diffrouter.hh"
+#include "diffutils.hh"
 
-using namespace mxq;
 using namespace std;
 
 typedef std::set<std::string> StringSet;
@@ -62,115 +61,26 @@ static modulecmd_arg_type_t command_prepare_argv[] =
 
 static int command_prepare_argc = MXS_ARRAY_NELEMS(command_prepare_argv);
 
-struct ReplicationStatus
-{
-    std::string host;
-    int         port { 0 };
-    std::string slave_io_state;
-};
-
-std::optional<ReplicationStatus> get_replication_status(const SERVER& server,
-                                                        const std::string& user,
-                                                        const std::string& password)
-{
-    std::optional<ReplicationStatus> rv;
-
-    MariaDB mdb;
-    MariaDB::ConnectionSettings& settings = mdb.connection_settings();
-
-    settings.user = user;
-    settings.password = password;
-
-    if (mdb.open(server.address(), server.port()))
-    {
-        auto sResult = mdb.query("SHOW SLAVE STATUS");
-
-        if (sResult)
-        {
-            ReplicationStatus rstatus;
-            if (sResult->get_col_count() != 0 && sResult->next_row())
-            {
-                rstatus.host = sResult->get_string("Master_Host");
-                rstatus.port = sResult->get_int("Master_Port");
-                rstatus.slave_io_state = sResult->get_string("Slave_IO_State");
-            }
-
-            rv = rstatus;
-        }
-    }
-    else
-    {
-        MXB_ERROR("Could not connect to server at %s:%d: %s",
-                  server.address(), server.port(), mdb.error());
-    }
-
-    return rv;
-}
-
-bool is_replicating_from(const ReplicationStatus& rs, const SERVER& server)
-{
-    // TODO: One may be expressed using an IP and the other using a hostname.
-    return rs.host == server.address() && rs.port == server.port();
-}
-
-bool are_replicating_from_same(const ReplicationStatus& rs1, const ReplicationStatus& rs2)
-{
-    return rs1.host == rs2.host && rs1.port == rs2.port;
-}
-
 std::optional<ComparisonKind> check_prepare_prerequisites(const SERVICE& service,
                                                           const SERVER& main,
                                                           const SERVER& other)
 {
     std::optional<ComparisonKind> rv;
 
-    const auto& sConfig = service.config();
-
-    auto rs_other = get_replication_status(other, sConfig->user, sConfig->password);
-
-    if (rs_other)
+    switch (get_replication_status(service, main, other))
     {
-        if (is_replicating_from(*rs_other, main))
-        {
-            MXB_INFO("'other' is configured to replicate from 'main'. A read-write situation.");
+    case ReplicationStatus::OTHER_REPLICATES_FROM_MAIN:
+        rv = ComparisonKind::READ_WRITE;
+        break;
 
-            if (!rs_other->slave_io_state.empty())
-            {
-                rv = ComparisonKind::READ_WRITE;
-            }
-            else
-            {
-                MXB_ERROR("Server '%s' is configured to replicate from %s:%d, "
-                          "but is currently not replicating.",
-                          other.name(), rs_other->host.c_str(), rs_other->port);
-            }
-        }
-        else
-        {
-            // Other is not replicating from main. Let's see if main and other
-            // are replicating from the same server.
-            auto rs_main = get_replication_status(main, sConfig->user, sConfig->password);
+    case ReplicationStatus::BOTH_REPLICATES_FROM_THIRD:
+        rv = ComparisonKind::READ_ONLY;
+        break;
 
-            if (rs_main)
-            {
-                if (are_replicating_from_same(*rs_other, *rs_main))
-                {
-                    MXB_INFO("'other' and 'main' are replicating from the same server. "
-                             "A read-only situation.");
-
-                    if (!rs_other->slave_io_state.empty() && !rs_main->slave_io_state.empty())
-                    {
-                        rv = ComparisonKind::READ_ONLY;
-                    }
-                    else
-                    {
-                        MXB_ERROR("Servers '%s' and '%s' are configured to replicate from %s:%d, "
-                                  "but either or both are currently not replicating.",
-                                  other.name(), main.name(), rs_other->host.c_str(), rs_other->port);
-                    }
-                }
-            }
-        }
+    case ReplicationStatus::ERROR:
+    case ReplicationStatus::MAIN_REPLICATES_FROM_OTHER:
+    case ReplicationStatus::NO_RELATION:
+        break;
     }
 
     return rv;
