@@ -9,6 +9,7 @@ add_library(diff SHARED
   diffrouter.cc
   diffroutersession.cc
   diffstats.cc
+  diffutils.cc
   )
 
 target_link_libraries(diff maxscale-common)
