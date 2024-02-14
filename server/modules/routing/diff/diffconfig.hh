@@ -45,7 +45,7 @@ public:
 
     DiffConfig(const char* zName, DiffRouter* pInstance);
 
-    mxs::Target* pMain;
+    SERVER* pMain;
 
     ComparisonKind             comparison_kind;
     Explain                    explain;

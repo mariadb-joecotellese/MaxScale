@@ -12,10 +12,11 @@
 #include <maxscale/protocol/mariadb/gtid.hh>
 #include <maxscale/routingworker.hh>
 #include <maxsql/mariadb_connector.hh>
-#include "diffroutersession.hh"
 #include "../../../core/internal/config.hh"
 #include "../../../core/internal/config_runtime.hh"
 #include "../../../core/internal/service.hh"
+#include "diffroutersession.hh"
+#include "diffutils.hh"
 
 using namespace mxq;
 using namespace mxs;
@@ -264,11 +265,18 @@ bool DiffRouter::start(json_t** ppOutput)
     RoutingWorker::SessionResult sr = suspend_sessions();
 
     MainWorker::get()->lcall([this, sr]() {
-            setup(sr);
-
-            if (m_diff_state == DiffState::SYNCHRONIZING)
+            if (collect_servers_to_be_stopped())
             {
-                start_setup_dcall();
+                setup(sr);
+
+                if (m_diff_state == DiffState::SYNCHRONIZING)
+                {
+                    start_setup_dcall();
+                }
+            }
+            else
+            {
+                set_state(DiffState::PREPARED);
             }
         });
 
@@ -617,11 +625,7 @@ bool DiffRouter::stop_replication(const SERVER& server)
 
 void DiffRouter::reset_replication()
 {
-    // TODO: For now it should be ensured that the immediate
-    // TODO: children are all servers.
-    std::vector<SERVER*> servers = m_service.reachable_servers();
-
-    for (SERVER* pServer : servers)
+    for (SERVER* pServer : m_reset_replication)
     {
         if (pServer == m_config.pMain)
         {
@@ -634,6 +638,8 @@ void DiffRouter::reset_replication()
                       "Manual intervention is needed.", pServer->name());
         }
     }
+
+    m_reset_replication.clear();
 }
 
 namespace
@@ -688,81 +694,87 @@ std::optional<GtidPosByDomain> get_gtid_pos_by_domain(const SERVICE& service, co
 
 }
 
-DiffRouter::ReplicationStatus DiffRouter::stop_replication()
+DiffRouter::ReplicationState DiffRouter::stop_replication()
 {
-    ReplicationStatus rv = ReplicationStatus::ERROR;
+    ReplicationState rv = ReplicationState::READY;
 
-    std::vector<SERVER*> servers = m_service.reachable_servers();
+    SERVER* pMain = m_config.pMain;
+    GtidPosByDomain from = pMain->get_gtid_list();
 
-    // TODO: Now assuming there must be exactly two.
-    if (servers.size() == 2)
+    auto it = m_stop_replication.begin();
+    while (rv != ReplicationState::ERROR && it != m_stop_replication.end())
     {
-        SERVER* pMain = servers.front();
-        SERVER* pReplica = servers.back();
+        SERVER* pOther = *it;
 
-        if (pMain == m_config.pMain)
+        std::optional<GtidPosByDomain> to = get_gtid_pos_by_domain(m_service, *pOther);
+
+        bool erase = false;
+
+        if (to)
         {
-            GtidPosByDomain from = pMain->get_gtid_list();
-            std::optional<GtidPosByDomain> to = get_gtid_pos_by_domain(m_service, *pReplica);
+            bool behind = false;
 
-            if (to)
+            for (auto kv : from)
             {
-                bool behind = false;
-                for (auto kv : from)
+                auto domain = kv.first;
+                auto position = kv.second;
+
+                auto jt = to.value().find(domain);
+
+                if (jt == to.value().end())
                 {
-                    auto domain = kv.first;
-                    auto position = kv.second;
-
-                    auto it = to.value().find(domain);
-
-                    if (it == to.value().end())
-                    {
-                        MXB_DEV("Replica '%s' lacks domain %u, which is found in '%s'.",
-                                pReplica->name(), domain, pMain->name());
-                        behind = true;
-                    }
-                    else
-                    {
-                        if (it->second < position)
-                        {
-                            MXB_DEV("The position %lu of domain %u in server '%s' is behind "
-                                    "the position %lu in server '%s'.",
-                                    it->second, domain, pReplica->name(), position, pMain->name());
-                            behind = true;
-                        }
-                    }
-                }
-
-                if (!behind)
-                {
-                    if (stop_replication(*pReplica))
-                    {
-                        rv = ReplicationStatus::STOPPED;
-                    }
+                    MXB_DEV("Replica '%s' lacks domain %u, which is found in '%s'.",
+                            pOther->name(), domain, pMain->name());
+                    behind = true;
                 }
                 else
                 {
-                    MXB_DEV("'%s' is behind '%s', not breaking replication yet.",
-                            pReplica->name(), pMain->name());
-                    rv = ReplicationStatus::LAGGING;
+                    if (jt->second < position)
+                    {
+                        MXB_DEV("The position %lu of domain %u in server '%s' is behind "
+                                "the position %lu in server '%s'.",
+                                jt->second, domain, pOther->name(), position, pMain->name());
+                        behind = true;
+                    }
+                }
+            }
+
+            if (!behind)
+            {
+                if (stop_replication(*pOther))
+                {
+                    m_reset_replication.push_back(pOther);
+                    erase = true;
+                }
+                else
+                {
+                    rv = ReplicationState::ERROR;
                 }
             }
             else
             {
-                MXB_ERROR("Could not get the Gtid positions of '%s'.",
-                          pReplica->name());
+                MXB_DEV("'%s' is behind '%s', not breaking replication yet.",
+                        pOther->name(), pMain->name());
+                rv = ReplicationState::LAGGING;
             }
         }
         else
         {
-            MXB_ERROR("First server of '%s' is '%s', although expected to be '%s'.",
-                      m_service.name(), pMain->name(), m_config.pMain->name());
+            MXB_ERROR("Could not get the Gtid positions of '%s'.",
+                      pOther->name());
+            rv = ReplicationState::ERROR;
         }
-    }
-    else
-    {
-        MXB_ERROR("'%s' has currently %d reachable servers, while 2 is expected.",
-                  m_service.name(), (int)servers.size());
+
+        if (erase)
+        {
+            auto distance = it - m_stop_replication.begin();
+            m_stop_replication.erase(it);
+            it = m_stop_replication.begin() + distance;
+        }
+        else
+        {
+            ++it;
+        }
     }
 
     return rv;
@@ -792,18 +804,11 @@ void DiffRouter::setup(const RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
-        ReplicationStatus rstatus = ReplicationStatus::STOPPED;
+        ReplicationState rstate = stop_replication();
 
-        if (m_config.comparison_kind == ComparisonKind::READ_WRITE)
+        switch (rstate)
         {
-            set_sync_state(SyncState::STOPPING_REPLICATION);
-
-            rstatus = stop_replication();
-        }
-
-        switch (rstatus)
-        {
-        case ReplicationStatus::STOPPED:
+        case ReplicationState::READY:
             if (rewire_service_for_comparison())
             {
                 restart_and_resume();
@@ -835,13 +840,15 @@ void DiffRouter::setup(const RoutingWorker::SessionResult& sr)
             }
             break;
 
-        case ReplicationStatus::LAGGING:
+        case ReplicationState::LAGGING:
+            set_sync_state(SyncState::STOPPING_REPLICATION);
             break;
 
-        case ReplicationStatus::ERROR:
+        case ReplicationState::ERROR:
             MXB_ERROR("Could not stop replication, cannot rewire service '%s'. "
                       "Resuming sessions according to original configuration.",
                       m_config.pService->name());
+            reset_replication();
             resume_sessions();
             set_state(DiffState::PREPARED);
             break;
@@ -964,6 +971,55 @@ bool DiffRouter::update_exporters()
         std::lock_guard<std::shared_mutex> guard(m_exporters_rwlock);
 
         m_exporters = std::move(exporters);
+    }
+
+    return rv;
+}
+
+bool DiffRouter::collect_servers_to_be_stopped()
+{
+    bool rv = true;
+
+    m_stop_replication.clear();
+    m_reset_replication.clear();
+
+    std::vector<mxs::Target*> targets = m_service.get_children();
+    mxb_assert(targets.size() == 2);
+
+    SERVER* pMain = m_config.pMain;
+
+    for (mxs::Target* pTarget : targets)
+    {
+        if (pTarget == pMain)
+        {
+            continue;
+        }
+
+        mxb_assert(pTarget->kind() == mxs::Target::Kind::SERVER);
+
+        SERVER* pOther = static_cast<SERVER*>(pTarget);
+
+        switch (get_replication_status(m_service, *pMain, *pOther))
+        {
+        case ReplicationStatus::OTHER_REPLICATES_FROM_MAIN:
+            m_stop_replication.push_back(pOther);
+            break;
+
+        case ReplicationStatus::BOTH_REPLICATES_FROM_THIRD:
+            break;
+
+        case ReplicationStatus::ERROR:
+        case ReplicationStatus::MAIN_REPLICATES_FROM_OTHER:
+        case ReplicationStatus::NO_RELATION:
+            rv = false;
+            break;
+        }
+    }
+
+    if (!rv)
+    {
+        m_stop_replication.clear();
+        m_reset_replication.clear();
     }
 
     return rv;

@@ -74,7 +74,7 @@ config::ParamEnum<Explain> explain(
     DEFAULT_EXPLAIN,
     config::Param::AT_RUNTIME);
 
-config::ParamTarget main(
+config::ParamServer main(
     &specification,
     "main",
     "Server from which responses are returned",

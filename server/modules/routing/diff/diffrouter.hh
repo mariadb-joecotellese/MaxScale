@@ -123,14 +123,14 @@ private:
 
     void reset_replication();
 
-    enum ReplicationStatus
+    enum class ReplicationState
     {
-        STOPPED, // Replication stopped.
+        READY,   // Replication has been stopped or it did not need to be stopped.
         LAGGING, // Replication not stopped, as replica still lags behind.
         ERROR,   // Either the replica cannot be connected, or the stopping failed.
     };
 
-    ReplicationStatus stop_replication();
+    ReplicationState stop_replication();
     void restart_and_resume();
 
     void setup(const mxs::RoutingWorker::SessionResult& sr);
@@ -142,6 +142,8 @@ private:
     void start_teardown_dcall();
 
     bool update_exporters();
+
+    bool collect_servers_to_be_stopped();
 
     DiffRouter(SERVICE* pService);
 
@@ -157,4 +159,6 @@ private:
     Stats                                   m_stats;
     std::mutex                              m_stats_lock;
     DiffRegistry                            m_registry;
+    std::vector<SERVER*>                    m_stop_replication;
+    std::vector<SERVER*>                    m_reset_replication;
 };
