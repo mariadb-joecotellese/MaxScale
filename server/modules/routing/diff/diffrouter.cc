@@ -885,10 +885,7 @@ void DiffRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
-        if (m_config.comparison_kind == ComparisonKind::READ_WRITE)
-        {
-            reset_replication();
-        }
+        reset_replication();
 
         if (rewire_service_for_normalcy())
         {

@@ -10,12 +10,6 @@
 #include <maxscale/ccdefs.hh>
 #include <maxscale/config2.hh>
 
-enum class ComparisonKind
-{
-    READ_ONLY,
-    READ_WRITE
-};
-
 enum class Explain
 {
     NONE,
@@ -47,7 +41,6 @@ public:
 
     SERVER* pMain;
 
-    ComparisonKind             comparison_kind;
     Explain                    explain;
     mxs::config::Enum<OnError> on_error;
     mxs::config::Enum<Report>  report;
@@ -75,7 +68,6 @@ private:
 };
 
 /* *INDENT-OFF* */
-constexpr ComparisonKind            DEFAULT_COMPARISON_KIND { ComparisonKind::READ_WRITE };
 constexpr int64_t                   DEFAULT_ENTRIES { 2 };
 constexpr Explain                   DEFAULT_EXPLAIN { Explain::BOTH };
 constexpr int64_t                   DEFAULT_MAX_EXECUTION_TIME_DIFFERENCE { 10 };

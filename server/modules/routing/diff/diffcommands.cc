@@ -61,48 +61,18 @@ static modulecmd_arg_type_t command_prepare_argv[] =
 
 static int command_prepare_argc = MXS_ARRAY_NELEMS(command_prepare_argv);
 
-std::optional<ComparisonKind> check_prepare_prerequisites(const SERVICE& service,
-                                                          const SERVER& main,
-                                                          const SERVER& other)
-{
-    std::optional<ComparisonKind> rv;
-
-    switch (get_replication_status(service, main, other))
-    {
-    case ReplicationStatus::OTHER_REPLICATES_FROM_MAIN:
-        rv = ComparisonKind::READ_WRITE;
-        break;
-
-    case ReplicationStatus::BOTH_REPLICATES_FROM_THIRD:
-        rv = ComparisonKind::READ_ONLY;
-        break;
-
-    case ReplicationStatus::ERROR:
-    case ReplicationStatus::MAIN_REPLICATES_FROM_OTHER:
-    case ReplicationStatus::NO_RELATION:
-        break;
-    }
-
-    return rv;
-}
-
 Service* create_diff_service(const string& name,
                              const SERVICE& service,
                              const SERVER& main,
-                             const SERVER& other,
-                             ComparisonKind comparison_kind)
+                             const SERVER& other)
 {
     auto& sValues = service.config();
-
-    const char* zComparison_kind =
-        comparison_kind == ComparisonKind::READ_WRITE ?  "read_write" : "read_only";
 
     json_t* pParameters = json_object();
     json_object_set_new(pParameters, CN_USER, json_string(sValues->user.c_str()));
     json_object_set_new(pParameters, CN_PASSWORD, json_string(sValues->password.c_str()));
     json_object_set_new(pParameters, CN_SERVICE, json_string(service.name()));
     json_object_set_new(pParameters, "main", json_string(main.name()));
-    json_object_set_new(pParameters, "comparison_kind", json_string(zComparison_kind));
 
     json_t* pAttributes = json_object();
     json_object_set_new(pAttributes, CN_ROUTER, json_string(MXB_MODULE_NAME));
@@ -156,8 +126,7 @@ Service* create_diff_service(const string& name,
 
 Service* create_diff_service(const SERVICE& service,
                              const SERVER& main,
-                             const SERVER& other,
-                             ComparisonKind comparison_kind)
+                             const SERVER& other)
 {
     Service* pC_service = nullptr;
 
@@ -173,32 +142,10 @@ Service* create_diff_service(const SERVICE& service,
     else
     {
         UnmaskPasswords unmasker;
-        pC_service = create_diff_service(name, service, main, other, comparison_kind);
+        pC_service = create_diff_service(name, service, main, other);
     }
 
     return pC_service;
-}
-
-bool get_comparison_kind(const char* zComparison_kind, ComparisonKind* pComparison_kind)
-{
-    bool rv = true;
-
-    if (strcmp(zComparison_kind, "read_only") == 0)
-    {
-        *pComparison_kind = ComparisonKind::READ_ONLY;
-    }
-    else if (strcmp(zComparison_kind, "read_write") == 0)
-    {
-        *pComparison_kind = ComparisonKind::READ_WRITE;
-    }
-    else
-    {
-        MXB_ERROR("'%s' is not a valid value. Valid values are: 'read_only', 'read_write'",
-                  zComparison_kind);
-        rv = false;
-    }
-
-    return rv;
 }
 
 bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
@@ -216,49 +163,60 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
     if (it != end)
     {
-        std::optional<ComparisonKind> ck = check_prepare_prerequisites(*pService, *pMain, *pOther);
-
-        if (ck)
+        switch (get_replication_status(*pService, *pMain, *pOther))
         {
-            switch (*ck)
+        case ReplicationStatus::OTHER_REPLICATES_FROM_MAIN:
+            if (!status_is_master(pMain->status()))
             {
-            case ComparisonKind::READ_WRITE:
-                if (!status_is_master(pMain->status()))
-                {
-                    MXB_ERROR("'read_write' comparison implied, but '%s' is not the primary.",
-                              pMain->name());
-                    rv = false;
-                }
-                break;
-
-            case ComparisonKind::READ_ONLY:
-                if (!status_is_slave(pMain->status()))
-                {
-                    MXB_ERROR("'read_only' comparison implied, but '%s' is not a replica.",
-                              pMain->name());
-                    rv = false;
-                }
-                break;
+                MXB_ERROR("Read-write comparison implied, but '%s' is not the primary.",
+                          pMain->name());
+                rv = false;
             }
+            break;
 
-            if (rv)
+        case ReplicationStatus::BOTH_REPLICATES_FROM_THIRD:
+            if (!status_is_slave(pMain->status()))
             {
-                Service* pC_service = create_diff_service(*pService, *pMain, *pOther, *ck);
+                MXB_ERROR("Read-only comparison implied, but '%s' is not a replica.",
+                          pMain->name());
+                rv = false;
+            }
+            break;
 
-                if (pC_service)
-                {
-                    json_t* pOutput = json_object();
-                    auto s = mxb::string_printf("Diff service '%s' created. Server '%s' ready "
-                                                "to be evaluated.",
-                                                pC_service->name(),
-                                                pOther->name());
-                    json_object_set_new(pOutput, "status", json_string(s.c_str()));
-                    *ppOutput = pOutput;
-                }
-                else
-                {
-                    rv = false;
-                }
+        case ReplicationStatus::MAIN_REPLICATES_FROM_OTHER:
+            MXB_ERROR("Main '%s' replicates from other '%s', cannot continue.",
+                      pMain->name(), pOther->name());
+            rv = false;
+            break;
+
+        case ReplicationStatus::NO_RELATION:
+            // TODO: This might make sense if you intend to use a read-only workload.
+            MXB_ERROR("There is no replication relation between main '%s' and other '%s'.",
+                      pMain->name(), pOther->name());
+            rv = false;
+            break;
+
+        case ReplicationStatus::ERROR:
+            rv = false;
+        }
+
+        if (rv)
+        {
+            Service* pC_service = create_diff_service(*pService, *pMain, *pOther);
+
+            if (pC_service)
+            {
+                json_t* pOutput = json_object();
+                auto s = mxb::string_printf("Diff service '%s' created. Server '%s' ready "
+                                            "to be evaluated.",
+                                            pC_service->name(),
+                                            pOther->name());
+                json_object_set_new(pOutput, "status", json_string(s.c_str()));
+                *ppOutput = pOutput;
+            }
+            else
+            {
+                rv = false;
             }
         }
     }

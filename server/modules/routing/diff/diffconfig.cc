@@ -42,17 +42,6 @@ namespace diff
 
 Specification specification(MXB_MODULE_NAME, config::Specification::ROUTER);
 
-config::ParamEnum<ComparisonKind> comparison_kind(
-    &specification,
-    "comparison_kind",
-    "Is the comparison read-write or read-only.",
-    {
-        {ComparisonKind::READ_ONLY, "read_only"},
-        {ComparisonKind::READ_WRITE, "read_write"}
-    },
-    DEFAULT_COMPARISON_KIND,
-    config::Param::AT_STARTUP);
-
 config::ParamSize entries(
     &specification,
     "entries",
@@ -173,7 +162,6 @@ DiffConfig::DiffConfig(const char* zName, DiffRouter* pInstance)
     add_native(&DiffConfig::pMain, &diff::main);
     add_native(&DiffConfig::service_name, &diff::service);
 
-    add_native(&DiffConfig::comparison_kind, &diff::comparison_kind);
     add_native(&DiffConfig::entries, &diff::entries);
     add_native(&DiffConfig::explain, &diff::explain);
     add_native(&DiffConfig::max_execution_time_difference, &diff::max_execution_time_difference);
