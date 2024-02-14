@@ -78,8 +78,7 @@ config::ParamTarget main(
     &specification,
     "main",
     "Server from which responses are returned",
-    config::Param::Kind::MANDATORY,
-    config::Param::AT_RUNTIME);
+    config::Param::Kind::MANDATORY);
 
 config::ParamPercent max_execution_time_difference(
     &specification,

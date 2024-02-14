@@ -141,28 +141,51 @@ uint64_t DiffRouter::getCapabilities() const
 
 bool DiffRouter::post_configure()
 {
-    bool rv= true;
+    bool rv= false;
 
-    m_stats.post_configure(m_config);
+    auto targets = m_service.get_children();
 
-    for (const mxs::Target* pTarget : m_service.get_children())
+    if (targets.size() == 2) // TODO: Allow multiple concurrent diffs at a later stage.
     {
-        if (pTarget->kind() != mxs::Target::Kind::SERVER)
+        rv = true;
+
+        for (const mxs::Target* pTarget : m_service.get_children())
         {
-            MXB_ERROR("The target '%s' is not a server. Only servers may be "
-                      "used as targets of '%s'.",
-                      pTarget->name(), m_service.name());
-            rv = false;
+            if (pTarget->kind() != mxs::Target::Kind::SERVER)
+            {
+                MXB_ERROR("The target '%s' is not a server. Only servers may be "
+                          "used as targets of '%s'.",
+                          pTarget->name(), m_service.name());
+                rv = false;
+            }
+        }
+
+        if (rv)
+        {
+            auto end = targets.end();
+            if (std::find(targets.begin(), end, m_config.pMain) != end)
+            {
+                rv = update_exporters();
+
+                if (rv)
+                {
+                    m_registry.set_max_entries(m_config.entries);
+                    m_registry.set_period(m_config.period);
+
+                    m_stats.post_configure(m_config);
+                }
+            }
+            else
+            {
+                MXB_ERROR("The value of 'main' (%s) is not one of the servers in 'targets'.",
+                          m_config.pMain->name());
+            }
         }
     }
-
-    if (rv)
+    else
     {
-        rv = update_exporters();
+        MXB_ERROR("'%s' needs exactly two servers as targets.", m_service.name());
     }
-
-    m_registry.set_max_entries(m_config.entries);
-    m_registry.set_period(m_config.period);
 
     return rv;
 }
