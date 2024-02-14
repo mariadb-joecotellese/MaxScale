@@ -14,6 +14,8 @@ class CapInmemoryStorage final : public Storage
 public:
     void add_query_event(QueryEvent&& qevent) override;
     void add_query_event(std::vector<QueryEvent>& qevents) override;
+    void add_rep_event(RepEvent&& revent) override;
+    void add_rep_event(std::vector<RepEvent>& revents) override;
 
     Iterator begin() override;
     Iterator end() const override;

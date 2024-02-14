@@ -7,7 +7,6 @@
 
 #include "../capstorage.hh"
 #include <maxscale/ccdefs.hh>
-#include <maxscale/routingworker.hh>
 #include <maxbase/collector.hh>
 
 struct RecorderContext

@@ -29,9 +29,17 @@ static const char SQL_CREATE_EVENT_TBL[] =
     ", end_time int"
     ")";
 
+static const char SQL_CREATE_REP_EVENT_TBL[] =
+    "create table rep_event ("
+    "event_id int primary key"
+    ", start_time int"
+    ", end_time int"
+    ", num_rows int"
+    ")";
+
 static const char SQL_CREATE_ARGUMENT_TBL[] =
-    "create table argument ("
-    "event_id int references event(event_id)"
+    "create table if not exists argument ("
+    "event_id int"
     ", pos int"
     ", value text"
     ")";
@@ -44,12 +52,14 @@ static auto CREATE_TABLES_SQL =
     SQL_CREATE_CANONICAL_TBL,
     SQL_CREATE_CANONICAL_INDEX,
     SQL_CREATE_EVENT_TBL,
+    SQL_CREATE_REP_EVENT_TBL,
     SQL_CREATE_ARGUMENT_TBL,
     SQL_CREATE_ARGUMENT_INDEX
 };
 
 static const char SQL_CANONICAL_INSERT[] = "insert into canonical values(?, ?, ?)";
 static const char SQL_EVENT_INSERT[] = "insert into event values(?, ?, ?, ?, ?, ?)";
+static const char SQL_REP_EVENT_INSERT[] = "insert into rep_event values(?, ?, ?, ?)";
 static const char SQL_CANONICAL_ARGUMENT_INSERT[] = "insert into argument values(?, ?, ?)";
 
 static const fs::path FILE_EXTENSION = "sqlite";
@@ -94,6 +104,7 @@ CapSqliteStorage::CapSqliteStorage(const fs::path& path, Access access)
 
         sqlite_prepare(SQL_CANONICAL_INSERT, &m_pCanonical_insert_stmt);
         sqlite_prepare(SQL_EVENT_INSERT, &m_pEvent_insert_stmt);
+        sqlite_prepare(SQL_REP_EVENT_INSERT, &m_pRep_event_insert_stmt);
         sqlite_prepare(SQL_CANONICAL_ARGUMENT_INSERT, &m_pArg_insert_stmt);
     }
 }
@@ -102,6 +113,8 @@ CapSqliteStorage::~CapSqliteStorage()
 {
     sqlite3_finalize(m_pCanonical_insert_stmt);
     sqlite3_finalize(m_pEvent_read_stmt);
+    sqlite3_finalize(m_pEvent_insert_stmt);
+    sqlite3_finalize(m_pRep_event_insert_stmt);
     sqlite3_finalize(m_pArg_insert_stmt);
     sqlite3_close_v2(m_pDb);
 }
@@ -175,6 +188,29 @@ void CapSqliteStorage::insert_canonical_args(int64_t event_id, const maxsimd::Ca
 
         sqlite3_reset(m_pArg_insert_stmt);
     }
+}
+
+void CapSqliteStorage::insert_rep_event(const RepEvent& revent)
+{
+    mxb::Duration start_time_dur = revent.start_time.time_since_epoch();
+    mxb::Duration end_time_dur = revent.end_time.time_since_epoch();
+
+    int64_t start_time_64 = *reinterpret_cast<const int64_t*>(&start_time_dur);
+    int64_t end_time_64 = *reinterpret_cast<const int64_t*>(&end_time_dur);
+
+    int idx = 0;
+    sqlite3_bind_int64(m_pRep_event_insert_stmt, ++idx, revent.event_id);
+    sqlite3_bind_int64(m_pRep_event_insert_stmt, ++idx, start_time_64);
+    sqlite3_bind_int64(m_pRep_event_insert_stmt, ++idx, end_time_64);
+    sqlite3_bind_int64(m_pRep_event_insert_stmt, ++idx, revent.num_rows);
+
+    if (sqlite3_step(m_pRep_event_insert_stmt) != SQLITE_DONE)
+    {
+        MXB_THROW(WcarError, "Failed to execute rep_event insert prepared stmt in database "
+                  << m_path << "' error: " << sqlite3_errmsg(m_pDb));
+    }
+
+    sqlite3_reset(m_pRep_event_insert_stmt);
 }
 
 void CapSqliteStorage::sqlite_execute(const std::string& sql)
@@ -251,6 +287,23 @@ void CapSqliteStorage::add_query_event(std::vector<QueryEvent>& qevents)
     sqlite_execute("commit transaction");
 }
 
+void CapSqliteStorage::add_rep_event(RepEvent&& revent)
+{
+    insert_rep_event(std::move(revent));
+}
+
+void CapSqliteStorage::add_rep_event(std::vector<RepEvent>& revents)
+{
+    sqlite_execute("begin transaction");
+
+    for (auto& revent : revents)
+    {
+        add_rep_event(std::move(revent));
+    }
+
+    sqlite_execute("commit transaction");
+}
+
 Storage::Iterator CapSqliteStorage::begin()
 {
     if (m_pEvent_read_stmt != nullptr)
@@ -282,6 +335,18 @@ Storage::Iterator CapSqliteStorage::end() const
 int64_t CapSqliteStorage::num_unread() const
 {
     return 42;      // TODO
+}
+
+void CapSqliteStorage::truncate_rep_events() const
+{
+    char* pError = nullptr;
+    auto sql = "delete from rep_event";
+    if (sqlite3_exec(m_pDb, sql, nullptr, nullptr, &pError) != SQLITE_OK)
+    {
+        MXB_THROW(WcarError, "Failed sqlite3 query in database '"
+                  << m_path << "' error: " << (pError ? pError : "unknown")
+                  << " sql '" << sql << '\'');
+    }
 }
 
 std::string CapSqliteStorage::select_canonical(int64_t can_id)

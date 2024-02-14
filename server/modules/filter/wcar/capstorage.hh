@@ -78,6 +78,8 @@ public:
 
     virtual void add_query_event(QueryEvent&& qevent) = 0;
     virtual void add_query_event(std::vector<QueryEvent>& qevents) = 0;
+    virtual void add_rep_event(RepEvent&& revent) = 0;
+    virtual void add_rep_event(std::vector<RepEvent>& revents) = 0;
 
     virtual Iterator begin() = 0;
     virtual Iterator end() const = 0;

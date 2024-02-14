@@ -25,10 +25,15 @@ public:
 
     void add_query_event(QueryEvent&& qevent) override;
     void add_query_event(std::vector<QueryEvent>& qevents) override;
+    void add_rep_event(RepEvent&& revent) override;
+    void add_rep_event(std::vector<RepEvent>& revents) override;
 
     Iterator begin() override;
     Iterator end() const override;
     int64_t  num_unread() const override;
+
+    // this will have to become virtual if other storages are used for rep_events
+    void truncate_rep_events() const;
 
     void set_sort_by_start_time()
     {
@@ -43,6 +48,7 @@ private:
     void                   insert_canonical(int64_t hash, int64_t id, const std::string& canonical);
     void                   insert_event(const QueryEvent& qevent, int64_t can_id);
     void                   insert_canonical_args(int64_t event_id, const maxsimd::CanonicalArgs& args);
+    void                   insert_rep_event(const RepEvent& qevent);
     std::string            select_canonical(int64_t can_id);
     maxsimd::CanonicalArgs select_canonical_args(int64_t event_id);
 
@@ -61,6 +67,7 @@ private:
     sqlite3_stmt* m_pCanonical_insert_stmt = nullptr;
     sqlite3_stmt* m_pEvent_insert_stmt = nullptr;
     sqlite3_stmt* m_pArg_insert_stmt = nullptr;
+    sqlite3_stmt* m_pRep_event_insert_stmt = nullptr;
     sqlite3_stmt* m_pEvent_read_stmt = nullptr;
     bool          m_sort_by_start_time = false;
 };

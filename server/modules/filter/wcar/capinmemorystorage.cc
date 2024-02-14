@@ -42,6 +42,19 @@ void CapInmemoryStorage::add_query_event(std::vector<QueryEvent>& qevents)
     }
 }
 
+void CapInmemoryStorage::add_rep_event(RepEvent&& revent)
+{
+    throw std::runtime_error("CapInmemoryStorage::add_rep_event not implemented yet");
+}
+
+void CapInmemoryStorage::add_rep_event(std::vector<RepEvent>& revents)
+{
+    for (auto& revent : revents)
+    {
+        add_rep_event(std::move(revent));
+    }
+}
+
 Storage::Iterator CapInmemoryStorage::begin()
 {
     return Storage::Iterator(this, next_event());
