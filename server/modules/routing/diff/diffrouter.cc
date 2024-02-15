@@ -199,37 +199,113 @@ bool DiffRouter::check_configuration()
 
     mxb_assert(m_config.pService);
 
-    const auto& children = m_config.pService->get_children();
+    m_start_replication.clear();
 
-    auto it = std::find(children.begin(), children.end(), &m_service);
+    const std::vector<mxs::Target*>& targets = m_config.pService->get_children();
 
-    if (it != children.end())
+    auto it = std::find(targets.begin(), targets.end(), &m_service);
+
+    if (it != targets.end())
     {
-        // We seem to be a direct child of the service. We'll assume
-        // we are ready to go.
-        m_diff_state = DiffState::COMPARING;
-        m_sync_state = SyncState::NOT_APPLICABLE;
+        // We seem to be a direct child of the service.
 
-        // TODO: Ensure that our other server's replication status
-        // TODO: and our comparison_kind are compatible.
+        const auto& sConfig = m_service.config();
+        auto user = sConfig->user;
+        auto password = sConfig->password;
 
-        MXB_NOTICE("'%s' starting in the '%s' state.", m_service.name(), to_string(m_diff_state));
+        auto* pMain = m_config.pMain;
+        std::optional<ReplicationInfo> ri_main = get_replication_info(*pMain, user, password);
+
+        if (ri_main)
+        {
+            for (mxs::Target* pTarget : m_service.get_children())
+            {
+                if (pTarget == pMain)
+                {
+                    continue;
+                }
+
+                mxb_assert(pTarget->kind() == mxs::Target::Kind::SERVER);
+                SERVER* pOther = static_cast<SERVER*>(pTarget);
+
+                auto ri_other = get_replication_info(*pOther, user, password);
+
+                if (ri_other)
+                {
+                    if (ri_other->will_replicate_from(*ri_main))
+                    {
+                        if (ri_other->is_currently_replicating())
+                        {
+                            MXB_ERROR("'%s' is target of '%s', but other '%s' is currently "
+                                      "replicating from main '%s'. Cannot continue.",
+                                      m_service.name(), m_config.pService->name(),
+                                      pOther->name(), pMain->name());
+                            rv = false;
+                        }
+                        else
+                        {
+                            m_start_replication.push_back(pOther);
+                        }
+                    }
+                    else if (ri_other->has_same_master(*ri_main))
+                    {
+                        if (ri_other->is_currently_replicating() != ri_main->is_currently_replicating())
+                        {
+                            MXB_ERROR("Main '%s' and other '%s' are configured to replicate from the "
+                                      "same server at %s:%d, but one of them is replicating and "
+                                      "the other one is not. Cannot continue.",
+                                      pMain->name(), pOther->name(),
+                                      ri_other->master_host.c_str(),
+                                      ri_other->master_port);
+                            rv = false;
+                        }
+                    }
+                    else
+                    {
+                        MXB_ERROR("Cannot figure out the relationship between main '%s' and "
+                                  "other '%s'. Cannot continue.",
+                                  pMain->name(), pOther->name());
+                        rv = false;
+                    }
+                }
+                else
+                {
+                    rv = false;
+                }
+
+                if (!rv)
+                {
+                    break;
+                }
+            }
+
+            if (rv)
+            {
+                m_diff_state = DiffState::COMPARING;
+                m_sync_state = SyncState::NOT_APPLICABLE;
+            }
+            else
+            {
+                m_start_replication.clear();
+            }
+        }
+        else
+        {
+            rv = false;
+        }
     }
     else
     {
-        it = std::find(children.begin(), children.end(), m_config.pMain);
+        it = std::find(targets.begin(), targets.end(), m_config.pMain);
 
-        if (it != children.end())
+        if (it != targets.end())
         {
             // Main found where it is supposed to be. So, we are prepared
             // and must be started before comparing is done.
             m_diff_state = DiffState::PREPARED;
             m_sync_state = SyncState::NOT_APPLICABLE;
 
-            // TODO: Ensure that our other server's replication status
-            // TODO: and our comparison_kind are compatible.
-
-            MXB_NOTICE("'%s' starting in the '%s' state. It needs to be started "
+            MXB_NOTICE("'%s' starting in the '%s' state. Must be started "
                        "in order for the comparison to proceed.",
                        m_service.name(), to_string(m_diff_state));
         }
