@@ -548,7 +548,7 @@ bool DiffRouter::rewire_service_for_normalcy()
     return rv;
 }
 
-bool DiffRouter::reset_replication(const SERVER& server)
+bool DiffRouter::start_replication(const SERVER& server, ReplicationMode mode)
 {
     bool rv = false;
 
@@ -562,23 +562,29 @@ bool DiffRouter::reset_replication(const SERVER& server)
 
     if (mdb.open(server.address(), server.port()))
     {
-        if (mdb.cmd("RESET SLAVE"))
+        rv = true;
+
+        if (mode == ReplicationMode::RESET_AND_START)
         {
-            if (mdb.cmd("START SLAVE"))
+            rv = mdb.cmd("RESET SLAVE");
+
+            if (!rv)
             {
-                // TODO: It should be checked that it indeed started.
-                rv = true;
+                MXB_ERROR("Could not reset replication on %s:%d, error: %s",
+                          server.address(), server.port(), mdb.error());
             }
-            else
+        }
+
+        if (rv)
+        {
+            rv = mdb.cmd("START SLAVE");
+            // TODO: It should be checked that it indeed started.
+
+            if (!rv)
             {
                 MXB_ERROR("Could not start replication on %s:%d, error: %s",
                           server.address(), server.port(), mdb.error());
             }
-        }
-        else
-        {
-            MXB_ERROR("Could not reset replication on %s:%d, error: %s",
-                      server.address(), server.port(), mdb.error());
         }
     }
     else
@@ -623,23 +629,35 @@ bool DiffRouter::stop_replication(const SERVER& server)
     return rv;
 }
 
-void DiffRouter::reset_replication()
+void DiffRouter::start_replication(ReplicationMode mode)
 {
-    for (SERVER* pServer : m_reset_replication)
+    for (SERVER* pServer : m_start_replication)
     {
         if (pServer == m_config.pMain)
         {
             continue;
         }
 
-        if (!reset_replication(*pServer))
+        if (!start_replication(*pServer, mode))
         {
-            MXB_ERROR("Could not reset replication of '%s'. "
-                      "Manual intervention is needed.", pServer->name());
+            MXB_ERROR("Could not %s replication of '%s'. "
+                      "Manual intervention is needed.",
+                      mode == ReplicationMode::RESET_AND_START ? "reset" : "start",
+                      pServer->name());
         }
     }
 
-    m_reset_replication.clear();
+    m_start_replication.clear();
+}
+
+void DiffRouter::start_replication()
+{
+    start_replication(ReplicationMode::START_ONLY);
+}
+
+void DiffRouter::reset_replication()
+{
+    start_replication(ReplicationMode::RESET_AND_START);
 }
 
 namespace
@@ -743,7 +761,7 @@ DiffRouter::ReplicationState DiffRouter::stop_replication()
             {
                 if (stop_replication(*pOther))
                 {
-                    m_reset_replication.push_back(pOther);
+                    m_start_replication.push_back(pOther);
                     erase = true;
                 }
                 else
@@ -848,7 +866,7 @@ void DiffRouter::setup(const RoutingWorker::SessionResult& sr)
             MXB_ERROR("Could not stop replication, cannot rewire service '%s'. "
                       "Resuming sessions according to original configuration.",
                       m_config.pService->name());
-            reset_replication();
+            start_replication();
             resume_sessions();
             set_state(DiffState::PREPARED);
             break;
@@ -978,7 +996,7 @@ bool DiffRouter::collect_servers_to_be_stopped()
     bool rv = true;
 
     m_stop_replication.clear();
-    m_reset_replication.clear();
+    m_start_replication.clear();
 
     std::vector<mxs::Target*> targets = m_service.get_children();
     mxb_assert(targets.size() == 2);
@@ -1016,7 +1034,7 @@ bool DiffRouter::collect_servers_to_be_stopped()
     if (!rv)
     {
         m_stop_replication.clear();
-        m_reset_replication.clear();
+        m_start_replication.clear();
     }
 
     return rv;

@@ -118,9 +118,17 @@ private:
     bool rewire_service_for_comparison();
     bool rewire_service_for_normalcy();
 
-    bool reset_replication(const SERVER& server);
+    enum class ReplicationMode
+    {
+        RESET_AND_START,
+        START_ONLY
+    };
+
+    bool start_replication(const SERVER& server, ReplicationMode mode);
     bool stop_replication(const SERVER& server);
 
+    void start_replication(ReplicationMode mode);
+    void start_replication();
     void reset_replication();
 
     enum class ReplicationState
@@ -160,5 +168,5 @@ private:
     std::mutex                              m_stats_lock;
     DiffRegistry                            m_registry;
     std::vector<SERVER*>                    m_stop_replication;
-    std::vector<SERVER*>                    m_reset_replication;
+    std::vector<SERVER*>                    m_start_replication;
 };
