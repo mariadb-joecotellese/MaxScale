@@ -596,6 +596,37 @@ bool DiffRouter::start_replication(const SERVER& server, ReplicationMode mode)
     return rv;
 }
 
+void DiffRouter::start_replication(ReplicationMode mode)
+{
+    for (SERVER* pServer : m_start_replication)
+    {
+        if (pServer == m_config.pMain)
+        {
+            continue;
+        }
+
+        if (!start_replication(*pServer, mode))
+        {
+            MXB_ERROR("Could not %s replication of '%s'. "
+                      "Manual intervention is needed.",
+                      mode == ReplicationMode::RESET_AND_START ? "reset" : "start",
+                      pServer->name());
+        }
+    }
+
+    m_start_replication.clear();
+}
+
+void DiffRouter::start_replication()
+{
+    start_replication(ReplicationMode::START_ONLY);
+}
+
+void DiffRouter::reset_replication()
+{
+    start_replication(ReplicationMode::RESET_AND_START);
+}
+
 bool DiffRouter::stop_replication(const SERVER& server)
 {
     bool rv = false;
@@ -627,37 +658,6 @@ bool DiffRouter::stop_replication(const SERVER& server)
     }
 
     return rv;
-}
-
-void DiffRouter::start_replication(ReplicationMode mode)
-{
-    for (SERVER* pServer : m_start_replication)
-    {
-        if (pServer == m_config.pMain)
-        {
-            continue;
-        }
-
-        if (!start_replication(*pServer, mode))
-        {
-            MXB_ERROR("Could not %s replication of '%s'. "
-                      "Manual intervention is needed.",
-                      mode == ReplicationMode::RESET_AND_START ? "reset" : "start",
-                      pServer->name());
-        }
-    }
-
-    m_start_replication.clear();
-}
-
-void DiffRouter::start_replication()
-{
-    start_replication(ReplicationMode::START_ONLY);
-}
-
-void DiffRouter::reset_replication()
-{
-    start_replication(ReplicationMode::RESET_AND_START);
 }
 
 namespace

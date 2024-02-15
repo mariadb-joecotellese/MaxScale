@@ -125,8 +125,6 @@ private:
     };
 
     bool start_replication(const SERVER& server, ReplicationMode mode);
-    bool stop_replication(const SERVER& server);
-
     void start_replication(ReplicationMode mode);
     void start_replication();
     void reset_replication();
@@ -135,10 +133,12 @@ private:
     {
         READY,   // Replication has been stopped or it did not need to be stopped.
         LAGGING, // Replication not stopped, as replica still lags behind.
-        ERROR,   // Either the replica cannot be connected, or the stopping failed.
+        ERROR,   // Either the replica cannot be connected to, or the stopping failed.
     };
 
+    bool stop_replication(const SERVER& server);
     ReplicationState stop_replication();
+
     void restart_and_resume();
 
     void setup(const mxs::RoutingWorker::SessionResult& sr);
