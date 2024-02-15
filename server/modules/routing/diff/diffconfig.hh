@@ -53,6 +53,8 @@ public:
     int64_t                    retain_faster_statements;
     int64_t                    retain_slower_statements;
 
+    bool                       reset_replication;
+
     SERVICE*    pService;
     std::string service_name;
 
@@ -75,6 +77,7 @@ constexpr int64_t                   DEFAULT_MAX_REQUEST_LAG { 10 };
 constexpr OnError                   DEFAULT_ON_ERROR { OnError::IGNORE };
 constexpr std::chrono::milliseconds DEFAULT_PERIOD { 60 * 60 * 1000 };
 constexpr Report                    DEFAULT_REPORT { Report::ON_DISCREPANCY };
+constexpr bool                      DEFAULT_RESET_REPLICATION { true };
 constexpr int64_t                   DEFAULT_RETAIN_FASTER_STATEMENTS { 5 };
 constexpr int64_t                   DEFAULT_RETAIN_SLOWER_STATEMENTS { 5 };
 /* *INDENT-ON* */

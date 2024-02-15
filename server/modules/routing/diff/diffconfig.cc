@@ -111,6 +111,12 @@ config::ParamEnum<Report> report(
     DEFAULT_REPORT,
     config::Param::AT_RUNTIME);
 
+config::ParamBool reset_replication(
+    &specification,
+    "reset_replication",
+    "Whether the replication should be reset at the end, if it was stopped at the start.",
+    DEFAULT_RESET_REPLICATION);
+
 config::ParamCount retain_faster_statements(
     &specification,
     "retain_faster_statements",
@@ -167,6 +173,7 @@ DiffConfig::DiffConfig(const char* zName, DiffRouter* pInstance)
     add_native(&DiffConfig::max_execution_time_difference, &diff::max_execution_time_difference);
     add_native(&DiffConfig::max_request_lag, &diff::max_request_lag);
     add_native(&DiffConfig::period, &diff::period);
+    add_native(&DiffConfig::reset_replication, &diff::reset_replication);
     add_native(&DiffConfig::retain_faster_statements, &diff::retain_faster_statements);
     add_native(&DiffConfig::retain_slower_statements, &diff::retain_slower_statements);
 }

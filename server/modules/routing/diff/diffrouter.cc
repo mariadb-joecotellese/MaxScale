@@ -903,7 +903,10 @@ void DiffRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
 {
     if (all_sessions_suspended(sr))
     {
-        reset_replication();
+        if (m_config.reset_replication)
+        {
+            reset_replication();
+        }
 
         if (rewire_service_for_normalcy())
         {
