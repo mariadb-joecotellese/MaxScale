@@ -96,7 +96,7 @@ void CapBoostStorage::add_query_event(std::vector<QueryEvent>& qevents)
 
 void CapBoostStorage::add_rep_event(RepEvent&& revent)
 {
-    throw std::runtime_error("CapInmemoryStorage::add_rep_event not implemented yet");
+    throw std::runtime_error("CapBoostStorage::add_rep_event not implemented yet");
 }
 
 void CapBoostStorage::add_rep_event(std::vector<RepEvent>& revents)

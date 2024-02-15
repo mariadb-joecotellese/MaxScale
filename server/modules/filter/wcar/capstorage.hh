@@ -97,9 +97,25 @@ private:
 
 inline void Storage::move_values_from(Storage& other)
 {
+    constexpr int CHUNK = 10000;
+
+    std::vector<QueryEvent> buffer;
+    buffer.reserve(CHUNK);
+
     for (auto& event : other)
     {
-        add_query_event(std::move(event));
+        buffer.push_back(std::move(event));
+
+        if (buffer.size() >= CHUNK)
+        {
+            add_query_event(buffer);
+            buffer.clear();
+        }
+    }
+
+    if (!buffer.empty())
+    {
+        add_query_event(buffer);
     }
 }
 

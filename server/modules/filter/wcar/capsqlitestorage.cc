@@ -10,17 +10,17 @@
 using namespace std;
 
 static const char SQL_CREATE_CANONICAL_TBL[] =
-    "create table canonical ("
+    "create table if not exists canonical ("
     "hash int primary key"
     ", can_id int"
     ", canonical text"
     ")";
 
 static const char SQL_CREATE_CANONICAL_INDEX[] =
-    "create index can_index on canonical(can_id)";
+    "create index if not exists can_index on canonical(can_id)";
 
 static const char SQL_CREATE_EVENT_TBL[] =
-    "create table event ("
+    "create table if not exists event ("
     "event_id int primary key"
     ", can_id int references canonical(can_id)"
     ", session_id int"
@@ -30,7 +30,7 @@ static const char SQL_CREATE_EVENT_TBL[] =
     ")";
 
 static const char SQL_CREATE_REP_EVENT_TBL[] =
-    "create table rep_event ("
+    "create table if not exists rep_event ("
     "event_id int primary key"
     ", start_time int"
     ", end_time int"
@@ -45,7 +45,7 @@ static const char SQL_CREATE_ARGUMENT_TBL[] =
     ")";
 
 static const char SQL_CREATE_ARGUMENT_INDEX[] =
-    "create index arg_index on argument(event_id)";
+    "create index if not exists arg_index on argument(event_id)";
 
 static auto CREATE_TABLES_SQL =
 {
@@ -71,13 +71,6 @@ CapSqliteStorage::CapSqliteStorage(const fs::path& path, Access access)
     if (m_path.extension() != FILE_EXTENSION)
     {
         m_path.replace_extension(FILE_EXTENSION);
-    }
-
-    if (access == Access::READ_WRITE && fs::exists(m_path))
-    {
-        MXB_THROW(WcarError, "sqlite3 database '"
-                  << m_path << "' already exists."
-                  << " Appending to existing database is not allowed.");
     }
 
     int flags = (access == Access::READ_WRITE) ?
