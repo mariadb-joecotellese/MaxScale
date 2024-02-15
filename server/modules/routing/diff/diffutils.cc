@@ -11,16 +11,6 @@
 #include <maxscale/server.hh>
 #include <maxscale/service.hh>
 
-namespace
-{
-
-struct ReplicationInfo
-{
-    std::string host;
-    int         port { 0 };
-    std::string slave_io_state;
-};
-
 std::optional<ReplicationInfo> get_replication_info(const SERVER& server,
                                                     const std::string& user,
                                                     const std::string& password)
@@ -41,10 +31,11 @@ std::optional<ReplicationInfo> get_replication_info(const SERVER& server,
         if (sResult)
         {
             ReplicationInfo rinfo;
+            rinfo.pServer = &server;
             if (sResult->get_col_count() != 0 && sResult->next_row())
             {
-                rinfo.host = sResult->get_string("Master_Host");
-                rinfo.port = sResult->get_int("Master_Port");
+                rinfo.master_host = sResult->get_string("Master_Host");
+                rinfo.master_port = sResult->get_int("Master_Port");
                 rinfo.slave_io_state = sResult->get_string("Slave_IO_State");
             }
 
@@ -65,19 +56,6 @@ std::optional<ReplicationInfo> get_replication_info(const SERVER& server,
     return rv;
 }
 
-bool is_replicating_from(const ReplicationInfo& ri, const SERVER& server)
-{
-    // TODO: One may be expressed using an IP and the other using a hostname.
-    return ri.host == server.address() && ri.port == server.port();
-}
-
-bool are_replicating_from_same(const ReplicationInfo& ri1, const ReplicationInfo& ri2)
-{
-    return ri1.host == ri2.host && ri1.port == ri2.port;
-}
-
-}
-
 ReplicationStatus get_replication_status(const SERVICE& service,
                                          const SERVER& main,
                                          const SERVER& other)
@@ -92,12 +70,12 @@ ReplicationStatus get_replication_status(const SERVICE& service,
 
     if (ri_other)
     {
-        if (is_replicating_from(*ri_other, main))
+        if (ri_other->will_replicate_from(main))
         {
             MXB_INFO("Other '%s' is configured to replicate from main '%s'. "
                      "A read-write setup.", other.name(), main.name());
 
-            if (!ri_other->slave_io_state.empty())
+            if (ri_other->is_currently_replicating())
             {
                 rv = ReplicationStatus::OTHER_REPLICATES_FROM_MAIN;
             }
@@ -105,7 +83,8 @@ ReplicationStatus get_replication_status(const SERVICE& service,
             {
                 MXB_ERROR("Other server '%s' is configured to replicate from "
                           "main server '%s' at %s:%d, but is currently not replicating.",
-                          other.name(), main.name(), ri_other->host.c_str(), ri_other->port);
+                          other.name(), main.name(),
+                          ri_other->master_host.c_str(), ri_other->master_port);
             }
         }
         else
@@ -114,7 +93,7 @@ ReplicationStatus get_replication_status(const SERVICE& service,
 
             if (ri_main)
             {
-                if (is_replicating_from(*ri_main, other))
+                if (ri_main->will_replicate_from(other))
                 {
                     MXB_ERROR("Main '%s' is configured to replicate from other '%s'.",
                               main.name(), other.name());
@@ -123,11 +102,12 @@ ReplicationStatus get_replication_status(const SERVICE& service,
                 }
                 else
                 {
-                    if (are_replicating_from_same(*ri_main, *ri_other))
+                    if (ri_main->has_same_master(*ri_other))
                     {
                         MXB_INFO("Main '%s' and other '%s' are configured to replicate from %s:%d. "
                                  "A read-only setup.",
-                                 main.name(), other.name(), ri_other->host.c_str(), ri_other->port);
+                                 main.name(), other.name(),
+                                 ri_other->master_host.c_str(), ri_other->master_port);
 
                         if (ri_other->slave_io_state == ri_main->slave_io_state)
                         {
@@ -138,7 +118,8 @@ ReplicationStatus get_replication_status(const SERVICE& service,
                         {
                             MXB_ERROR("Main '%s' and other '%s' are configured to replicate from %s:%d, "
                                       "but main is %s and other is %s.",
-                                      main.name(), other.name(), ri_other->host.c_str(), ri_other->port,
+                                      main.name(), other.name(),
+                                      ri_other->master_host.c_str(), ri_other->master_port,
                                       ri_main->slave_io_state.empty() ? "replicating" : "not replicating",
                                       ri_other->slave_io_state.empty() ? "replicating" : "not replicating");
                         }
@@ -148,8 +129,8 @@ ReplicationStatus get_replication_status(const SERVICE& service,
                         MXB_ERROR("Main '%s' is configured to replicate from %s:%d and "
                                   "other '%s' is configured to replicate from %s:%d. There "
                                   "is no relation between them.",
-                                  main.name(), ri_main->host.c_str(), ri_main->port,
-                                  other.name(), ri_other->host.c_str(), ri_other->port);
+                                  main.name(), ri_main->master_host.c_str(), ri_main->master_port,
+                                  other.name(), ri_other->master_host.c_str(), ri_other->master_port);
                         rv = ReplicationStatus::NO_RELATION;
                     }
                 }
