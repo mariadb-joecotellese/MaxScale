@@ -11,11 +11,14 @@
 
 struct RecorderContext
 {
-    // TODO make class for storing RepEvents to ?
+    Storage* pStorage;
+    RecorderContext(Storage* pStorage)
+        : pStorage(pStorage)
+    {
+    }
 };
 
 using SharedUpdate = maxbase::SharedData<RecorderContext, RepEvent>;
-
 
 class RepRecorder final : public mxb::Collector<SharedUpdate, mxb::CollectorMode::UPDATES_ONLY>
 {

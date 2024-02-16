@@ -7,9 +7,14 @@
 #include <iostream>
 #include <thread>
 
-bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent)
+bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent, int32_t thread_id, RepRecorder* pRecorder)
 {
     auto sql = maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args);
+
+    RepEvent revent;
+    revent.event_id = qevent.event_id;
+    revent.start_time = mxb::Clock::now();
+    revent.num_rows = 0;
 
     if (mysql_query(pConn, sql.c_str()))
     {
@@ -21,16 +26,27 @@ bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent)
 
     while (MYSQL_RES* result = mysql_store_result(pConn))
     {
+        revent.num_rows += mysql_num_rows(result);
         mysql_free_result(result);
     }
+
+    revent.end_time = mxb::Clock::now();
+
+    pRecorder->get_shared_data_by_index(thread_id)->send_update(std::move(revent));
 
     return true;
 }
 
-RepSession::RepSession(const RepConfig* pConfig, RepPlayer* pPlayer, int64_t session_id)
+RepSession::RepSession(const RepConfig* pConfig,
+                       RepPlayer* pPlayer,
+                       int64_t session_id,
+                       int32_t thread_id,
+                       RepRecorder* pRecorder)
     : m_config(*pConfig)
     , m_player(*pPlayer)
     , m_session_id(session_id)
+    , m_thread_id(thread_id)
+    , m_pRecorder(pRecorder)
     , m_thread(&RepSession::run, this)
 {
 }
@@ -90,7 +106,7 @@ void RepSession::run()
         }
         else
         {
-            execute_stmt(m_pConn, qevent);
+            execute_stmt(m_pConn, qevent, m_thread_id, m_pRecorder);
             if (qevent.event_id == m_commit_event_id)
             {
                 auto rep = m_commit_event_id;

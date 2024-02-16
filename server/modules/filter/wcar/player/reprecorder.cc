@@ -18,7 +18,7 @@ void RepRecorder::make_updates(RecorderContext* pContext,
 {
     try
     {
-        // TODO add to rep storage
+        pContext->pStorage->add_rep_event(queue);
     }
     catch (std::exception& ex)
     {

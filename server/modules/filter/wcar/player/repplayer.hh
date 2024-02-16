@@ -8,11 +8,13 @@
 #include "repconfig.hh"
 #include "repsession.hh"
 #include "reptransform.hh"
+#include "reprecorder.hh"
 
 class RepPlayer
 {
 public:
     RepPlayer(const RepConfig* pConfig);
+    ~RepPlayer();
 
     void replay();
 
@@ -79,6 +81,8 @@ private:
     std::mutex                  m_session_mutex;
     std::condition_variable     m_session_condition;
     std::unordered_set<int64_t> m_finished_sessions;
+
+    RepRecorder m_recorder;
 
     // Currently for ad-hoc measuring time
     mxb::StopWatch m_stopwatch;

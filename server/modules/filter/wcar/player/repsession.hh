@@ -7,6 +7,7 @@
 
 #include "repconfig.hh"
 #include "../capstorage.hh"
+#include "reprecorder.hh"
 #include <maxbase/stopwatch.hh>
 #include <maxbase/assert.hh>
 #include <deque>
@@ -33,7 +34,9 @@ class RepPlayer;
 class RepSession
 {
 public:
-    RepSession(const RepConfig* pConfig, RepPlayer* pPlayer, int64_t session_id);
+    RepSession(const RepConfig* pConfig, RepPlayer* pPlayer, int64_t session_id,
+               int32_t thread_id, RepRecorder* pRecorder);      // [0...MAX_THREADS[, for the Collector
+                                                                // interface
     ~RepSession();
     RepSession(RepSession&&) = delete;
 
@@ -57,6 +60,8 @@ private:
     RepPlayer&              m_player;
     int64_t                 m_session_id;
     MYSQL*                  m_pConn;
+    int32_t                 m_thread_id;
+    RepRecorder*            m_pRecorder;
     std::thread             m_thread;
     std::mutex              m_mutex;
     std::condition_variable m_condition;
