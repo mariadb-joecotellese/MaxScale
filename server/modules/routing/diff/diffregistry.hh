@@ -30,8 +30,8 @@ public:
     /**
      * Specify how many times a statement should be explained.
      *
-     * @param nExplain_iterations  The number of times a particular kind
-     *                             of statement should be explained.
+     * @param nMax_entries  The number of times a particular kind
+     *                      of statement should be explained.
      */
     void set_max_entries(size_t nMax_entries)
     {
@@ -92,7 +92,7 @@ private:
 
     using EntriesByHash = std::unordered_map<Hash, Entries>;
 
-    std::atomic<size_t>       m_nMax_entries { DEFAULT_ENTRIES };
+    std::atomic<size_t>       m_nMax_entries;
     std::chrono::milliseconds m_period { 0 };
     mutable std::shared_mutex m_entries_lock;
     mutable EntriesByHash     m_entries;

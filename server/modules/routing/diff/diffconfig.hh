@@ -39,26 +39,31 @@ public:
 
     DiffConfig(const char* zName, DiffRouter* pInstance);
 
-    SERVER* pMain;
+    static mxs::config::ParamSize& param_entries();
+    static mxs::config::ParamDuration<std::chrono::milliseconds>& param_period();
 
-    Explain                    explain;
-    mxs::config::Enum<OnError> on_error;
-    mxs::config::Enum<Report>  report;
-    int64_t                    max_execution_time_difference;
-    int64_t                    entries;
-    std::chrono::milliseconds  period;
+    static mxs::config::Specification& specification();
 
-    int64_t                    max_request_lag;
-
-    int64_t                    retain_faster_statements;
-    int64_t                    retain_slower_statements;
-
-    bool                       reset_replication;
-
+    //
+    // Mandatory, Startup
+    //
+    SERVER*     pMain;
     SERVICE*    pService;
     std::string service_name;
 
-    static mxs::config::Specification* specification();
+    //
+    // Optional, Runtime
+    //
+    int64_t                    entries;
+    Explain                    explain;
+    int64_t                    max_execution_time_difference;
+    int64_t                    max_request_lag;
+    mxs::config::Enum<OnError> on_error;
+    std::chrono::milliseconds  period;
+    mxs::config::Enum<Report>  report;
+    bool                       reset_replication;
+    int64_t                    retain_faster_statements;
+    int64_t                    retain_slower_statements;
 
 protected:
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;
@@ -68,16 +73,3 @@ protected:
 private:
     DiffRouter& m_instance;
 };
-
-/* *INDENT-OFF* */
-constexpr int64_t                   DEFAULT_ENTRIES { 2 };
-constexpr Explain                   DEFAULT_EXPLAIN { Explain::BOTH };
-constexpr int64_t                   DEFAULT_MAX_EXECUTION_TIME_DIFFERENCE { 10 };
-constexpr int64_t                   DEFAULT_MAX_REQUEST_LAG { 10 };
-constexpr OnError                   DEFAULT_ON_ERROR { OnError::IGNORE };
-constexpr std::chrono::milliseconds DEFAULT_PERIOD { 60 * 60 * 1000 };
-constexpr Report                    DEFAULT_REPORT { Report::ON_DISCREPANCY };
-constexpr bool                      DEFAULT_RESET_REPLICATION { true };
-constexpr int64_t                   DEFAULT_RETAIN_FASTER_STATEMENTS { 5 };
-constexpr int64_t                   DEFAULT_RETAIN_SLOWER_STATEMENTS { 5 };
-/* *INDENT-ON* */

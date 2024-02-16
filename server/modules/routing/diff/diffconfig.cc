@@ -42,11 +42,28 @@ namespace diff
 
 Specification specification(MXB_MODULE_NAME, config::Specification::ROUTER);
 
+//
+// Startup Parameters
+//
+config::ParamServer main(
+    &specification,
+    "main",
+    "Server from which responses are returned",
+    config::Param::Kind::MANDATORY);
+
+config::ParamString service(
+    &specification,
+    "service",
+    "The service the Diff service is installed for");
+
+//
+// Runtime Parameters
+//
 config::ParamSize entries(
     &specification,
     "entries",
     "During the period specified by 'period', at most how many entries are logged.",
-    DEFAULT_ENTRIES, // Default
+    2, // Default
     0, // Min
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max
     config::Param::AT_RUNTIME);
@@ -60,21 +77,15 @@ config::ParamEnum<Explain> explain(
         {Explain::OTHER, "other"},
         {Explain::BOTH, "both"}
     },
-    DEFAULT_EXPLAIN,
+    Explain::BOTH, // Default
     config::Param::AT_RUNTIME);
-
-config::ParamServer main(
-    &specification,
-    "main",
-    "Server from which responses are returned",
-    config::Param::Kind::MANDATORY);
 
 config::ParamPercent max_execution_time_difference(
     &specification,
     "max_execution_time_difference",
     "Maximum allowed execution time difference, specified in percent, "
     "between the main and an other server before the result is logged.",
-    DEFAULT_MAX_EXECUTION_TIME_DIFFERENCE, // Default
+    10, // Default
     0, // Min
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max
     config::Param::AT_RUNTIME);
@@ -84,7 +95,7 @@ config::ParamSize max_request_lag(
     "max_request_lag",
     "How many requests an 'other' server may lag behind the 'main' server "
     "before SELECTs are not sent to 'other' in order to reduce the lag.",
-    DEFAULT_MAX_REQUEST_LAG, // Default
+    10, // Default
     0, // Min
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max,
     config::Param::AT_RUNTIME);
@@ -97,7 +108,14 @@ config::ParamEnum<OnError> on_error(
         {OnError::IGNORE, "ignore"},
         {OnError::CLOSE, "close"}
     },
-    DEFAULT_ON_ERROR,
+    OnError::IGNORE, // Default
+    config::Param::AT_RUNTIME);
+
+config::ParamDuration<std::chrono::milliseconds> period(
+    &specification,
+    "period",
+    "Specifies the period during which at most 'entries' number of entries are logged.",
+    std::chrono::milliseconds { 15 * 60 * 1000 }, // Default, 15 minutes
     config::Param::AT_RUNTIME);
 
 config::ParamEnum<Report> report(
@@ -108,55 +126,36 @@ config::ParamEnum<Report> report(
         {Report::ALWAYS, "always"},
         {Report::ON_DISCREPANCY, "on_discrepancy"}
     },
-    DEFAULT_REPORT,
+    Report::ON_DISCREPANCY, // Default
     config::Param::AT_RUNTIME);
 
 config::ParamBool reset_replication(
     &specification,
     "reset_replication",
     "Whether the replication should be reset at the end, if it was stopped at the start.",
-    DEFAULT_RESET_REPLICATION);
+    true, // Default
+    config::Param::AT_RUNTIME);
 
 config::ParamCount retain_faster_statements(
     &specification,
     "retain_faster_statements",
     "How many of the faster statements should be retained so that they are available in the summary.",
-    DEFAULT_RETAIN_FASTER_STATEMENTS,
+    5, // Default
     config::Param::AT_RUNTIME);
 
 config::ParamCount retain_slower_statements(
     &specification,
     "retain_slower_statements",
     "How many of the slower statements should be retained so that they are available in the summary.",
-    DEFAULT_RETAIN_SLOWER_STATEMENTS,
-    config::Param::AT_RUNTIME);
-
-config::ParamString service(
-    &specification,
-    "service",
-    "The service the Diff service is installed for");
-
-config::ParamDuration<std::chrono::milliseconds> period(
-    &specification,
-    "period",
-    "Specifies the period during which at most 'entries' number of entries are logged.",
-    DEFAULT_PERIOD,
+    5, // Default
     config::Param::AT_RUNTIME);
 }
-
-
 
 template<class Params>
 bool Specification::do_post_validate(Params& params) const
 {
     return true;
 }
-}
-
-// static
-mxs::config::Specification* DiffConfig::specification()
-{
-    return &diff::specification;
 }
 
 DiffConfig::DiffConfig(const char* zName, DiffRouter* pInstance)
@@ -176,6 +175,24 @@ DiffConfig::DiffConfig(const char* zName, DiffRouter* pInstance)
     add_native(&DiffConfig::reset_replication, &diff::reset_replication);
     add_native(&DiffConfig::retain_faster_statements, &diff::retain_faster_statements);
     add_native(&DiffConfig::retain_slower_statements, &diff::retain_slower_statements);
+}
+
+//static
+mxs::config::ParamSize& DiffConfig::param_entries()
+{
+    return diff::entries;
+}
+
+//static
+mxs::config::ParamDuration<std::chrono::milliseconds>& DiffConfig::param_period()
+{
+    return diff::period;
+}
+
+// static
+mxs::config::Specification& DiffConfig::specification()
+{
+    return diff::specification;
 }
 
 bool DiffConfig::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params)

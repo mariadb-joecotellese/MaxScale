@@ -29,7 +29,7 @@ extern "C" MXS_MODULE* MXS_CREATE_MODULE()
         NULL,
         NULL,
         NULL,
-        DiffConfig::specification()
+        &DiffConfig::specification()
     };
 
     return &info;
