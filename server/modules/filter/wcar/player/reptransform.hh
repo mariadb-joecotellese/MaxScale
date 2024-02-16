@@ -36,10 +36,16 @@ class RepTransform
 public:
     RepTransform(const RepConfig* pConfig);
     /**
-     * @brief player_storage
+     * @brief  player_storage
      * @return Storage where the events are sorted by start_time
      */
     Storage& player_storage();
+
+    /**
+     * @brief  rep_event_storage
+     * @return Storage to where RepEvents are written
+     */
+    Storage& rep_event_storage();
 
     /**
      * @brief transactions
@@ -61,10 +67,21 @@ private:
 
     const RepConfig&         m_config;
     std::unique_ptr<Storage> m_player_storage;
+    std::unique_ptr<Storage> m_rep_event_storage;
     Transactions             m_trxs;
     TrxnMapping              m_trx_start_mapping;
     TrxnMapping              m_trx_end_mapping;
 };
+
+inline Storage& RepTransform::player_storage()
+{
+    return *m_player_storage;
+}
+
+inline Storage& RepTransform::rep_event_storage()
+{
+    return *m_rep_event_storage;
+}
 
 inline Transactions& RepTransform::transactions()
 {

@@ -10,72 +10,62 @@ RepTransform::RepTransform(const RepConfig* pConfig)
     : m_config(*pConfig)
 {
     std::cout << "Transform data for replay." << std::endl;
+
     maxbase::StopWatch sw;
-    StorageType stype;
     fs::path path = m_config.capture_dir + '/' + m_config.file_base_name;
     auto ext = path.extension();
-    std::unique_ptr<Storage> sStorage;
+
+    // The storage given to the player can be of any kind, but is currently fixed.
+    // The sqlite sorting appears to be too slow. Writing to sqlite is fast, so maybe
+    // there could still be a way to use sqlite (investigate), otherwise boost storage
+    // will have to become sortable.
+    // m_player_storage  a boost storage to read from.
+    // rep_event_storage a sqlite storage to write RepEvents to.
+    //                   The table rep_event in this storage is truncated for replay.
+    fs::path sqlite_path{path};
+    std::unique_ptr<CapSqliteStorage> sSqlite;
 
     if (ext == ".sqlite")
     {
-        stype = StorageType::SQLITE;
-        sStorage = std::make_unique<CapSqliteStorage>(path, Access::READ_ONLY);
+        sSqlite = std::make_unique<CapSqliteStorage>(sqlite_path, Access::READ_WRITE);
     }
     else if (ext == ".cx" || ext == ".ex")
     {
-        stype = StorageType::BINARY;
-        sStorage = std::make_unique<CapBoostStorage>(path, ReadWrite::READ_ONLY);
+        sqlite_path.replace_extension(".sqlite");
+
+        CapBoostStorage boost{path, ReadWrite::READ_ONLY};
+        sSqlite = std::make_unique<CapSqliteStorage>(sqlite_path, Access::READ_WRITE);
+        sSqlite->move_values_from(boost);
     }
     else
     {
         MXB_THROW(WcarError, "Unknown extension " << ext);
     }
 
-    if (stype == StorageType::SQLITE)
-    {
-        // Copy sqlite storage to new boost storage instance, sorting by start_time
-        fs::path boost_path{path};
-        boost_path.replace_extension(".cx");
-        auto sBoost = std::make_unique<CapBoostStorage>(boost_path, ReadWrite::WRITE_ONLY);
-        static_cast<CapSqliteStorage*>(sStorage.get())->set_sort_by_start_time();
-        transform_events(*sStorage, *sBoost);
-        sBoost.reset();
-        // Reopen the boost file for reading
-        sStorage = std::make_unique<CapBoostStorage>(boost_path, ReadWrite::READ_ONLY);
-    }
-    else
-    {
-        // Copy from existing storage to a sqlite storage
-        fs::path sqlite_path{path};
-        sqlite_path.replace_extension(".sqlite");
-        std::unique_ptr<CapSqliteStorage> sSqlite = std::make_unique<CapSqliteStorage>(sqlite_path,
-                                                                                       Access::READ_WRITE);
-        sSqlite->move_values_from(*sStorage);
+    // New boost storage to transform into. TODO: In the `else`
+    // above the original boost files should be deleted (maybe),
+    // but instead new files are created to make testing easier.
+    fs::path boost_path{path};
+    boost_path.replace_extension("");
+    boost_path.replace_filename(boost_path.filename().string() + "-replay");
+    boost_path.replace_extension(".cx");
 
-        // Delete the original boost files (could backup instead).
-        // TODO: Clunky, the storage should do it. There will be at least one more file.
-        auto delete_path = path;
-        delete_path.replace_extension(".cx");
-        fs::remove(delete_path);
-        delete_path.replace_extension(".ex");
-        fs::remove(delete_path);
+    m_player_storage = std::make_unique<CapBoostStorage>(boost_path, ReadWrite::WRITE_ONLY);
 
-        // Copy from sqlite to a new boost storage sorted by start_time
-        sSqlite->set_sort_by_start_time();
-        sStorage = std::make_unique<CapBoostStorage>(path, ReadWrite::WRITE_ONLY);
-        transform_events(*sSqlite, *sStorage);
-        // Reopen the boost file for reading
-        sStorage = std::make_unique<CapBoostStorage>(path, ReadWrite::READ_ONLY);
-    }
+    // Transform
+    sSqlite->truncate_rep_events();
+    sSqlite->set_sort_by_start_time();
+    transform_events(*sSqlite, *m_player_storage);
 
-    m_player_storage = std::move(sStorage);
+    // Reopen sqlite. TODO: Storage::reset(), preserve caching.
+    sSqlite.reset();
+    m_rep_event_storage = std::make_unique<CapSqliteStorage>(sqlite_path, Access::READ_WRITE);
+
+    // Reopen the boost file for reading. TODO: Storage::reset(), preserve caching.
+    m_player_storage.reset();
+    m_player_storage = std::make_unique<CapBoostStorage>(boost_path, ReadWrite::READ_ONLY);
 
     std::cout << "Transform: " << mxb::to_string(sw.split()) << std::endl;
-}
-
-Storage& RepTransform::player_storage()
-{
-    return *m_player_storage;
 }
 
 // Expected transaction behavior
@@ -115,7 +105,7 @@ constexpr auto WRITE_FLAGS = TYPE_WRITE | TYPE_READWRITE
 class SessionState
 {
 public:
-    SessionState(int64_t session_id)
+    explicit SessionState(int64_t session_id)
         : m_session_id(session_id)
     {
     }
