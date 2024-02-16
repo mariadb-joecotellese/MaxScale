@@ -6,6 +6,7 @@
 #pragma once
 
 #include "repconfig.hh"
+#include "../capstorage.hh"
 #include <vector>
 #include <unordered_map>
 

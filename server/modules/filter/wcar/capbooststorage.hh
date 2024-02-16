@@ -37,7 +37,6 @@ public:
 
     Iterator begin() override;
     Iterator end() const override;
-    int64_t  num_unread() const override;
 
 private:
     std::fstream open_file(const fs::path& path);

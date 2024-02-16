@@ -65,11 +65,6 @@ Storage::Iterator CapInmemoryStorage::end() const
     return Storage::Iterator(nullptr, QueryEvent {});
 }
 
-int64_t CapInmemoryStorage::num_unread() const
-{
-    return m_events.size();
-}
-
 QueryEvent CapInmemoryStorage::next_event()
 {
     if (m_events.empty())

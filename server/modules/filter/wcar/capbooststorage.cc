@@ -117,11 +117,6 @@ Storage::Iterator CapBoostStorage::end() const
     return Storage::Iterator(nullptr, QueryEvent {});
 }
 
-int64_t CapBoostStorage::num_unread() const
-{
-    return 42;      // TODO, num_unread only makes sense for InmemoryStorage
-}
-
 QueryEvent CapBoostStorage::next_event()
 {
 

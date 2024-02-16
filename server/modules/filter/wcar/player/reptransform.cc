@@ -12,7 +12,7 @@ RepTransform::RepTransform(const RepConfig* pConfig)
     std::cout << "Transform data for replay." << std::endl;
 
     maxbase::StopWatch sw;
-    fs::path path = m_config.capture_dir + '/' + m_config.file_base_name;
+    fs::path path{m_config.file_name};
     auto ext = path.extension();
 
     // The storage given to the player can be of any kind, but is currently fixed.

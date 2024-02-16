@@ -71,7 +71,7 @@ void RepConfig::show_help()
               << OPT('u', user)
               << OPT('p', password)
               << OPT('H', host)
-              << "\nInput file: " << file_base_name
+              << "\nInput file: " << file_name
               << std::endl;
 }
 
@@ -120,7 +120,11 @@ RepConfig::RepConfig(int argc, char** argv)
     }
     else
     {
-        file_base_name = argv[optind];
+        file_name = argv[optind];
+        if (file_name[0] != '/')
+        {
+            file_name = capture_dir + '/' + file_name;
+        }
     }
 
     if (help)

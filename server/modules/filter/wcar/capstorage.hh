@@ -84,9 +84,6 @@ public:
     virtual Iterator begin() = 0;
     virtual Iterator end() const = 0;
 
-    // Can be used to conditionally write to external storage in batches.
-    virtual int64_t num_unread() const = 0;
-
 protected:
     int64_t            next_can_id();
     virtual QueryEvent next_event() = 0;

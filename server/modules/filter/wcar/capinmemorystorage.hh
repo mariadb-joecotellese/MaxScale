@@ -19,7 +19,6 @@ public:
 
     Iterator begin() override;
     Iterator end() const override;
-    int64_t  num_unread() const override;
 
 private:
     QueryEvent next_event() override;

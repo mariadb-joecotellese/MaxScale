@@ -19,8 +19,8 @@ static const char SQL_CREATE_CANONICAL_TBL[] =
 static const char SQL_CREATE_CANONICAL_INDEX[] =
     "create index if not exists can_index on canonical(can_id)";
 
-static const char SQL_CREATE_EVENT_TBL[] =
-    "create table if not exists event ("
+static const char SQL_CREATE_QUERT_EVENT_TBL[] =
+    "create table if not exists query_event ("
     "event_id int primary key"
     ", can_id int references canonical(can_id)"
     ", session_id int"
@@ -51,14 +51,14 @@ static auto CREATE_TABLES_SQL =
 {
     SQL_CREATE_CANONICAL_TBL,
     SQL_CREATE_CANONICAL_INDEX,
-    SQL_CREATE_EVENT_TBL,
+    SQL_CREATE_QUERT_EVENT_TBL,
     SQL_CREATE_REP_EVENT_TBL,
     SQL_CREATE_ARGUMENT_TBL,
     SQL_CREATE_ARGUMENT_INDEX
 };
 
 static const char SQL_CANONICAL_INSERT[] = "insert into canonical values(?, ?, ?)";
-static const char SQL_EVENT_INSERT[] = "insert into event values(?, ?, ?, ?, ?, ?)";
+static const char SQL_QUERY_EVENT_INSERT[] = "insert into query_event values(?, ?, ?, ?, ?, ?)";
 static const char SQL_REP_EVENT_INSERT[] = "insert into rep_event values(?, ?, ?, ?)";
 static const char SQL_CANONICAL_ARGUMENT_INSERT[] = "insert into argument values(?, ?, ?)";
 
@@ -96,7 +96,7 @@ CapSqliteStorage::CapSqliteStorage(const fs::path& path, Access access)
         }
 
         sqlite_prepare(SQL_CANONICAL_INSERT, &m_pCanonical_insert_stmt);
-        sqlite_prepare(SQL_EVENT_INSERT, &m_pEvent_insert_stmt);
+        sqlite_prepare(SQL_QUERY_EVENT_INSERT, &m_pQuery_event_insert_stmt);
         sqlite_prepare(SQL_REP_EVENT_INSERT, &m_pRep_event_insert_stmt);
         sqlite_prepare(SQL_CANONICAL_ARGUMENT_INSERT, &m_pArg_insert_stmt);
     }
@@ -105,8 +105,8 @@ CapSqliteStorage::CapSqliteStorage(const fs::path& path, Access access)
 CapSqliteStorage::~CapSqliteStorage()
 {
     sqlite3_finalize(m_pCanonical_insert_stmt);
-    sqlite3_finalize(m_pEvent_read_stmt);
-    sqlite3_finalize(m_pEvent_insert_stmt);
+    sqlite3_finalize(m_pQuery_event_read_stmt);
+    sqlite3_finalize(m_pQuery_event_insert_stmt);
     sqlite3_finalize(m_pRep_event_insert_stmt);
     sqlite3_finalize(m_pArg_insert_stmt);
     sqlite3_close_v2(m_pDb);
@@ -137,13 +137,13 @@ void CapSqliteStorage::insert_canonical(int64_t hash, int64_t id, const std::str
     sqlite3_reset(m_pCanonical_insert_stmt);
 }
 
-void CapSqliteStorage::insert_event(const QueryEvent& qevent, int64_t can_id)
+void CapSqliteStorage::insert_query_event(const QueryEvent& qevent, int64_t can_id)
 {
     int idx = 0;
-    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, qevent.event_id);
-    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, can_id);
-    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, qevent.session_id);
-    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, qevent.flags);
+    sqlite3_bind_int64(m_pQuery_event_insert_stmt, ++idx, qevent.event_id);
+    sqlite3_bind_int64(m_pQuery_event_insert_stmt, ++idx, can_id);
+    sqlite3_bind_int64(m_pQuery_event_insert_stmt, ++idx, qevent.session_id);
+    sqlite3_bind_int64(m_pQuery_event_insert_stmt, ++idx, qevent.flags);
 
     static_assert(sizeof(mxb::Duration) == sizeof(int64_t));
 
@@ -153,16 +153,16 @@ void CapSqliteStorage::insert_event(const QueryEvent& qevent, int64_t can_id)
     int64_t start_time_64 = *reinterpret_cast<const int64_t*>(&start_time_dur);
     int64_t end_time_64 = *reinterpret_cast<const int64_t*>(&end_time_dur);
 
-    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, start_time_64);
-    sqlite3_bind_int64(m_pEvent_insert_stmt, ++idx, end_time_64);
+    sqlite3_bind_int64(m_pQuery_event_insert_stmt, ++idx, start_time_64);
+    sqlite3_bind_int64(m_pQuery_event_insert_stmt, ++idx, end_time_64);
 
-    if (sqlite3_step(m_pEvent_insert_stmt) != SQLITE_DONE)
+    if (sqlite3_step(m_pQuery_event_insert_stmt) != SQLITE_DONE)
     {
         MXB_THROW(WcarError, "Failed to execute canonical insert prepared stmt in database "
                   << m_path << "' error: " << sqlite3_errmsg(m_pDb));
     }
 
-    sqlite3_reset(m_pEvent_insert_stmt);
+    sqlite3_reset(m_pQuery_event_insert_stmt);
 }
 
 void CapSqliteStorage::insert_canonical_args(int64_t event_id, const maxsimd::CanonicalArgs& args)
@@ -260,7 +260,7 @@ void CapSqliteStorage::add_query_event(QueryEvent&& qevent)
         insert_canonical(hash, can_id, *qevent.sCanonical);
     }
 
-    insert_event(qevent, can_id);
+    insert_query_event(qevent, can_id);
 
     if (!qevent.canonical_args.empty())
     {
@@ -299,13 +299,14 @@ void CapSqliteStorage::add_rep_event(std::vector<RepEvent>& revents)
 
 Storage::Iterator CapSqliteStorage::begin()
 {
-    if (m_pEvent_read_stmt != nullptr)
+    if (m_pQuery_event_read_stmt != nullptr)
     {
-        sqlite3_finalize(m_pEvent_read_stmt);
-        m_pEvent_read_stmt = nullptr;
+        sqlite3_finalize(m_pQuery_event_read_stmt);
+        m_pQuery_event_read_stmt = nullptr;
     }
 
-    std::string event_query = "select event_id, can_id, session_id, flags, start_time, end_time from event ";
+    std::string event_query = "select event_id, can_id, session_id, flags,"
+                              "start_time, end_time from query_event ";
     if (m_sort_by_start_time)
     {
         event_query += "order by start_time";
@@ -315,7 +316,7 @@ Storage::Iterator CapSqliteStorage::begin()
         event_query += "order by event_id";
     }
 
-    sqlite_prepare(event_query, &m_pEvent_read_stmt);
+    sqlite_prepare(event_query, &m_pQuery_event_read_stmt);
 
     return Storage::Iterator(this, next_event());
 }
@@ -323,11 +324,6 @@ Storage::Iterator CapSqliteStorage::begin()
 Storage::Iterator CapSqliteStorage::end() const
 {
     return {nullptr, QueryEvent {}};
-}
-
-int64_t CapSqliteStorage::num_unread() const
-{
-    return 42;      // TODO
 }
 
 void CapSqliteStorage::truncate_rep_events() const
@@ -399,13 +395,13 @@ maxsimd::CanonicalArgs CapSqliteStorage::select_canonical_args(int64_t event_id)
 
 QueryEvent CapSqliteStorage::next_event()
 {
-    mxb_assert(m_pEvent_read_stmt != nullptr);
-    auto rc = sqlite3_step(m_pEvent_read_stmt);
+    mxb_assert(m_pQuery_event_read_stmt != nullptr);
+    auto rc = sqlite3_step(m_pQuery_event_read_stmt);
 
     if (rc == SQLITE_DONE)
     {
-        sqlite3_finalize(m_pEvent_read_stmt);
-        m_pEvent_read_stmt = nullptr;
+        sqlite3_finalize(m_pQuery_event_read_stmt);
+        m_pQuery_event_read_stmt = nullptr;
         return QueryEvent {};
     }
     else if (rc != SQLITE_ROW)
@@ -417,12 +413,12 @@ QueryEvent CapSqliteStorage::next_event()
     }
 
     int idx = -1;
-    auto event_id = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
-    auto can_id = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
-    auto session_id = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
-    auto flags = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
-    auto start_time_64 = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
-    auto end_time_64 = sqlite3_column_int64(m_pEvent_read_stmt, ++idx);
+    auto event_id = sqlite3_column_int64(m_pQuery_event_read_stmt, ++idx);
+    auto can_id = sqlite3_column_int64(m_pQuery_event_read_stmt, ++idx);
+    auto session_id = sqlite3_column_int64(m_pQuery_event_read_stmt, ++idx);
+    auto flags = sqlite3_column_int64(m_pQuery_event_read_stmt, ++idx);
+    auto start_time_64 = sqlite3_column_int64(m_pQuery_event_read_stmt, ++idx);
+    auto end_time_64 = sqlite3_column_int64(m_pQuery_event_read_stmt, ++idx);
 
     auto pS = reinterpret_cast<mxb::TimePoint::rep*>(&start_time_64);
     auto pE = reinterpret_cast<mxb::TimePoint::rep*>(&end_time_64);

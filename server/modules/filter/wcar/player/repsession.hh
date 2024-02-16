@@ -6,6 +6,7 @@
 #pragma once
 
 #include "repconfig.hh"
+#include "../capstorage.hh"
 #include <maxbase/stopwatch.hh>
 #include <maxbase/assert.hh>
 #include <deque>
