@@ -10,8 +10,19 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
+
+import CollapsibleCtr from '@/components/common/CollapsibleCtr.vue'
+import GblItrTooltip from '@/components/common/GblItrTooltip.vue'
+import GblTruncateTooltipActivator from '@/components/common/GblTruncateTooltipActivator.vue'
+import GlobalSearch from '@/components/common/GlobalSearch.vue'
+import TreeTable from '@/components/common/TreeTable.vue'
 import ViewWrapper from '@/components/common/ViewWrapper.vue'
 
 export default {
+  CollapsibleCtr,
+  GblItrTooltip,
+  GblTruncateTooltipActivator,
+  GlobalSearch,
+  TreeTable,
   ViewWrapper,
 }

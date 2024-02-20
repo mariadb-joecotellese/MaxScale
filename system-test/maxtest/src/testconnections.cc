@@ -370,6 +370,7 @@ int TestConnections::cleanup()
     m_stop_threads = true;
     if (m_timeout_thread.joinable())
     {
+        m_timeout_cv.notify_one();
         m_timeout_thread.join();
     }
     if (m_log_copy_thread.joinable())
@@ -785,7 +786,7 @@ port=4006)";
 
                 string port_ph = mxb::string_printf("###%s_server_port_%0d###",
                                                     nw_conf_prefix.c_str(), i + 1);
-                string port_str = std::to_string(cluster->port[i]);
+                string port_str = std::to_string(cluster->port(i));
                 replace_text(port_ph, port_str);
             }
 
@@ -1416,7 +1417,9 @@ void TestConnections::timeout_thread_func()
             copy_all_logs();
             exit(250);
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+        std::unique_lock<std::mutex> guard(m_timeout_lock);
+        m_timeout_cv.wait_for(guard, std::chrono::milliseconds(500));
     }
 }
 
