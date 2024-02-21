@@ -13,6 +13,10 @@ if (NOT INSTALL_EXPERIMENTAL)
   list(REMOVE_ITEM CPACK_COMPONENTS_ALL "experimental")
 endif()
 
+if (NOT INSTALL_ENTERPRISE)
+  list(REMOVE_ITEM CPACK_COMPONENTS_ALL "enterprise")
+endif()
+
 if (NOT CPACK_COMPONENTS_ALL)
   message(FATAL_ERROR "Must package at least one component")
 endif()
@@ -46,6 +50,9 @@ set(EXPERIMENTAL_PACKAGE_DESCRIPTION "
 This package contains experimental and community contributed modules for MariaDB
 MaxScale. The packages are not fully supported parts of MaxScale and should be
 considered as alpha quality software.")
+
+set(ENTERPRISE_PACKAGE_SUMMARY "MaxScale Enterprise modules")
+set(ENTERPRISE_PACKAGE_DESCRIPTION "This package contains modules that are part of MaxScale Enterprise.")
 
 # If we're building something other than the main package, append the target name
 # to the package name.

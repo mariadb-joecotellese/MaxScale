@@ -20,7 +20,8 @@ endif()
 # binaries will be stripped.
 set(CPACK_RPM_SPEC_INSTALL_POST "/bin/true")
 
-set(CPACK_RPM_PACKAGE_LICENSE "MariaDB BSL 1.1")
+# This is currently a global property: https://gitlab.kitware.com/cmake/cmake/-/issues/19082
+set(CPACK_RPM_PACKAGE_LICENSE "Proprietary")
 
 set(IGNORED_DIRS
   "%ignore /etc"
@@ -55,5 +56,13 @@ set(CPACK_RPM_EXPERIMENTAL_PACKAGE_NAME "maxscale-experimental")
 set(CPACK_RPM_EXPERIMENTAL_FILE_NAME "maxscale-experimental-${VERSION_SUFFIX}")
 set(CPACK_RPM_EXPERIMENTAL_PACKAGE_SUMMARY "${EXPERIMENTAL_PACKAGE_SUMMARY}")
 set(CPACK_RPM_EXPERIMENTAL_PACKAGE_DESCRIPTION "${EXPERIMENTAL_PACKAGE_DESCRIPTION}")
+
+#
+# Enterprise package
+#
+set(CPACK_RPM_ENTERPRISE_PACKAGE_NAME "maxscale-enterprise")
+set(CPACK_RPM_ENTERPRISE_FILE_NAME "maxscale-enterprise-${VERSION_SUFFIX}")
+set(CPACK_RPM_ENTERPRISE_PACKAGE_SUMMARY "${ENTERPRISE_PACKAGE_SUMMARY}")
+set(CPACK_RPM_ENTERPRISE_PACKAGE_DESCRIPTION "${ENTERPRISE_PACKAGE_DESCRIPTION}")
 
 message(STATUS "Generating RPM packages")

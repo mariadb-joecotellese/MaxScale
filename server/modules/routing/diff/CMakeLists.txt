@@ -14,4 +14,4 @@ add_library(diff SHARED
 
 target_link_libraries(diff maxscale-common)
 set_target_properties(diff PROPERTIES VERSION "1.0.0"  LINK_FLAGS -Wl,-z,defs)
-install_module(diff core)
+install_module(diff enterprise)
