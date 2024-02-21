@@ -51,9 +51,14 @@ RepSession::RepSession(const RepConfig* pConfig,
 {
 }
 
+void RepSession::stop()
+{
+    m_running.store(false, std::memory_order_relaxed);
+}
+
 RepSession::~RepSession()
 {
-    mxb_assert(m_queue.empty());
+    stop();
     m_thread.join();
 }
 
@@ -88,7 +93,7 @@ void RepSession::run()
         exit(EXIT_FAILURE);
     }
 
-    for (;;)
+    while (m_running.load(std::memory_order_relaxed))
     {
         std::unique_lock lock(m_mutex);
         m_condition.wait(lock, [this]{

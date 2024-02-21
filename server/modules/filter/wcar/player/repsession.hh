@@ -26,10 +26,6 @@ class RepPlayer;
  *        Once the session ends (a close-event is seen) the db connection
  *        is closed, Player::session_finished() is called, and
  *        the thread function, RepSession::run(), returns.
- *
- *        There is currently no RepSession::stop(), which will be needed once
- *        an overall simulation timeout is implemented (or to gracefully respond
- *        to a kill signal).
  */
 class RepSession
 {
@@ -39,6 +35,8 @@ public:
                                                                 // interface
     ~RepSession();
     RepSession(RepSession&&) = delete;
+
+    void stop();    // stop the thread
 
     int64_t session_id() const;
     void    queue_query(QueryEvent&& qevent, int64_t commit_event_id = -1);
@@ -63,6 +61,7 @@ private:
     int32_t                 m_thread_id;
     RepRecorder*            m_pRecorder;
     std::thread             m_thread;
+    std::atomic<bool>       m_running = true;
     std::mutex              m_mutex;
     std::condition_variable m_condition;
     std::deque<QueryEvent>  m_queue;
