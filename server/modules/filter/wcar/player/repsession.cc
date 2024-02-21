@@ -104,7 +104,7 @@ void RepSession::run()
         m_queue.pop_front();
         lock.unlock();
 
-        if (qevent.start_time == qevent.end_time)
+        if (qevent.is_session_close())
         {
             m_player.session_finished(*this);
             break;

@@ -23,6 +23,11 @@ struct QueryEvent
     mxb::TimePoint               start_time;
     mxb::TimePoint               end_time;
     int64_t                      event_id;
+
+    bool is_session_close() const
+    {
+        return start_time == end_time;
+    }
 };
 
 struct RepEvent

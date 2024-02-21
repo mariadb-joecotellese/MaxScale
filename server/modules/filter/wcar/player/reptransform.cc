@@ -115,7 +115,7 @@ public:
     {
         Transaction txn;
 
-        if (qevent.start_time == qevent.end_time)   // TODO make this a member fnct of QueryEvent
+        if (qevent.is_session_close())
         {
             if (m_in_trx)
             {
