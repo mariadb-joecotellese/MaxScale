@@ -210,7 +210,6 @@ add_subdirectory(maxutils)
 add_subdirectory(server)
 add_subdirectory(include/maxscale)
 add_subdirectory(maxctrl)
-add_subdirectory(connectors)
 add_subdirectory(maxgui)
 
 if(BUILD_TESTS)
@@ -226,7 +225,7 @@ install_file(etc/maxscale.cnf.template core)
 install_script(script/maxscale_generate_support_info.py core)
 
 # Install the template into /etc
-if(WITH_MAXSCALE_CNF AND (NOT TARGET_COMPONENT OR "core" STREQUAL "${TARGET_COMPONENT}"))
+if(WITH_MAXSCALE_CNF)
   install_custom_file(etc/maxscale.cnf.template ${MAXSCALE_CONFDIR} core)
 endif()
 
@@ -239,10 +238,6 @@ install_manual(Documentation/maxscale.1 1 core)
 install_file(${CMAKE_SOURCE_DIR}/etc/logrotate.d/maxscale_logrotate core)
 install_file(${CMAKE_BINARY_DIR}/maxscale.conf core)
 install_file(${CMAKE_BINARY_DIR}/maxscale.service core)
-
-# For devel package, these files are put to the base folder
-install_header(${CMAKE_SOURCE_DIR}/COPYRIGHT devel)
-install_header(${CMAKE_SOURCE_DIR}/LICENSE.TXT devel)
 
 # Install startup scripts and other system configuration files
 if(WITH_SCRIPTS)
