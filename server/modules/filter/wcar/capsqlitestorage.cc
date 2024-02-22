@@ -16,9 +16,6 @@ static const char SQL_CREATE_CANONICAL_TBL[] =
     ", canonical text"
     ")";
 
-static const char SQL_CREATE_CANONICAL_INDEX[] =
-    "create index if not exists can_index on canonical(can_id)";
-
 static const char SQL_CREATE_QUERT_EVENT_TBL[] =
     "create table if not exists query_event ("
     "event_id int primary key"
@@ -44,17 +41,21 @@ static const char SQL_CREATE_ARGUMENT_TBL[] =
     ", value text"
     ")";
 
+static const char SQL_CREATE_CANONICAL_INDEX[] =
+    "create index if not exists can_index on canonical(can_id)";
+
 static const char SQL_CREATE_ARGUMENT_INDEX[] =
     "create index if not exists arg_index on argument(event_id)";
+
+static const char SQL_CREATE_START_TIME_INDEX[] =
+    "create index if not exists start_index on query_event(start_time)";
 
 static auto CREATE_TABLES_SQL =
 {
     SQL_CREATE_CANONICAL_TBL,
-    SQL_CREATE_CANONICAL_INDEX,
     SQL_CREATE_QUERT_EVENT_TBL,
     SQL_CREATE_REP_EVENT_TBL,
     SQL_CREATE_ARGUMENT_TBL,
-    SQL_CREATE_ARGUMENT_INDEX
 };
 
 static const char SQL_CANONICAL_INSERT[] = "insert into canonical values(?, ?, ?)";
@@ -87,6 +88,11 @@ CapSqliteStorage::CapSqliteStorage(const fs::path& path, Access access)
 
         MXB_THROW(WcarError, error_msg);
     }
+
+    // These have no, or little effect on my system. At least journal_mode works,
+    // because no journal files are seen when OFF.
+    sqlite_execute("pragma synchronous = OFF");
+    sqlite_execute("pragma journal_mode = OFF");
 
     if (access == Access::READ_WRITE)
     {
@@ -299,22 +305,19 @@ void CapSqliteStorage::add_rep_event(std::vector<RepEvent>& revents)
 
 Storage::Iterator CapSqliteStorage::begin()
 {
+    sqlite_execute(SQL_CREATE_CANONICAL_INDEX);
+    sqlite_execute(SQL_CREATE_ARGUMENT_INDEX);
+    sqlite_execute(SQL_CREATE_START_TIME_INDEX);
+
     if (m_pQuery_event_read_stmt != nullptr)
     {
         sqlite3_finalize(m_pQuery_event_read_stmt);
         m_pQuery_event_read_stmt = nullptr;
     }
 
-    std::string event_query = "select event_id, can_id, session_id, flags,"
-                              "start_time, end_time from query_event ";
-    if (m_sort_by_start_time)
-    {
-        event_query += "order by start_time";
-    }
-    else
-    {
-        event_query += "order by event_id";
-    }
+    const std::string event_query = "select event_id, can_id, session_id, flags,"
+                                    "start_time, end_time from query_event"
+                                    " order by start_time";
 
     sqlite_prepare(event_query, &m_pQuery_event_read_stmt);
 

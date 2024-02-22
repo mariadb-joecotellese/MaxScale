@@ -34,11 +34,6 @@ public:
     // this will have to become virtual if other storages are used for rep_events
     void truncate_rep_events() const;
 
-    void set_sort_by_start_time()
-    {
-        m_sort_by_start_time = true;
-    }
-
 private:
     QueryEvent next_event() override;
 

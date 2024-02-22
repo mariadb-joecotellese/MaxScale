@@ -54,7 +54,6 @@ RepTransform::RepTransform(const RepConfig* pConfig)
 
     // Transform
     sSqlite->truncate_rep_events();
-    sSqlite->set_sort_by_start_time();
     transform_events(*sSqlite, *m_player_storage);
 
     // Reopen sqlite. TODO: Storage::reset(), preserve caching.
