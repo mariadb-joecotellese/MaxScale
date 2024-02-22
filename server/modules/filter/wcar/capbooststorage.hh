@@ -45,12 +45,12 @@ private:
     /// Save a canonical to m_canonical_path
     void save_canonical(int64_t can_id, const std::string& canonical);
     /// Save an event to m_canonical_path
-    void save_event(int64_t can_id, const QueryEvent& qevent);
+    void save_query_event(int64_t can_id, const QueryEvent& qevent);
     /// Read all canonicals into memory
     void read_canonicals();
     /// While serving events, preload a number of events using
     /// some as of yet unspecified strategy.
-    void preload_more_events();
+    void preload_more_query_events();
 
     std::shared_ptr<std::string> find_canonical(int64_t can_id);
 
@@ -69,18 +69,18 @@ private:
     using Canonicals = std::unordered_map<int64_t, CanonicalEntry>;
     Canonicals m_canonicals;
 
-    using Events = std::deque<QueryEvent>;
-    Events m_events;
+    using QueryEvents = std::deque<QueryEvent>;
+    QueryEvents m_query_events;
 
     fs::path  m_base_path;
     fs::path  m_canonical_path;
-    fs::path  m_event_path;
+    fs::path  m_query_event_path;
     ReadWrite m_access;
 
     std::fstream                   m_canonical_fs;
-    std::fstream                   m_event_fs;
+    std::fstream                   m_query_event_fs;
     std::unique_ptr<BoostOArchive> m_sCanonical_oa;
     std::unique_ptr<BoostIArchive> m_sCanonical_ia;
-    std::unique_ptr<BoostOArchive> m_sEvent_oa;
-    std::unique_ptr<BoostIArchive> m_sEvent_ia;
+    std::unique_ptr<BoostOArchive> m_sQuery_event_oa;
+    std::unique_ptr<BoostIArchive> m_sQuery_event_ia;
 };

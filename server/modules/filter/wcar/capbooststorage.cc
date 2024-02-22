@@ -10,25 +10,25 @@
 CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
     , m_canonical_path(base_path)
-    , m_event_path(base_path)
+    , m_query_event_path(base_path)
     , m_access(access)
 {
     m_canonical_path.replace_extension("cx");
-    m_event_path.replace_extension("ex");
+    m_query_event_path.replace_extension("ex");
 
     m_canonical_fs = open_file(m_canonical_path);
-    m_event_fs = open_file(m_event_path);
+    m_query_event_fs = open_file(m_query_event_path);
 
     if (m_access == ReadWrite::READ_ONLY)
     {
         m_sCanonical_ia = std::make_unique<BoostIArchive>(m_canonical_fs);
-        m_sEvent_ia = std::make_unique<BoostIArchive>(m_event_fs);
+        m_sQuery_event_ia = std::make_unique<BoostIArchive>(m_query_event_fs);
         read_canonicals();
-        preload_more_events();
+        preload_more_query_events();
     }
     else
     {
-        m_sEvent_oa = std::make_unique<BoostOArchive>(m_event_fs);
+        m_sQuery_event_oa = std::make_unique<BoostOArchive>(m_query_event_fs);
         m_sCanonical_oa = std::make_unique<BoostOArchive>(m_canonical_fs);
     }
 }
@@ -83,7 +83,7 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
         m_canonicals.emplace(hash, CanonicalEntry {can_id, qevent.sCanonical});
     }
 
-    save_event(can_id, qevent);
+    save_query_event(can_id, qevent);
 }
 
 void CapBoostStorage::add_query_event(std::vector<QueryEvent>& qevents)
@@ -120,15 +120,15 @@ Storage::Iterator CapBoostStorage::end() const
 QueryEvent CapBoostStorage::next_event()
 {
 
-    if (m_events.empty())
+    if (m_query_events.empty())
     {
-        preload_more_events();
+        preload_more_query_events();
     }
 
-    if (!m_events.empty())
+    if (!m_query_events.empty())
     {
-        QueryEvent ret = std::move(m_events.front());
-        m_events.pop_front();
+        QueryEvent ret = std::move(m_query_events.front());
+        m_query_events.pop_front();
         return ret;
     }
     else
@@ -143,25 +143,25 @@ void CapBoostStorage::save_canonical(int64_t can_id, const std::string& canonica
     (*m_sCanonical_oa) & canonical;
 }
 
-void CapBoostStorage::save_event(int64_t can_id, const QueryEvent& qevent)
+void CapBoostStorage::save_query_event(int64_t can_id, const QueryEvent& qevent)
 {
-    (*m_sEvent_oa) & can_id;
-    (*m_sEvent_oa) & qevent.event_id;
-    (*m_sEvent_oa) & qevent.session_id;
-    (*m_sEvent_oa) & qevent.flags;
+    (*m_sQuery_event_oa) & can_id;
+    (*m_sQuery_event_oa) & qevent.event_id;
+    (*m_sQuery_event_oa) & qevent.session_id;
+    (*m_sQuery_event_oa) & qevent.flags;
 
     int nargs = qevent.canonical_args.size();
-    (*m_sEvent_oa) & nargs;
+    (*m_sQuery_event_oa) & nargs;
     for (const auto& a : qevent.canonical_args)
     {
-        (*m_sEvent_oa) & a.pos;
-        (*m_sEvent_oa) & a.value;
+        (*m_sQuery_event_oa) & a.pos;
+        (*m_sQuery_event_oa) & a.value;
     }
 
     mxb::Duration start_time_dur = qevent.start_time.time_since_epoch();
     mxb::Duration end_time_dur = qevent.end_time.time_since_epoch();
-    (*m_sEvent_oa) & *reinterpret_cast<const int64_t*>(&start_time_dur);
-    (*m_sEvent_oa) & *reinterpret_cast<const int64_t*>(&end_time_dur);
+    (*m_sQuery_event_oa) & *reinterpret_cast<const int64_t*>(&start_time_dur);
+    (*m_sQuery_event_oa) & *reinterpret_cast<const int64_t*>(&end_time_dur);
 }
 
 void CapBoostStorage::read_canonicals()
@@ -192,11 +192,11 @@ void CapBoostStorage::read_canonicals()
     }
 }
 
-void CapBoostStorage::preload_more_events()
+void CapBoostStorage::preload_more_query_events()
 {
     // This will become something that needs to consider memory usage
     // rather than number of events.
-    int64_t nfetch = 1000 - m_events.size();
+    int64_t nfetch = 1000 - m_query_events.size();
     while (nfetch--)
     {
         try
@@ -204,32 +204,32 @@ void CapBoostStorage::preload_more_events()
             int64_t can_id;
             QueryEvent qevent;
 
-            (*m_sEvent_ia) & can_id;
-            (*m_sEvent_ia) & qevent.event_id;
-            (*m_sEvent_ia) & qevent.session_id;
-            (*m_sEvent_ia) & qevent.flags;
+            (*m_sQuery_event_ia) & can_id;
+            (*m_sQuery_event_ia) & qevent.event_id;
+            (*m_sQuery_event_ia) & qevent.session_id;
+            (*m_sQuery_event_ia) & qevent.flags;
 
             int nargs;
-            (*m_sEvent_ia) & nargs;
+            (*m_sQuery_event_ia) & nargs;
             for (int i = 0; i < nargs; ++i)
             {
                 int32_t pos;
                 std::string value;
-                (*m_sEvent_ia) & pos;
-                (*m_sEvent_ia) & value;
+                (*m_sQuery_event_ia) & pos;
+                (*m_sQuery_event_ia) & value;
                 qevent.canonical_args.emplace_back(pos, std::move(value));
             }
 
             int64_t start_time_int;
             int64_t end_time_int;
-            (*m_sEvent_ia) & start_time_int;
-            (*m_sEvent_ia) & end_time_int;
+            (*m_sQuery_event_ia) & start_time_int;
+            (*m_sQuery_event_ia) & end_time_int;
             qevent.start_time = mxb::TimePoint(mxb::Duration(start_time_int));
             qevent.end_time = mxb::TimePoint(mxb::Duration(end_time_int));
 
             qevent.sCanonical = find_canonical(can_id);
 
-            m_events.push_back(std::move(qevent));
+            m_query_events.push_back(std::move(qevent));
         }
         catch (std::exception& ex)
         {
