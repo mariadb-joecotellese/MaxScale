@@ -5,13 +5,13 @@
  */
 #pragma once
 
-#include "repconfig.hh"
 #include "../capstorage.hh"
+#include "repconfig.hh"
 #include "reprecorder.hh"
 #include <maxbase/stopwatch.hh>
 #include <maxbase/assert.hh>
+#include <maxbase/threadpool.hh>
 #include <deque>
-#include <thread>
 #include <mutex>
 #include <condition_variable>
 
@@ -31,8 +31,7 @@ class RepSession
 {
 public:
     RepSession(const RepConfig* pConfig, RepPlayer* pPlayer, int64_t session_id,
-               int32_t thread_id, RepRecorder* pRecorder);      // [0...MAX_THREADS[, for the Collector
-                                                                // interface
+               int32_t thread_id, RepRecorder* pRecorder, mxb::ThreadPool& tpool);
     ~RepSession();
     RepSession(RepSession&&) = delete;
 
@@ -60,7 +59,7 @@ private:
     MYSQL*                  m_pConn;
     int32_t                 m_thread_id;
     RepRecorder*            m_pRecorder;
-    std::thread             m_thread;
+    std::future<void>       m_future;
     std::atomic<bool>       m_running = true;
     std::mutex              m_mutex;
     std::condition_variable m_condition;

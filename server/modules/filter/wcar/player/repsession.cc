@@ -41,14 +41,18 @@ RepSession::RepSession(const RepConfig* pConfig,
                        RepPlayer* pPlayer,
                        int64_t session_id,
                        int32_t thread_id,
-                       RepRecorder* pRecorder)
+                       RepRecorder* pRecorder,
+                       maxbase::ThreadPool &tpool)
     : m_config(*pConfig)
     , m_player(*pPlayer)
     , m_session_id(session_id)
     , m_thread_id(thread_id)
     , m_pRecorder(pRecorder)
-    , m_thread(&RepSession::run, this)
 {
+    auto name = "rep-" + std::to_string(session_id);
+    m_future = tpool.async(name, [this]{
+        run();
+    });
 }
 
 void RepSession::stop()
@@ -59,7 +63,7 @@ void RepSession::stop()
 RepSession::~RepSession()
 {
     stop();
-    m_thread.join();
+    m_future.get();
 }
 
 void RepSession::queue_query(QueryEvent&& qevent, int64_t commit_event_id)

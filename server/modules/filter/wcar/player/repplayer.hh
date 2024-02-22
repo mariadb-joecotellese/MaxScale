@@ -82,7 +82,8 @@ private:
     std::condition_variable     m_session_condition;
     std::unordered_set<int64_t> m_finished_sessions;
 
-    RepRecorder m_recorder;
+    RepRecorder     m_recorder;
+    mxb::ThreadPool m_threadpool;
 
     // Currently for ad-hoc measuring time
     mxb::StopWatch m_stopwatch;
