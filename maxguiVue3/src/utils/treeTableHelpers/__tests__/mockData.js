@@ -10,6 +10,7 @@
  * of this software will be governed by version 2 or later of the General
  * Public License.
  */
+import { lodash } from '@/utils/helpers'
 
 export const mixedTypeValues = {
   undefined: undefined,
@@ -34,56 +35,76 @@ export const nestedObj = {
   root_node_1: 'root_node_1 value',
 }
 
-export const treeNodes = [
+export const tree = [
   {
-    nodeId: 1,
-    parentNodeId: 0,
+    id: 1,
+    parentId: 0,
     level: 0,
-    id: 'root_node',
-    value: '',
-    originalValue: nestedObj.root_node,
+    key: 'root_node',
+    value: {
+      node_child: { grand_child: 'grand_child value' },
+      node_child_1: 'node_child_1 value',
+    },
+    leaf: false,
     expanded: false,
     children: [
       {
-        nodeId: 2,
-        parentNodeId: 1,
+        id: 2,
+        parentId: 1,
         level: 1,
-        id: 'node_child',
-        value: '',
-        originalValue: nestedObj.root_node.node_child,
+        key: 'node_child',
+        value: { grand_child: 'grand_child value' },
+        leaf: false,
         expanded: false,
         children: [
           {
-            nodeId: 3,
-            parentNodeId: 2,
+            id: 3,
+            parentId: 2,
             level: 2,
-            id: 'grand_child',
+            key: 'grand_child',
             value: 'grand_child value',
-            originalValue: 'grand_child value',
             leaf: true,
           },
         ],
-        leaf: false,
       },
       {
-        nodeId: 4,
-        parentNodeId: 1,
+        id: 4,
+        parentId: 1,
         level: 1,
-        id: 'node_child_1',
+        key: 'node_child_1',
         value: 'node_child_1 value',
-        originalValue: 'node_child_1 value',
         leaf: true,
       },
     ],
-    leaf: false,
   },
   {
-    nodeId: 5,
-    parentNodeId: 0,
+    id: 5,
+    parentId: 0,
     level: 0,
-    id: 'root_node_1',
+    key: 'root_node_1',
     value: 'root_node_1 value',
-    originalValue: 'root_node_1 value',
     leaf: true,
   },
 ]
+
+/**
+ * This function flattens tree array
+ * @param {Array} tree - tree array to be flatten
+ * @returns {Array} flattened array
+ */
+function flattenExpandableTree(tree) {
+  let flattened = []
+  let target = lodash.cloneDeep(tree)
+  //Traversal
+  target.forEach((o) => {
+    if (o.children && o.children.length > 0) {
+      o.expanded = true
+      flattened.push(o)
+      flattened = [...flattened, ...flattenExpandableTree(o.children)]
+    } else flattened.push(o)
+  })
+  return flattened
+}
+
+const flattened = flattenExpandableTree(tree)
+export const nodeMap = lodash.keyBy(flattened, 'id')

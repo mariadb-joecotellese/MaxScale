@@ -108,8 +108,8 @@ $spacer: 4px;
   $snackbar-font-size: 0.875rem,
   $snackbar-multi-line-wrapper-min-height: 50px,
   //VTooltip
-  $tooltip-border-radius: 10px,
-  $tooltip-background-color: #303033,
+  $tooltip-border-radius: 2px,
+  $tooltip-background-color: rgba(48, 48, 51, 0.9),
   $tooltip-text-color: #d9dae0,
   $tooltip-padding: 8px 16px,
   //VInput
@@ -119,12 +119,14 @@ $spacer: 4px;
   $navigation-drawer-border-color: colors.$separator,
   $navigation-drawer-border-thin-width: 2px,
   //VBtn
-  $button-border-radius: 0,
   $progress-circular-underlay-color: transparent,
   //Grid
   $container-padding-x: $spacer * 3,
   //VTable
   $table-column-padding: 0 24px,
   $table-border: thin solid colors.$table-border,
-  $table-color: colors.$navigation
+  $table-color: colors.$navigation,
+  //VOverlay
+  $overlay-scrim-background: colors.$navigation,
+  $overlay-opacity: 0.6
 );

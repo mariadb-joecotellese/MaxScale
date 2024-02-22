@@ -14,7 +14,7 @@
 /**
  * A component for rendering key:value object
  */
-import { objToTree } from '@/utils/dataTableHelpers'
+import { objToTree } from '@/utils/treeTableHelpers'
 
 const props = defineProps({
   data: { type: Object, required: true },
@@ -25,9 +25,10 @@ const props = defineProps({
   valueWidth: { type: [String, Number], default: 'auto' },
   keyInfoMap: { type: Object, default: () => ({}) },
   showKeyLength: { type: Boolean, default: false },
+  arrayTransform: { type: Boolean, default: true },
 })
 
-const emit = defineEmits(['get-flat-items'])
+const emit = defineEmits(['get-nodes'])
 
 const headers = [
   { title: 'Variable', value: 'key', width: props.keyWidth },
@@ -42,7 +43,7 @@ let items = ref([])
 let sortBy = ref({ key: 'key', isDesc: false })
 
 const tree = computed(() => {
-  return objToTree({ obj: cloneDeep(props.data), level: 0 })
+  return objToTree({ obj: cloneDeep(props.data), level: 0, arrayTransform: props.arrayTransform })
 })
 const flatItems = computed(() =>
   tree.value.flatMap((node) => expandNode({ node, recursive: true }))
@@ -54,7 +55,7 @@ watchEffect(() => {
   if (props.expandAll) items.value = flatItems.value
   else items.value = tree.value
 })
-watch(flatItems, (v) => emit('get-flat-items', v), { immediate: true })
+watch(flatItems, (v) => emit('get-nodes', v), { immediate: true })
 
 /**
  * Return the node and its children
@@ -102,11 +103,11 @@ function colHorizPaddingClass() {
   return 'px-6'
 }
 
-function levelPadding(cell) {
+function levelPadding(node) {
   if (!hasChild.value) return '24px'
   const basePl = 8
-  let levelPl = 30 * cell.level
-  if (cell.leaf) levelPl += 40
+  let levelPl = 30 * node.level
+  if (node.leaf) levelPl += 40
   return `${basePl + levelPl}px`
 }
 
@@ -149,7 +150,14 @@ function getHeaderClass(columnKey) {
 }
 
 function getKeyTooltipData(key) {
-  return { txt: key, collection: getKeyInfo(key), location: 'right' }
+  return {
+    txt: key,
+    collection: getKeyInfo(key),
+    location: 'right',
+    maxWidth: 300,
+    whiteSpace: 'pre-wrap',
+    transition: 'slide-x-transition',
+  }
 }
 
 function getKeyInfo(key) {
@@ -194,13 +202,14 @@ defineExpose({ headers })
           item.expanded ? 'font-weight-bold' : '',
         ]"
       >
-        <GblItrTooltipActivator
+        <GblTooltipActivator
           :data="getKeyTooltipData(item.key)"
           :activateOnTruncation="!hasKeyInfo(item.key)"
           tag="div"
           class="cell-content w-100"
           :style="{ paddingLeft: hasChild ? levelPadding(item) : 0 }"
           :class="[hasChild ? 'pr-12' : 'px-6']"
+          :debounce="0"
         >
           <VBtn
             v-if="$typy(item, 'children').safeArray.length"
@@ -219,18 +228,19 @@ defineExpose({ headers })
             />
           </VBtn>
           {{ item.key }}
-        </GblItrTooltipActivator>
+        </GblTooltipActivator>
       </div>
     </template>
     <template #[`item.value`]="{ item }">
-      <div class="d-flex align-stretch fill-height rm-def-padding">
+      <div v-if="item.leaf" class="d-flex align-stretch fill-height rm-def-padding">
         <slot name="item.value" :item="item">
-          <GblItrTooltipActivator
+          <GblTooltipActivator
             activateOnTruncation
             :data="{ txt: String(item.value) }"
             tag="div"
             class="cell-content"
             :class="`${colHorizPaddingClass()}`"
+            :debounce="0"
           />
         </slot>
       </div>
