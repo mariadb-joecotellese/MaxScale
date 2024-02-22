@@ -11,25 +11,30 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
     , m_canonical_path(base_path)
     , m_query_event_path(base_path)
+    , m_rep_event_path(base_path)
     , m_access(access)
 {
     m_canonical_path.replace_extension("cx");
     m_query_event_path.replace_extension("ex");
+    m_rep_event_path.replace_extension("rx");
 
     m_canonical_fs = open_file(m_canonical_path);
     m_query_event_fs = open_file(m_query_event_path);
+    m_rep_event_fs = open_file(m_rep_event_path);
 
     if (m_access == ReadWrite::READ_ONLY)
     {
-        m_sCanonical_ia = std::make_unique<BoostIArchive>(m_canonical_fs);
         m_sQuery_event_ia = std::make_unique<BoostIArchive>(m_query_event_fs);
+        m_sCanonical_ia = std::make_unique<BoostIArchive>(m_canonical_fs);
+        m_sRep_event_ia = std::make_unique<BoostIArchive>(m_rep_event_fs);
         read_canonicals();
         preload_more_query_events();
     }
     else
     {
-        m_sQuery_event_oa = std::make_unique<BoostOArchive>(m_query_event_fs);
         m_sCanonical_oa = std::make_unique<BoostOArchive>(m_canonical_fs);
+        m_sQuery_event_oa = std::make_unique<BoostOArchive>(m_query_event_fs);
+        m_sRep_event_oa = std::make_unique<BoostOArchive>(m_rep_event_fs);
     }
 }
 
@@ -96,7 +101,13 @@ void CapBoostStorage::add_query_event(std::vector<QueryEvent>& qevents)
 
 void CapBoostStorage::add_rep_event(RepEvent&& revent)
 {
-    throw std::runtime_error("CapBoostStorage::add_rep_event not implemented yet");
+    mxb::Duration start_time_dur = revent.start_time.time_since_epoch();
+    mxb::Duration end_time_dur = revent.end_time.time_since_epoch();
+
+    (*m_sRep_event_oa) & revent.event_id;
+    (*m_sRep_event_oa) & *reinterpret_cast<const int64_t*>(&start_time_dur);
+    (*m_sRep_event_oa) & *reinterpret_cast<const int64_t*>(&end_time_dur);
+    (*m_sRep_event_oa) & revent.num_rows;
 }
 
 void CapBoostStorage::add_rep_event(std::vector<RepEvent>& revents)

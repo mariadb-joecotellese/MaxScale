@@ -75,12 +75,18 @@ private:
     fs::path  m_base_path;
     fs::path  m_canonical_path;
     fs::path  m_query_event_path;
+    fs::path  m_rep_event_path;
     ReadWrite m_access;
 
     std::fstream                   m_canonical_fs;
-    std::fstream                   m_query_event_fs;
     std::unique_ptr<BoostOArchive> m_sCanonical_oa;
     std::unique_ptr<BoostIArchive> m_sCanonical_ia;
+
+    std::fstream                   m_query_event_fs;
     std::unique_ptr<BoostOArchive> m_sQuery_event_oa;
     std::unique_ptr<BoostIArchive> m_sQuery_event_ia;
+
+    std::fstream                   m_rep_event_fs;
+    std::unique_ptr<BoostOArchive> m_sRep_event_oa;
+    std::unique_ptr<BoostIArchive> m_sRep_event_ia;
 };
