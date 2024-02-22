@@ -7,6 +7,8 @@
 #include <maxbase/assert.hh>
 #include <algorithm>
 
+constexpr int64_t MAX_QUERY_EVENTS = 10'000;
+
 CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
     , m_canonical_path(base_path)
@@ -28,7 +30,7 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
         m_sCanonical_ia = std::make_unique<BoostIArchive>(m_canonical_fs);
         m_sRep_event_ia = std::make_unique<BoostIArchive>(m_rep_event_fs);
         read_canonicals();
-        preload_more_query_events();
+        preload_query_events(MAX_QUERY_EVENTS);
     }
     else
     {
@@ -130,10 +132,9 @@ Storage::Iterator CapBoostStorage::end() const
 
 QueryEvent CapBoostStorage::next_event()
 {
-
     if (m_query_events.empty())
     {
-        preload_more_query_events();
+        preload_query_events(MAX_QUERY_EVENTS);
     }
 
     if (!m_query_events.empty())
@@ -203,11 +204,9 @@ void CapBoostStorage::read_canonicals()
     }
 }
 
-void CapBoostStorage::preload_more_query_events()
+void CapBoostStorage::preload_query_events(int64_t max_in_container)
 {
-    // This will become something that needs to consider memory usage
-    // rather than number of events.
-    int64_t nfetch = 1000 - m_query_events.size();
+    int64_t nfetch = max_in_container - m_query_events.size();
     while (nfetch--)
     {
         try
@@ -250,7 +249,7 @@ void CapBoostStorage::preload_more_query_events()
             }
             else
             {
-                throw ex;
+                throw;
             }
         }
     }

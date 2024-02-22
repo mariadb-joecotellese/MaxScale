@@ -42,15 +42,14 @@ private:
     std::fstream open_file(const fs::path& path);
     void         open_capture_file(std::string_view path);
     QueryEvent   next_event() override;
-    /// Save a canonical to m_canonical_path
+    // Save a canonical to m_canonical_path
     void save_canonical(int64_t can_id, const std::string& canonical);
-    /// Save an event to m_canonical_path
+    // Save an event to m_canonical_path
     void save_query_event(int64_t can_id, const QueryEvent& qevent);
-    /// Read all canonicals into memory
+    // Read all canonicals into memory
     void read_canonicals();
-    /// While serving events, preload a number of events using
-    /// some as of yet unspecified strategy.
-    void preload_more_query_events();
+    // Preload QueryEvents.
+    void preload_query_events(int64_t max_loaded);
 
     std::shared_ptr<std::string> find_canonical(int64_t can_id);
 
