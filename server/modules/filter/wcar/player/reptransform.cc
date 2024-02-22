@@ -180,6 +180,9 @@ private:
 
 void RepTransform::transform_events(Storage& from, Storage& to)
 {
+    int num_active_session = 0;
+    m_max_parallel_sessions = 0;
+
     // Keyed by session_id.
     std::unordered_map<int64_t, SessionState> sessions;
     for (auto&& qevent : from)
@@ -187,8 +190,14 @@ void RepTransform::transform_events(Storage& from, Storage& to)
         auto session_ite = sessions.find(qevent.session_id);
         if (session_ite == end(sessions))
         {
+            ++num_active_session;
+            m_max_parallel_sessions = std::max(num_active_session, m_max_parallel_sessions);
             auto ins = sessions.emplace(qevent.session_id, SessionState {qevent.session_id});
             session_ite = ins.first;
+        }
+        else if (qevent.is_session_close())
+        {
+            --num_active_session;
         }
 
         SessionState& state = session_ite->second;
@@ -201,6 +210,8 @@ void RepTransform::transform_events(Storage& from, Storage& to)
 
         to.add_query_event(std::move(qevent));
     }
+
+    std::cout << "max_parallel_sessions " << m_max_parallel_sessions << std::endl;
 
     std::sort(begin(m_trxs), end(m_trxs), [](const Transaction& lhs, const Transaction& rhs){
         return lhs.end_time < rhs.end_time;

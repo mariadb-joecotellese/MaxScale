@@ -63,6 +63,11 @@ public:
     Transactions&          transactions();
     Transactions::iterator trx_start_mapping(int64_t start_event_id);
     Transactions::iterator trx_end_mapping(int64_t start_event_id);
+
+    int max_parallel_sessions() const
+    {
+        return m_max_parallel_sessions;
+    }
 private:
     void transform_events(Storage& from, Storage& to);
 
@@ -72,6 +77,7 @@ private:
     Transactions             m_trxs;
     TrxnMapping              m_trx_start_mapping;
     TrxnMapping              m_trx_end_mapping;
+    int                      m_max_parallel_sessions;
 };
 
 inline Storage& RepTransform::player_storage()
