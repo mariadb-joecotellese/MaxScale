@@ -13,9 +13,11 @@
 #include <deque>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
 
-using BoostOArchive = boost::archive::text_oarchive;
-using BoostIArchive = boost::archive::text_iarchive;
+using BoostOArchive = boost::archive::binary_oarchive;
+using BoostIArchive = boost::archive::binary_iarchive;
 
 namespace fs = std::filesystem;
 
@@ -25,10 +27,37 @@ enum class ReadWrite
     WRITE_ONLY
 };
 
+template<typename BoostArchive>
+class BoostFile
+{
+public:
+    using BoostArchiveType = BoostArchive;
+
+    // Boost archive does not support appending, archives are
+    // opened on demand. Less safe, but avoids flags.
+    // If a file for output already exists the write pointer is
+    // moved to the beginning for overwriting.
+    BoostFile(const fs::path& path);
+    BoostArchive& operator*();
+    bool          at_end_of_stream();
+    // Rewind to read and (over) write from the beginning of the file.
+    void rewind();
+private:
+    void open();
+    // Could be ifstream or ofstream based on a template arg, but an
+    // ofstream cannot be opened for writing and
+    fs::path                      m_path;
+    std::fstream                  m_fs;
+    std::unique_ptr<BoostArchive> m_sArchive;
+};
+
+using BoostOFile = BoostFile<BoostOArchive>;
+using BoostIFile = BoostFile<BoostIArchive>;
+
 class CapBoostStorage final : public Storage
 {
 public:
-    CapBoostStorage(const fs::path& base_path, ReadWrite access = ReadWrite::WRITE_ONLY);
+    CapBoostStorage(const fs::path& base_path, ReadWrite access);
 
     void add_query_event(QueryEvent&& qevent) override;
     void add_query_event(std::vector<QueryEvent>& qevents) override;
@@ -39,9 +68,7 @@ public:
     Iterator end() const override;
 
 private:
-    std::fstream open_file(const fs::path& path);
-    void         open_capture_file(std::string_view path);
-    QueryEvent   next_event() override;
+    QueryEvent next_event() override;
     // Save a canonical to m_canonical_path
     void save_canonical(int64_t can_id, const std::string& canonical);
     // Save an event to m_canonical_path
@@ -77,15 +104,12 @@ private:
     fs::path  m_rep_event_path;
     ReadWrite m_access;
 
-    std::fstream                   m_canonical_fs;
-    std::unique_ptr<BoostOArchive> m_sCanonical_oa;
-    std::unique_ptr<BoostIArchive> m_sCanonical_ia;
+    std::unique_ptr<BoostOFile> m_sCanonical_out;
+    std::unique_ptr<BoostIFile> m_sCanonical_in;
 
-    std::fstream                   m_query_event_fs;
-    std::unique_ptr<BoostOArchive> m_sQuery_event_oa;
-    std::unique_ptr<BoostIArchive> m_sQuery_event_ia;
+    std::unique_ptr<BoostOFile> m_sQuery_event_out;
+    std::unique_ptr<BoostIFile> m_sQuery_event_in;
 
-    std::fstream                   m_rep_event_fs;
-    std::unique_ptr<BoostOArchive> m_sRep_event_oa;
-    std::unique_ptr<BoostIArchive> m_sRep_event_ia;
+    std::unique_ptr<BoostOFile> m_sRep_event_out;
+    std::unique_ptr<BoostIFile> m_sRep_event_in;
 };

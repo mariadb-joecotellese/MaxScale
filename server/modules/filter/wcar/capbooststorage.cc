@@ -6,8 +6,77 @@
 #include "capbooststorage.hh"
 #include <maxbase/assert.hh>
 #include <algorithm>
+#include <type_traits>
 
 constexpr int64_t MAX_QUERY_EVENTS = 10'000;
+
+template<typename BoostArchive>
+BoostFile<BoostArchive>::BoostFile(const fs::path& path)
+try
+    : m_path(path)
+    , m_fs(path.string())
+{
+    if (!m_fs.is_open())
+    {
+        m_fs.open(path, std::ios_base::out);
+    }
+}
+catch (std::exception& ex)
+{
+    MXB_THROW(WcarError, "Could not open file " << path << ' ' << mxb_strerror(errno));
+}
+
+template<typename BoostArchive>
+void BoostFile<BoostArchive>::open()
+{
+    if (m_sArchive)
+    {
+        return;
+    }
+
+    try
+    {
+        m_sArchive = std::make_unique<BoostArchive>(m_fs);
+    }
+    catch (std::exception& ex)
+    {
+        MXB_THROW(WcarError, "Could open boost archive " << m_path << ' ' << mxb_strerror(errno));
+    }
+}
+
+template<typename BoostArchive>
+BoostArchive& BoostFile<BoostArchive>::operator*()
+{
+    open();
+
+    return *m_sArchive;
+}
+
+template<typename BoostArchive>
+bool BoostFile<BoostArchive>::at_end_of_stream()
+{
+    open();
+
+    if constexpr (std::is_same_v<boost::archive::binary_iarchive, BoostArchive> )
+    {
+        return m_fs.peek() == EOF;
+    }
+    else if constexpr (std::is_same_v<boost::archive::text_iarchive, BoostArchive> )
+    {
+        return m_fs.peek() == '\n';
+    }
+    else
+    {
+        static_assert(false, "at_end_of_stream() only for input");
+    }
+}
+
+template<typename BoostArchive>
+void BoostFile<BoostArchive>::rewind()
+{
+    m_fs.seekg(0);
+    m_fs.seekp(0);
+}
 
 CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
@@ -20,57 +89,20 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     m_query_event_path.replace_extension("ex");
     m_rep_event_path.replace_extension("rx");
 
-    m_canonical_fs = open_file(m_canonical_path);
-    m_query_event_fs = open_file(m_query_event_path);
-    m_rep_event_fs = open_file(m_rep_event_path);
-
     if (m_access == ReadWrite::READ_ONLY)
     {
-        m_sQuery_event_ia = std::make_unique<BoostIArchive>(m_query_event_fs);
-        m_sCanonical_ia = std::make_unique<BoostIArchive>(m_canonical_fs);
-        m_sRep_event_ia = std::make_unique<BoostIArchive>(m_rep_event_fs);
+        m_sCanonical_in = std::make_unique<BoostIFile>(m_canonical_path);
+        m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
+        m_sRep_event_in = std::make_unique<BoostIFile>(m_rep_event_path);
         read_canonicals();
         preload_query_events(MAX_QUERY_EVENTS);
     }
     else
     {
-        m_sCanonical_oa = std::make_unique<BoostOArchive>(m_canonical_fs);
-        m_sQuery_event_oa = std::make_unique<BoostOArchive>(m_query_event_fs);
-        m_sRep_event_oa = std::make_unique<BoostOArchive>(m_rep_event_fs);
+        m_sCanonical_out = std::make_unique<BoostOFile>(m_canonical_path);
+        m_sQuery_event_out = std::make_unique<BoostOFile>(m_query_event_path);
+        m_sRep_event_out = std::make_unique<BoostOFile>(m_rep_event_path);
     }
-}
-
-std::fstream CapBoostStorage::open_file(const fs::path& path)
-{
-    std::fstream stream;
-    if (m_access == ReadWrite::READ_ONLY)
-    {
-        if (fs::exists(path))
-        {
-            stream.open(path, std::ios_base::in);
-        }
-        else
-        {
-            MXB_THROW(WcarError, "Capture file '" << m_canonical_path << "' not found.");
-        }
-    }
-    else if (fs::exists(path))
-    {
-        MXB_THROW(WcarError, "Capture file '"
-                  << path << "' already exists."
-                  << " Appending to existing capture is not allowed.");
-    }
-    else
-    {
-        stream.open(path, std::ios_base::out);
-        if (!stream)
-        {
-            MXB_THROW(WcarError, "Could not open '" << path << "' for writing: "
-                                                    << mxb_strerror(errno));
-        }
-    }
-
-    return stream;
 }
 
 void CapBoostStorage::add_query_event(QueryEvent&& qevent)
@@ -106,10 +138,10 @@ void CapBoostStorage::add_rep_event(RepEvent&& revent)
     mxb::Duration start_time_dur = revent.start_time.time_since_epoch();
     mxb::Duration end_time_dur = revent.end_time.time_since_epoch();
 
-    (*m_sRep_event_oa) & revent.event_id;
-    (*m_sRep_event_oa) & *reinterpret_cast<const int64_t*>(&start_time_dur);
-    (*m_sRep_event_oa) & *reinterpret_cast<const int64_t*>(&end_time_dur);
-    (*m_sRep_event_oa) & revent.num_rows;
+    (**m_sRep_event_out) & revent.event_id;
+    (**m_sRep_event_out) & *reinterpret_cast<const int64_t*>(&start_time_dur);
+    (**m_sRep_event_out) & *reinterpret_cast<const int64_t*>(&end_time_dur);
+    (**m_sRep_event_out) & revent.num_rows;
 }
 
 void CapBoostStorage::add_rep_event(std::vector<RepEvent>& revents)
@@ -151,107 +183,79 @@ QueryEvent CapBoostStorage::next_event()
 
 void CapBoostStorage::save_canonical(int64_t can_id, const std::string& canonical)
 {
-    (*m_sCanonical_oa) & can_id;
-    (*m_sCanonical_oa) & canonical;
+    (**m_sCanonical_out) & can_id;
+    (**m_sCanonical_out) & canonical;
 }
 
 void CapBoostStorage::save_query_event(int64_t can_id, const QueryEvent& qevent)
 {
-    (*m_sQuery_event_oa) & can_id;
-    (*m_sQuery_event_oa) & qevent.event_id;
-    (*m_sQuery_event_oa) & qevent.session_id;
-    (*m_sQuery_event_oa) & qevent.flags;
+    (**m_sQuery_event_out) & can_id;
+    (**m_sQuery_event_out) & qevent.event_id;
+    (**m_sQuery_event_out) & qevent.session_id;
+    (**m_sQuery_event_out) & qevent.flags;
 
     int nargs = qevent.canonical_args.size();
-    (*m_sQuery_event_oa) & nargs;
+    (**m_sQuery_event_out) & nargs;
     for (const auto& a : qevent.canonical_args)
     {
-        (*m_sQuery_event_oa) & a.pos;
-        (*m_sQuery_event_oa) & a.value;
+        (**m_sQuery_event_out) & a.pos;
+        (**m_sQuery_event_out) & a.value;
     }
 
     mxb::Duration start_time_dur = qevent.start_time.time_since_epoch();
     mxb::Duration end_time_dur = qevent.end_time.time_since_epoch();
-    (*m_sQuery_event_oa) & *reinterpret_cast<const int64_t*>(&start_time_dur);
-    (*m_sQuery_event_oa) & *reinterpret_cast<const int64_t*>(&end_time_dur);
+    (**m_sQuery_event_out) & *reinterpret_cast<const int64_t*>(&start_time_dur);
+    (**m_sQuery_event_out) & *reinterpret_cast<const int64_t*>(&end_time_dur);
 }
 
 void CapBoostStorage::read_canonicals()
 {
     int64_t can_id;
     std::string canonical;
-    for (;;)
+    while (!m_sCanonical_in->at_end_of_stream())
     {
-        try
-        {
-            (*m_sCanonical_ia) & can_id;
-            (*m_sCanonical_ia) & canonical;
-            auto hash = std::hash<std::string> {}(canonical);
-            auto shared = std::make_shared<std::string>(canonical);
-            m_canonicals.emplace(hash, CanonicalEntry {can_id, shared});
-        }
-        catch (std::exception& ex)
-        {
-            if (!m_canonical_fs.good())     // presumambly the stream was read to the end
-            {
-                break;
-            }
-            else
-            {
-                throw ex;
-            }
-        }
+        (**m_sCanonical_in) & can_id;
+        (**m_sCanonical_in) & canonical;
+        auto hash = std::hash<std::string> {}(canonical);
+        auto shared = std::make_shared<std::string>(canonical);
+        m_canonicals.emplace(hash, CanonicalEntry {can_id, shared});
     }
 }
 
 void CapBoostStorage::preload_query_events(int64_t max_in_container)
 {
     int64_t nfetch = max_in_container - m_query_events.size();
-    while (nfetch--)
+    while (!m_sQuery_event_in->at_end_of_stream() && nfetch--)
     {
-        try
+        int64_t can_id;
+        QueryEvent qevent;
+
+        (**m_sQuery_event_in) & can_id;
+        (**m_sQuery_event_in) & qevent.event_id;
+        (**m_sQuery_event_in) & qevent.session_id;
+        (**m_sQuery_event_in) & qevent.flags;
+
+        int nargs;
+        (**m_sQuery_event_in) & nargs;
+        for (int i = 0; i < nargs; ++i)
         {
-            int64_t can_id;
-            QueryEvent qevent;
-
-            (*m_sQuery_event_ia) & can_id;
-            (*m_sQuery_event_ia) & qevent.event_id;
-            (*m_sQuery_event_ia) & qevent.session_id;
-            (*m_sQuery_event_ia) & qevent.flags;
-
-            int nargs;
-            (*m_sQuery_event_ia) & nargs;
-            for (int i = 0; i < nargs; ++i)
-            {
-                int32_t pos;
-                std::string value;
-                (*m_sQuery_event_ia) & pos;
-                (*m_sQuery_event_ia) & value;
-                qevent.canonical_args.emplace_back(pos, std::move(value));
-            }
-
-            int64_t start_time_int;
-            int64_t end_time_int;
-            (*m_sQuery_event_ia) & start_time_int;
-            (*m_sQuery_event_ia) & end_time_int;
-            qevent.start_time = mxb::TimePoint(mxb::Duration(start_time_int));
-            qevent.end_time = mxb::TimePoint(mxb::Duration(end_time_int));
-
-            qevent.sCanonical = find_canonical(can_id);
-
-            m_query_events.push_back(std::move(qevent));
+            int32_t pos;
+            std::string value;
+            (**m_sQuery_event_in) & pos;
+            (**m_sQuery_event_in) & value;
+            qevent.canonical_args.emplace_back(pos, std::move(value));
         }
-        catch (std::exception& ex)
-        {
-            if (!m_canonical_fs.good())     // presumambly the stream was read to the end
-            {
-                break;
-            }
-            else
-            {
-                throw;
-            }
-        }
+
+        int64_t start_time_int;
+        int64_t end_time_int;
+        (**m_sQuery_event_in) & start_time_int;
+        (**m_sQuery_event_in) & end_time_int;
+        qevent.start_time = mxb::TimePoint(mxb::Duration(start_time_int));
+        qevent.end_time = mxb::TimePoint(mxb::Duration(end_time_int));
+
+        qevent.sCanonical = find_canonical(can_id);
+
+        m_query_events.push_back(std::move(qevent));
     }
 }
 

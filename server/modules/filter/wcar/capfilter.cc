@@ -48,7 +48,7 @@ bool CapFilter::post_configure()
         break;
 
     case StorageType::BINARY:
-        m_sStorage = std::make_unique<CapBoostStorage>(base_path);
+        m_sStorage = std::make_unique<CapBoostStorage>(base_path, ReadWrite::WRITE_ONLY);
         break;
     }
 
