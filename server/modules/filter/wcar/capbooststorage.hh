@@ -67,6 +67,9 @@ public:
     Iterator begin() override;
     Iterator end() const override;
 
+    // Sort query event file, write back and re-open.
+    void sort_query_event_file();
+
 private:
     QueryEvent next_event() override;
     // Save a canonical to m_canonical_path

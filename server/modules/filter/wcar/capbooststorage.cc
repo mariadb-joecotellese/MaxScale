@@ -7,6 +7,7 @@
 #include <maxbase/assert.hh>
 #include <algorithm>
 #include <type_traits>
+#include <execution>
 
 constexpr int64_t MAX_QUERY_EVENTS = 10'000;
 
@@ -257,6 +258,35 @@ void CapBoostStorage::preload_query_events(int64_t max_in_container)
 
         m_query_events.push_back(std::move(qevent));
     }
+}
+
+void CapBoostStorage::sort_query_event_file()
+{
+    // First version - read the entire file into memory, sort and write back.
+    preload_query_events(std::numeric_limits<int64_t>::max());
+    m_sQuery_event_in.reset();
+
+    std::sort(std::execution::par, m_query_events.begin(), m_query_events.end(),
+              [](const auto& lhs, const auto& rhs){
+        return lhs.start_time < rhs.start_time;
+    });
+
+    auto new_path = m_query_event_path;
+    new_path.replace_extension("ex");
+    fs::rename(m_query_event_path, new_path);
+    m_query_event_path = new_path;
+
+    m_sQuery_event_out = std::make_unique<BoostOFile>(m_query_event_path);
+
+    for (auto&& qevent : m_query_events)
+    {
+        add_query_event(std::move(qevent));
+    }
+
+    m_sQuery_event_out.reset();
+    m_query_events.clear();
+
+    m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
 }
 
 std::shared_ptr<std::string> CapBoostStorage::find_canonical(int64_t can_id)

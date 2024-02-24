@@ -80,7 +80,7 @@ then
        libedit-dev libcurl4-openssl-dev libatomic1 \
        libsasl2-dev libkrb5-dev libicu-dev unixodbc-dev libpq-dev \
        postgresql-server-dev-all gnutls-dev libgcrypt-dev \
-       libboost-serialization-dev
+       libboost-serialization-dev libtbb-dev
 
   # One of these will work, older systems use libsystemd-daemon-dev
   ${apt_cmd} install libsystemd-dev || \
@@ -125,7 +125,7 @@ then
          sqlite sqlite-devel pkgconfig rpm-build createrepo yum-utils \
          gnutls-devel libgcrypt-devel pam-devel libcurl-devel libatomic \
          cyrus-sasl-devel krb5-devel libicu-devel unixODBC-devel \
-         boost-serialization
+         boost-serialization tbb-devel
 
     # The Postgres C driver has different names in different distros. For
     # example CentOS 7 uses postgresql-devel whereas RHEL 8 goes with libpq-devel.
@@ -192,7 +192,7 @@ then
          xz-devel sqlite3 sqlite3-devel pkg-config lua lua-devel \
          gnutls-devel libgcrypt-devel pam-devel systemd-devel libcurl-devel libatomic1 \
          cyrus-sasl-devel krb5-devel libicu-devel unixODBC-devel postgresql-devel \
-         boost-serialization
+         boost-serialization libtbb-dev
     sudo zypper -n install rpm-build
     cat /etc/*-release | grep "SUSE Linux Enterprise Server 11"
 
