@@ -58,7 +58,10 @@ void RepPlayer::replay()
 
     std::cout << "Main loop: " << mxb::to_string(m_stopwatch.restart()) << std::endl;
     wait_for_sessions_to_finish();
-    std::cout << "Final wait: " << mxb::to_string(m_stopwatch.split()) << std::endl;
+    std::cout << "Final wait: " << mxb::to_string(m_stopwatch.restart()) << std::endl;
+    m_transform.finalize();
+    std::cout << "Transform finalize: " << mxb::to_string(m_stopwatch.restart()) << std::endl;
+    std::cout << mxb::get_collector_stats() << std::endl;
 }
 
 RepPlayer::ExecutionInfo RepPlayer::get_execution_info(RepSession& session, const QueryEvent& qevent)
@@ -102,7 +105,7 @@ void RepPlayer::session_finished(const RepSession& session)
 
 void RepPlayer::timeline_add(RepSession& session, QueryEvent&& qevent)
 {
-    mxb::Duration dur = qevent.start_time - sim_time();
+    mxb::Duration dur = qevent.start_time - sim_time();     // - 1min;
     mxb::TimePoint wait_until = mxb::Clock::now() + dur;
     std::unique_lock lock(m_trxn_mutex, std::defer_lock);
     if (dur > 0s)
