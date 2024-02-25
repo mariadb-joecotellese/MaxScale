@@ -9,6 +9,7 @@
 #include "../capstorage.hh"
 #include <vector>
 #include <unordered_map>
+#include <filesystem>
 
 struct Transaction
 {
@@ -27,6 +28,8 @@ struct Transaction
 using Transactions = std::vector<Transaction>;
 // Keyed by event_id
 using TrxnMapping = std::unordered_map<int64_t, Transactions::iterator>;
+
+namespace fs = std::filesystem;
 
 /**
  * @brief The RepTransform class massages the captured data to a suitable form
@@ -49,6 +52,11 @@ public:
     Storage& rep_event_storage();
 
     /**
+     * @brief finalize to be called after replay has finished (save rep events)
+     */
+    void finalize();
+
+    /**
      * @brief transactions
      * @return All the transaction sorted by their end_time. This means that the
      *         front transaction is the only one that matters for scheduling
@@ -69,7 +77,7 @@ public:
         return m_max_parallel_sessions;
     }
 private:
-    void transform_events(Storage& from, Storage& to);
+    void transform_events(const fs::path& path);
 
     const RepConfig&         m_config;
     std::unique_ptr<Storage> m_player_storage;

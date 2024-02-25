@@ -3,8 +3,7 @@
 #include "../capbooststorage.hh"
 #include "maxbase/assert.hh"
 #include <maxscale/parser.hh>
-
-namespace fs = std::filesystem;
+#include <execution>
 
 RepTransform::RepTransform(const RepConfig* pConfig)
     : m_config(*pConfig)
@@ -15,56 +14,38 @@ RepTransform::RepTransform(const RepConfig* pConfig)
     fs::path path{m_config.file_name};
     auto ext = path.extension();
 
-    // The storage given to the player can be of any kind, but is currently fixed.
-    // The sqlite sorting appears to be too slow. Writing to sqlite is fast, so maybe
-    // there could still be a way to use sqlite (investigate), otherwise boost storage
-    // will have to become sortable.
-    // m_player_storage  a boost storage to read from.
-    // rep_event_storage a sqlite storage to write RepEvents to.
-    //                   The table rep_event in this storage is truncated for replay.
-    fs::path sqlite_path{path};
-    std::unique_ptr<CapSqliteStorage> sSqlite;
-
-    if (ext == ".sqlite")
+    if (ext != ".cx")
     {
-        sSqlite = std::make_unique<CapSqliteStorage>(sqlite_path, Access::READ_WRITE);
+        MXB_THROW(WcarError, "The replay file must be binary, extension 'cx', got " << path);
     }
-    else if (ext == ".cx" || ext == ".ex")
-    {
-        sqlite_path.replace_extension(".sqlite");
-
-        CapBoostStorage boost{path, ReadWrite::READ_ONLY};
-        sSqlite = std::make_unique<CapSqliteStorage>(sqlite_path, Access::READ_WRITE);
-        sSqlite->move_values_from(boost);
-    }
-    else
-    {
-        MXB_THROW(WcarError, "Unknown extension " << ext);
-    }
-
-    // New boost storage to transform into. TODO: In the `else`
-    // above the original boost files should be deleted (maybe),
-    // but instead new files are created to make testing easier.
-    fs::path boost_path{path};
-    boost_path.replace_extension("");
-    boost_path.replace_filename(boost_path.filename().string() + "-replay");
-    boost_path.replace_extension(".cx");
-
-    m_player_storage = std::make_unique<CapBoostStorage>(boost_path, ReadWrite::WRITE_ONLY);
 
     // Transform
-    sSqlite->truncate_rep_events();
-    transform_events(*sSqlite, *m_player_storage);
+    transform_events(path);
 
-    // Reopen sqlite. TODO: Storage::reset(), preserve caching.
-    sSqlite.reset();
-    m_rep_event_storage = std::make_unique<CapSqliteStorage>(sqlite_path, Access::READ_WRITE);
+    // Open files for reading.
+    m_player_storage = std::make_unique<CapBoostStorage>(path, ReadWrite::READ_ONLY);
 
-    // Reopen the boost file for reading. TODO: Storage::reset(), preserve caching.
-    m_player_storage.reset();
-    m_player_storage = std::make_unique<CapBoostStorage>(boost_path, ReadWrite::READ_ONLY);
+    // Open for writing. Only rep events will be written.
+    m_rep_event_storage = std::make_unique<CapBoostStorage>(path, ReadWrite::WRITE_ONLY);
 
     std::cout << "Transform: " << mxb::to_string(sw.split()) << std::endl;
+}
+
+void RepTransform::finalize()
+{
+
+    m_player_storage.reset();
+    m_rep_event_storage.reset();
+
+    auto sqlite_path = fs::path{m_config.file_name};
+    auto boost_path = fs::path{m_config.file_name};
+
+    sqlite_path.replace_extension(".sqlite");
+    boost_path.replace_extension(".cx");
+    CapSqliteStorage sqlite{sqlite_path};
+    CapBoostStorage boost{boost_path, ReadWrite::READ_ONLY};
+
+    sqlite.move_values_from(boost);
 }
 
 // Expected transaction behavior
@@ -177,14 +158,18 @@ private:
 };
 }
 
-void RepTransform::transform_events(Storage& from, Storage& to)
+void RepTransform::transform_events(const fs::path& path)
 {
+    CapBoostStorage boost{path, ReadWrite::READ_ONLY};
+    boost.sort_query_event_file();
+
+    mxb::StopWatch sw;
     int num_active_session = 0;
     m_max_parallel_sessions = 0;
 
     // Keyed by session_id.
     std::unordered_map<int64_t, SessionState> sessions;
-    for (auto&& qevent : from)
+    for (auto&& qevent : boost)
     {
         auto session_ite = sessions.find(qevent.session_id);
         if (session_ite == end(sessions))
@@ -196,6 +181,7 @@ void RepTransform::transform_events(Storage& from, Storage& to)
         }
         else if (qevent.is_session_close())
         {
+            sessions.erase(qevent.session_id);
             --num_active_session;
         }
 
@@ -206,13 +192,13 @@ void RepTransform::transform_events(Storage& from, Storage& to)
         {
             m_trxs.push_back(trx);
         }
-
-        to.add_query_event(std::move(qevent));
     }
 
+    std::cout << "transform_events loop " << mxb::to_string(sw.lap()) << std::endl;
     std::cout << "max_parallel_sessions " << m_max_parallel_sessions << std::endl;
 
-    std::sort(begin(m_trxs), end(m_trxs), [](const Transaction& lhs, const Transaction& rhs){
+    std::sort(std::execution::par, begin(m_trxs), end(m_trxs),
+              [](const Transaction& lhs, const Transaction& rhs){
         return lhs.end_time < rhs.end_time;
     });
 
@@ -222,4 +208,6 @@ void RepTransform::transform_events(Storage& from, Storage& to)
         m_trx_start_mapping.emplace(ite->start_event_id, ite);
         m_trx_end_mapping.emplace(ite->end_event_id, ite);
     }
+
+    std::cout << "transform_events ex sort " << mxb::to_string(sw.split()) << std::endl;
 }
