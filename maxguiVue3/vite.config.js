@@ -15,22 +15,20 @@ import fs from 'fs'
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
-import topLevelAwait from 'vite-plugin-top-level-await'
 import autoImport from 'unplugin-auto-import/vite'
+import components from 'unplugin-vue-components/vite'
+import legacy from '@vitejs/plugin-legacy'
 
 const { VITE_APP_API, VITE_HTTPS_KEY, VITE_HTTPS_CERT } = loadEnv('development', process.cwd())
 
 export default defineConfig({
   plugins: [
     vue({ template: { transformAssetUrls } }),
+    components({ dirs: ['src/components/common'], dts: false }),
     vuetify({
       styles: {
         configFile: 'src/styles/variables/vuetify.scss',
       },
-    }),
-    topLevelAwait({
-      promiseExportName: '__tla',
-      promiseImportName: (i) => `__tla_${i}`,
     }),
     autoImport({
       imports: ['vue', 'vitest', 'vuex', 'vue-i18n', 'vue-router'],
@@ -41,6 +39,9 @@ export default defineConfig({
         filepath: './.eslintrc-auto-import.json',
         globalsPropValue: true,
       },
+    }),
+    legacy({
+      targets: ['defaults', 'not IE 11'], // required terser package
     }),
   ],
   css: {

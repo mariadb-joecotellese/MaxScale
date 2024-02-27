@@ -33,15 +33,15 @@ export default {
   },
   computed: {
     ...mapState({
-      login_err_msg: (state) => state.user.login_err_msg,
+      login_err_msg: (state) => state.users.login_err_msg,
     }),
   },
   methods: {
     ...mapMutations({
-      SET_LOGGED_IN_USER: 'user/SET_LOGGED_IN_USER',
-      SET_LOGIN_ERR_MSG: 'user/SET_LOGIN_ERR_MSG',
+      SET_LOGGED_IN_USER: 'users/SET_LOGGED_IN_USER',
+      SET_LOGIN_ERR_MSG: 'users/SET_LOGIN_ERR_MSG',
     }),
-    ...mapActions({ login: 'user/login' }),
+    ...mapActions({ login: 'users/login' }),
     onInput() {
       if (this.login_err_msg) this.SET_LOGIN_ERR_MSG('')
     },
@@ -91,7 +91,7 @@ export default {
           :rules="rules.password"
           :error-messages="login_err_msg"
           :type="isPwdVisible ? 'text' : 'password'"
-          class="pwd-input mt-6 v-text-field--message-up"
+          class="mt-6 v-text-field--message-up"
           name="password"
           autocomplete="current-password"
           single-line

@@ -21,7 +21,6 @@ const states = () => ({
   pagination_config: getDefPaginationConfig(),
   current_sessions: [], //sessions on dashboard
   total_sessions: 0,
-  sessions_datasets: [],
   filtered_sessions: [],
   total_filtered_sessions: 0,
 })
@@ -36,7 +35,7 @@ export default {
     ...genSetMutations(states()),
   },
   actions: {
-    async fetchSessions({ commit, getters }) {
+    async fetchAll({ commit, getters }) {
       try {
         const paginateParam = getters.getPaginateParam
         let res = await this.vue.$http.get(`/sessions${paginateParam ? `?${paginateParam}` : ''}`)
@@ -48,16 +47,6 @@ export default {
       } catch (e) {
         this.vue.$logger.error(e)
       }
-    },
-
-    genDataSets({ commit, state }) {
-      const { genLineStreamDataset } = this.vue.$helpers
-      const dataset = genLineStreamDataset({
-        label: 'Total sessions',
-        value: state.total_sessions,
-        colorIndex: 0,
-      })
-      commit('SET_SESSIONS_DATASETS', [dataset])
     },
 
     async fetchSessionsWithFilter({ getters, commit }, filterParam) {
@@ -100,7 +89,7 @@ export default {
     },
   },
   getters: {
-    getTotalSessions: (state) => state.total_sessions,
+    total: (state) => state.total_sessions,
     getTotalFilteredSessions: (state) => state.total_filtered_sessions,
     getPaginateParam: ({ pagination_config: { itemsPerPage, page } }) =>
       itemsPerPage === -1 ? '' : `page[size]=${itemsPerPage}&page[number]=${page}`,

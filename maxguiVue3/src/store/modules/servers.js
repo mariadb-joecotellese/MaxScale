@@ -17,7 +17,6 @@ const states = () => ({
   all_servers: [],
   all_server_names: [],
   current_server: {},
-  server_connections_datasets: [],
 })
 
 export default {
@@ -25,7 +24,7 @@ export default {
   state: states(),
   mutations: genSetMutations(states()),
   actions: {
-    async fetchAllServers({ commit }) {
+    async fetchAll({ commit }) {
       try {
         let res = await this.vue.$http.get(`/servers`)
         if (res.data.data) commit('SET_ALL_SERVERS', res.data.data)
@@ -65,7 +64,7 @@ export default {
      * @param {Object} payload.relationships.monitors monitors object
      * @param {Function} payload.callback callback function after successfully updated
      */
-    async createServer({ commit }, payload) {
+    async create({ commit }, payload) {
       try {
         const body = {
           data: {
@@ -221,36 +220,10 @@ export default {
         this.vue.$logger.error(e)
       }
     },
-
-    /**
-     *  Generate data schema for total connections of each server
-     */
-    genDataSets({ commit, state }) {
-      const { all_servers } = state
-      const { genLineStreamDataset } = this.vue.$helpers
-
-      if (all_servers.length) {
-        let dataSets = []
-        all_servers.forEach((server, i) => {
-          const { id, attributes: { statistics: { connections = null } = {} } = {} } = server
-          if (connections !== null) {
-            const dataset = genLineStreamDataset({
-              label: `Server ID - ${id}`,
-              value: connections,
-              colorIndex: i,
-              id,
-            })
-            dataSets.push(dataset)
-          }
-        })
-
-        commit('SET_SERVER_CONNECTIONS_DATASETS', dataSets)
-      }
-    },
   },
   getters: {
-    // -------------- below getters are available only when fetchAllServers has been dispatched
-    getTotalServers: (state) => state.all_servers.length,
+    // -------------- below getters are available only when fetchAll has been dispatched
+    total: (state) => state.all_servers.length,
     getAllServersMap: (state) => {
       let map = new Map()
       state.all_servers.forEach((ele) => {
