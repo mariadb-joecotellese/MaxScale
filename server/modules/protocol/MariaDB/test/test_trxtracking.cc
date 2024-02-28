@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2028-01-30
+ * Change Date: 2028-02-27
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -131,7 +131,8 @@ bool test(uint32_t (* getter)(const GWBUF&), const char* zStmt, uint32_t expecte
     if (type_mask != expected_type_mask)
     {
         cerr << "\"" << zStmt << "\""
-             << ": expected " << expected_type_mask << ", but got " << type_mask << "." << endl;
+             << ": expected " << mxs::Parser::type_mask_to_string(expected_type_mask) << ", but got "
+             << mxs::Parser::type_mask_to_string(type_mask) << "." << endl;
         rc = false;
     }
 

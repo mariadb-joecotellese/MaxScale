@@ -1126,7 +1126,7 @@ static uint32_t resolve_query_type(parsing_info_t* pi, THD* thd)
         else
         {
             // SELECT ... INTO @var
-            type = mxs::sql::TYPE_GSYSVAR_WRITE;
+            type = mxs::sql::TYPE_USERVAR_WRITE;
         }
         goto return_qtype;
     }
@@ -1230,9 +1230,10 @@ static uint32_t resolve_query_type(parsing_info_t* pi, THD* thd)
 
                 while (set_var_base* var = ilist++)
                 {
-                    if (var->is_system())
+                    if (var->is_system() && static_cast<set_var*>(var)->type == OPT_GLOBAL)
                     {
-                        type |= mxs::sql::TYPE_GSYSVAR_WRITE;
+                        type = mxs::sql::TYPE_GSYSVAR_WRITE;
+                        break;
                     }
                 }
             }
@@ -1277,7 +1278,6 @@ static uint32_t resolve_query_type(parsing_info_t* pi, THD* thd)
 
         case SET_TYPE_UNKNOWN:
             {
-                type |= mxs::sql::TYPE_SESSION_WRITE;
                 /** Either user- or system variable write */
                 List_iterator<set_var_base> ilist(lex->var_list);
                 size_t n = 0;
@@ -1286,18 +1286,32 @@ static uint32_t resolve_query_type(parsing_info_t* pi, THD* thd)
                 {
                     if (var->is_system())
                     {
-                        type |= mxs::sql::TYPE_GSYSVAR_WRITE;
+                        if (static_cast<set_var*>(var)->type == OPT_GLOBAL)
+                        {
+                            type |= mxs::sql::TYPE_GSYSVAR_WRITE;
+                        }
+                        else
+                        {
+                            type |= mxs::sql::TYPE_SESSION_WRITE;
+                        }
                     }
                     else
                     {
-                        type |= mxs::sql::TYPE_USERVAR_WRITE;
+                        type |= mxs::sql::TYPE_USERVAR_WRITE | mxs::sql::TYPE_SESSION_WRITE;
                     }
                     ++n;
                 }
 
                 if (n == 0)
                 {
-                    type |= mxs::sql::TYPE_GSYSVAR_WRITE;
+                    if (lex->option_type == SHOW_OPT_GLOBAL)
+                    {
+                        type |= mxs::sql::TYPE_GSYSVAR_WRITE;
+                    }
+                    else
+                    {
+                        type |= mxs::sql::TYPE_SESSION_WRITE;
+                    }
                 }
             }
             break;
@@ -4218,8 +4232,8 @@ public:
 
     std::string_view get_canonical(const GWBUF::ProtocolInfo* info) const override
     {
-        // Not supported.
-        return std::string_view {};
+        mxb_assert(info);
+        return static_cast<const parsing_info_t*>(info)->canonical;
     }
 
     std::unique_ptr<Parser> create_parser(const Parser::Helper* pHelper) const override

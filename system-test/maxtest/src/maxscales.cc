@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2028-01-30
+ * Change Date: 2028-02-27
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -66,11 +66,6 @@ bool MaxScale::setup(const mxt::NetworkConfig& nwconfig, const std::string& vm_n
     {
         m_vmnode = move(new_node);
 
-        if (m_shared.settings.local_test)
-        {
-            m_vmnode->set_local();
-        }
-
         string key_cnf = vm_name + "_cnf";
         m_cnf_path = envvar_get_set(key_cnf.c_str(), "/etc/maxscale.cnf");
 
@@ -84,33 +79,14 @@ bool MaxScale::setup(const mxt::NetworkConfig& nwconfig, const std::string& vm_n
         readconn_master_port = 4008;
         readconn_slave_port = 4009;
 
-        if (m_vmnode->is_local())
-        {
-            // In local mode, read ports from network config file.
-            auto set_port = [this, &nwconfig](const string& field_name, int* target) {
-                string value_str = m_shared.get_nc_item(nwconfig, field_name);
-                if (value_str.empty())
-                {
-                    log().log_msgf("'%s' not defined in network config, assuming %i.",
-                                   field_name.c_str(), *target);
-                }
-                else
-                {
-                    mxb::get_int(value_str.c_str(), target);
-                }
-            };
-
-            string field_rwsplit_port = m_vmnode->m_name + "_rwsplit_port";
-            string field_rcrmaster_port = m_vmnode->m_name + "_rcrmaster_port";
-            string field_rcrslave_port = m_vmnode->m_name + "_rcrslave_port";
-            set_port(field_rwsplit_port, &rwsplit_port);
-            set_port(field_rcrmaster_port, &readconn_master_port);
-            set_port(field_rcrslave_port, &readconn_slave_port);
-        }
-
         ports[0] = rwsplit_port;
         ports[1] = readconn_master_port;
         ports[2] = readconn_slave_port;
+
+        // TODO: think of a proper reset command if ever needed.
+        m_vmnode->set_start_stop_reset_cmds("systemctl restart maxscale",
+                                            "systemctl stop maxscale",
+                                            "");
         rval = true;
     }
     return rval;
@@ -250,7 +226,14 @@ int MaxScale::restart_maxscale()
     }
     else
     {
-        res = ssh_output("systemctl restart maxscale", true).rc;
+        if (m_vmnode->is_remote())
+        {
+            res = m_vmnode->start_process("") ? 0 : 1;
+        }
+        else
+        {
+            res = start_local_maxscale();
+        }
     }
     return res;
 }
@@ -283,9 +266,24 @@ int MaxScale::start_maxscale()
     }
     else
     {
-        res = ssh_output("systemctl restart maxscale", true).rc;
+        if (m_vmnode->is_remote())
+        {
+            res = m_vmnode->start_process("") ? 0 : 1;
+        }
+        else
+        {
+            res = start_local_maxscale();
+        }
     }
     return res;
+}
+
+int MaxScale::start_local_maxscale()
+{
+    // MaxScale running locally, first stop it. In remote mode, systemctl handles this.
+    m_vmnode->stop_process();
+    string params = mxb::string_printf("--config=%s", m_cnf_path.c_str());
+    return m_vmnode->start_process(params) ? 0 : 1;
 }
 
 int MaxScale::stop_maxscale()
@@ -305,7 +303,7 @@ int MaxScale::stop_maxscale()
     }
     else
     {
-        res = ssh_output("systemctl stop maxscale", true).rc;
+        res = m_vmnode->stop_process() ? 0 : 1;
     }
     return res;
 }
@@ -518,30 +516,34 @@ mxt::Node& MaxScale::vm_node()
 
 void MaxScale::expect_running_status(bool expected)
 {
-    const char* ps_cmd = m_use_valgrind ?
+    const string ps_cmd = m_use_valgrind ?
         "ps ax | grep valgrind | grep maxscale | grep -v grep | wc -l" :
         "ps -C maxscale | grep maxscale | wc -l";
+    const string expected_str = expected ? "1" : "0";
+    const int iterations = 6;
 
-    auto cmd_res = ssh_output(ps_cmd, false);
-    if (cmd_res.output.empty() || (cmd_res.rc != 0))
+    for (int i = 1; i <= iterations; i++)
     {
-        log().add_failure("Can't check MaxScale running status. Command '%s' failed with code %i and "
-                          "output '%s'.", ps_cmd, cmd_res.rc, cmd_res.output.c_str());
-        return;
-    }
+        auto cmd_res = ssh_output(ps_cmd, false);
+        if (cmd_res.output.empty() || (cmd_res.rc != 0))
+        {
+            log().add_failure("Can't check MaxScale running status. Command '%s' failed with code %i and "
+                              "output '%s'.", ps_cmd.c_str(), cmd_res.rc, cmd_res.output.c_str());
+            break;
+        }
 
-    cmd_res.output = mxt::cutoff_string(cmd_res.output, '\n');
-    string expected_str = expected ? "1" : "0";
-
-    if (cmd_res.output != expected_str)
-    {
-        log().log_msgf("%s MaxScale processes detected when %s was expected. Trying again in 5 seconds.",
-                       cmd_res.output.c_str(), expected_str.c_str());
-        sleep(5);
-        cmd_res = ssh_output(ps_cmd, false);
         cmd_res.output = mxt::cutoff_string(cmd_res.output, '\n');
-
-        if (cmd_res.output != expected_str)
+        if (cmd_res.output == expected_str)
+        {
+            break;
+        }
+        else if (i < iterations)
+        {
+            log().log_msgf("%s MaxScale processes detected when %s was expected. Trying again in 0.5s.",
+                           cmd_res.output.c_str(), expected_str.c_str());
+            std::this_thread::sleep_for(500ms);
+        }
+        else
         {
             log().add_failure("%s MaxScale processes detected when %s was expected.",
                               cmd_res.output.c_str(), expected_str.c_str());
@@ -863,7 +865,7 @@ mxt::CmdResult MaxScale::curl_rest_api(const std::string& path)
                                     m_rest_user.c_str(), m_rest_pw.c_str(),
                                     m_rest_ip.c_str(), m_rest_port.c_str(),
                                     path.c_str());
-    return ssh_output(cmd, true);
+    return m_vmnode->run_cmd_output(cmd, Node::CmdPriv::NORMAL);
 }
 
 mxt::ServersInfo MaxScale::get_servers()
@@ -1011,7 +1013,8 @@ void MaxScale::write_in_log(string&& str)
     {
         *c = '^';
     }
-    ssh_node_f(true, "echo '--- %s ---' >> /var/log/maxscale/maxscale.log", buf);
+    // Assuming here that if running MaxScale locally, the user has write access to MaxScale log.
+    ssh_node_f(m_vmnode->is_remote(), "echo '--- %s ---' >> /var/log/maxscale/maxscale.log", buf);
 }
 
 void ServersInfo::add(const ServerInfo& info)

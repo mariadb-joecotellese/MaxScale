@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2028-01-30
+ * Change Date: 2028-02-27
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -72,7 +72,7 @@ LocalNode::LocalNode(SharedData& shared, std::string name, std::string mariadb_e
 
 bool LocalNode::configure(const mxb::ini::map_result::ConfigSection& cnf)
 {
-    return base_configure(cnf);
+    return base_configure(cnf) && m_shared.read_str(cnf, "homedir", m_homedir);
 }
 
 bool LocalNode::init_connection()
@@ -82,17 +82,39 @@ bool LocalNode::init_connection()
 
 int LocalNode::run_cmd(const string& cmd, CmdPriv priv)
 {
-    // Could likely run some commands in shell, figure it out later.
-    log().add_failure(err_local_cmd, cmd.c_str(), m_name.c_str());
-    return -1;
+    int rval = -1;
+    // For local nodes, allow non-sudo commands. Hopefully this is enough to prevent most destructive
+    // changes.
+    if (priv == CmdPriv::NORMAL)
+    {
+        if (m_shared.run_shell_command(cmd, ""))
+        {
+            rval = 0;
+        }
+    }
+    else
+    {
+        string errmsg = mxb::string_printf(err_local_cmd, cmd.c_str(), m_name.c_str());
+        log().log_msg(errmsg);
+    }
+    return rval;
 }
 
 mxt::CmdResult LocalNode::run_cmd_output(const string& cmd, CmdPriv priv)
 {
-    string errmsg = mxb::string_printf(err_local_cmd, cmd.c_str(), m_name.c_str());
-    log().log_msg(errmsg);
     mxt::CmdResult rval;
-    rval.output = errmsg;
+    // For local nodes, allow non-sudo commands. Hopefully this is enough to prevent most destructive
+    // changes.
+    if (priv == CmdPriv::NORMAL)
+    {
+        rval = m_shared.run_shell_cmd_output(cmd);
+    }
+    else
+    {
+        string errmsg = mxb::string_printf(err_local_cmd, cmd.c_str(), m_name.c_str());
+        log().log_msg(errmsg);
+        rval.output = errmsg;
+    }
     return rval;
 }
 
@@ -110,14 +132,30 @@ bool LocalNode::copy_from_node(const string& src, const string& dest)
     return false;
 }
 
+bool LocalNode::start_process(std::string_view params)
+{
+    const string* cmd = &m_start_proc_cmd;
+    string tmp;
+    if (!params.empty())
+    {
+        tmp = mxb::string_printf("%s %.*s", m_start_proc_cmd.c_str(), (int)params.size(), params.data());
+        cmd = &tmp;
+    }
+    return system(cmd->c_str()) == 0;
+}
+
+bool LocalNode::stop_process()
+{
+    return system(m_stop_proc_cmd.c_str()) == 0;
+}
+
+bool LocalNode::reset_process_datafiles()
+{
+    return system(m_reset_data_cmd.c_str()) == 0;
+}
+
 bool VMNode::init_connection()
 {
-    if (is_local())
-    {
-        log().log_msgf("Tried to initialize ssh connection to local node %s. Not supported.", m_name.c_str());
-        return false;
-    }
-
     close_ssh_master();
     bool init_ok = false;
     m_ssh_cmd_p1 = mxb::string_printf("ssh -i %s %s %s@%s",
@@ -165,12 +203,6 @@ void VMNode::close_ssh_master()
 
 int VMNode::run_cmd(const std::string& cmd, CmdPriv priv)
 {
-    if (is_local())
-    {
-        log().add_failure(err_local_cmd, cmd.c_str(), m_name.c_str());
-        return -1;
-    }
-
     string opening_cmd = m_ssh_cmd_p1;
     if (!verbose())
     {
@@ -238,12 +270,6 @@ mxt::CmdResult Node::run_cmd_output(const string& cmd)
 
 bool VMNode::copy_to_node(const string& src, const string& dest)
 {
-    if (is_local())
-    {
-        log().log_msgf("Tried to copy file '%s' to %s. Copying files is not supported in local mode.",
-                       src.c_str(), m_name.c_str());
-    }
-
     if (dest == "~" || dest == "~/")
     {
         log().add_failure("Don't rely on tilde expansion in copy_to_node, "
@@ -350,13 +376,6 @@ int Nodes::copy_from_node(int i, const char* src, const char* dest)
 
 bool mxt::VMNode::copy_from_node(const string& src, const string& dest)
 {
-    if (is_local())
-    {
-        log().log_msgf("Tried to copy file '%s' from %s. Copying files is not supported in local mode.",
-                       src.c_str(), m_name.c_str());
-        return false;
-    }
-
     string cmd = mxb::string_printf("scp -q -r -i %s %s %s@%s:%s %s",
                                     m_sshkey.c_str(), ssh_opts, m_username.c_str(), m_ip4.c_str(),
                                     src.c_str(), dest.c_str());
@@ -457,15 +476,6 @@ namespace maxtest
 
 mxt::CmdResult VMNode::run_cmd_output(const string& cmd, CmdPriv priv)
 {
-    if (is_local())
-    {
-        string errmsg = mxb::string_printf(err_local_cmd, cmd.c_str(), m_name.c_str());
-        log().log_msg(errmsg);
-        mxt::CmdResult rval;
-        rval.output = errmsg;
-        return rval;
-    }
-
     bool sudo = (priv == CmdPriv::SUDO);
 
     string ssh_cmd_p2 = sudo ? mxb::string_printf("'%s %s'", m_sudo.c_str(), cmd.c_str()) :
@@ -475,6 +485,28 @@ mxt::CmdResult VMNode::run_cmd_output(const string& cmd, CmdPriv priv)
     total_cmd.append(m_ssh_cmd_p1).append(" ").append(ssh_cmd_p2);
 
     return m_shared.run_shell_cmd_output(total_cmd);
+}
+
+bool VMNode::start_process(std::string_view params)
+{
+    const string* cmd = &m_start_proc_cmd;
+    string tmp;
+    if (!params.empty())
+    {
+        tmp = mxb::string_printf("%s %.*s", m_start_proc_cmd.c_str(), (int)params.size(), params.data());
+        cmd = &tmp;
+    }
+    return run_cmd_sudo(*cmd) == 0;
+}
+
+bool VMNode::stop_process()
+{
+    return run_cmd_sudo(m_stop_proc_cmd) == 0;
+}
+
+bool VMNode::reset_process_datafiles()
+{
+    return run_cmd_sudo(m_reset_data_cmd) == 0;
 }
 
 void Node::write_node_env_vars()
@@ -542,11 +574,6 @@ const char* Node::sshkey() const
     return m_sshkey.c_str();
 }
 
-void Node::set_local()
-{
-    m_type = NodeType::LOCAL;
-}
-
 TestLogger& Node::log()
 {
     return m_shared.log;
@@ -557,14 +584,14 @@ bool Node::verbose() const
     return m_shared.settings.verbose;
 }
 
-bool Node::is_remote() const
+bool VMNode::is_remote() const
 {
-    return m_type == NodeType::REMOTE;
+    return true;
 }
 
-bool Node::is_local() const
+bool LocalNode::is_remote() const
 {
-    return m_type == NodeType::LOCAL;
+    return false;
 }
 
 mxt::CmdResult Node::run_cmd_output_sudo(const string& cmd)
@@ -686,7 +713,26 @@ void Node::remove_linux_group(const std::string& grp_name)
 
 bool Node::base_configure(const mxb::ini::map_result::ConfigSection& cnf)
 {
-    return m_shared.read_str(cnf, "ip4", m_ip4) && m_shared.read_str(cnf, "hostname", m_hostname);
+    bool rval = false;
+    auto& s = m_shared;
+    if (s.read_str(cnf, "ip4", m_ip4) && s.read_str(cnf, "hostname", m_hostname)
+        && s.read_str(cnf, "start_cmd", m_start_proc_cmd)
+        && s.read_str(cnf, "stop_cmd", m_stop_proc_cmd)
+        && s.read_str(cnf, "reset_cmd", m_reset_data_cmd))
+    {
+        auto& kvs = cnf.key_values;
+        auto it = kvs.find("private_ip");
+        m_private_ip = (it == kvs.end()) ? m_ip4 : it->second.value;
+        rval = true;
+    }
+    return rval;
+}
+
+void Node::set_start_stop_reset_cmds(string&& start, string&& stop, string&& reset)
+{
+    m_start_proc_cmd = std::move(start);
+    m_stop_proc_cmd = std::move(stop);
+    m_reset_data_cmd = std::move(reset);
 }
 }
 

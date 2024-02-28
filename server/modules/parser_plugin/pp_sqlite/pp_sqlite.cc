@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2028-01-30
+ * Change Date: 2028-02-27
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -836,38 +836,28 @@ public:
                 {
                     if (zToken[1] == '@')
                     {
-                        // TODO: This should actually be "... && (m_operation == mxs::sql::OP_SET)"
-                        // TODO: but there is no mxs::sql::OP_SET at the moment.
-                        if ((prev_token == TK_EQ) && (pos == PP_TOKEN_LEFT)
-                            && (m_operation != mxs::sql::OP_SELECT))
+                        static const std::array<const char*, 3> master_vars =
                         {
-                            m_type_mask |= mxs::sql::TYPE_GSYSVAR_WRITE;
+                            "identity",
+                            "last_gtid",
+                            "last_insert_id",
+                        };
+
+                        static const auto b = master_vars.begin();
+                        static const auto e = master_vars.end();
+
+                        auto zVar = &zToken[2];
+                        auto it = std::find_if(b, e, [zVar](const char* zMaster_var) {
+                            return strcasecmp(zVar, zMaster_var) == 0;
+                        });
+
+                        if (it != e)
+                        {
+                            m_type_mask |= mxs::sql::TYPE_MASTER_READ;
                         }
                         else
                         {
-                            static const std::array<const char*, 3> master_vars =
-                            {
-                                "identity",
-                                "last_gtid",
-                                "last_insert_id",
-                            };
-
-                            static const auto b = master_vars.begin();
-                            static const auto e = master_vars.end();
-
-                            auto zVar = &zToken[2];
-                            auto it = std::find_if(b, e, [zVar](const char* zMaster_var) {
-                                    return strcasecmp(zVar, zMaster_var) == 0;
-                                });
-
-                            if (it != e)
-                            {
-                                m_type_mask |= mxs::sql::TYPE_MASTER_READ;
-                            }
-                            else
-                            {
-                                m_type_mask |= mxs::sql::TYPE_SYSVAR_READ;
-                            }
+                            m_type_mask |= mxs::sql::TYPE_SYSVAR_READ;
                         }
                     }
                     else
@@ -2081,12 +2071,10 @@ public:
             }
             else
             {
-                // If there's a single variable, then it's a write.
-                // mysql embedded considers it a system var write.
-                m_type_mask = mxs::sql::TYPE_GSYSVAR_WRITE;
+                // If there's a single variable, then it's a uservar write.
+                // mysql embedded considers it a system var write which is wrong.
+                m_type_mask = mxs::sql::TYPE_USERVAR_WRITE;
             }
-
-            // Also INTO {OUTFILE|DUMPFILE} will be typed as mxs::sql::TYPE_GSYSVAR_WRITE.
         }
         else
         {
@@ -2950,7 +2938,6 @@ public:
 
         m_status = Parser::Result::PARSED;
         m_type_mask |= mxs::sql::TYPE_SESSION_WRITE;
-        m_type_mask |= mxs::sql::TYPE_GSYSVAR_WRITE;
         m_operation = mxs::sql::OP_SET;
 
         exposed_sqlite3ExprDelete(pParse->db, pValue);
@@ -2961,9 +2948,6 @@ public:
         mxb_assert(this_thread.initialized);
 
         m_status = Parser::Result::PARSED;
-        // The following must be set anew as there will be no SET in case of
-        // Oracle's "var := 1", in which case maxscaleKeyword() is never called.
-        m_type_mask |= mxs::sql::TYPE_SESSION_WRITE;
         m_operation = mxs::sql::OP_SET;
 
         switch (kind)
@@ -2994,10 +2978,22 @@ public:
 
     void maxscaleSetVariable(Parse* pParse, int scope, Expr* pExpr)
     {
+        if (m_status == Parser::Result::TOKENIZED)
+        {
+            // The tokenization initially assigns a TYPE_SESSION_WRITE type mask for all SET commands. If we
+            // end up here, the statement has been partially parsed and is known to be valid enough that we
+            // can deduce at least some of the type mask from the first assignment. In this case the type mask
+            // must be set to an empty mask (TYPE_UNKNOWN) so that the variable assignments can OR their
+            // values to the final bit mask.
+            m_status = Parser::Result::PARTIALLY_PARSED;
+            m_type_mask = mxs::sql::TYPE_UNKNOWN;
+        }
+
         switch (pExpr->op)
         {
         case TK_CHARACTER:
         case TK_NAMES:
+            m_type_mask |= mxs::sql::TYPE_SESSION_WRITE;
             break;
 
         case TK_EQ:
@@ -3038,17 +3034,22 @@ public:
                     ++zName;
                 }
 
-                if (n_at == 1)
+                if (n_at == 2 && strcasecmp(zName, "GLOBAL") == 0)
                 {
-                    m_type_mask |= mxs::sql::TYPE_USERVAR_WRITE;
+                    scope = TK_GLOBAL;
+                }
+
+                if (scope == TK_GLOBAL)
+                {
+                    m_type_mask |= mxs::sql::TYPE_GSYSVAR_WRITE;
                 }
                 else
                 {
-                    m_type_mask |= mxs::sql::TYPE_GSYSVAR_WRITE;
+                    m_type_mask |= mxs::sql::TYPE_SESSION_WRITE;
 
-                    if (n_at == 2 && strcasecmp(zName, "GLOBAL") == 0)
+                    if (n_at == 1)
                     {
-                        scope = TK_GLOBAL;
+                        m_type_mask |= mxs::sql::TYPE_USERVAR_WRITE;
                     }
                 }
 
@@ -3131,6 +3132,7 @@ public:
 
         default:
             mxb_assert(!true);
+            m_type_mask |= mxs::sql::TYPE_SESSION_WRITE;
         }
     }
 

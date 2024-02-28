@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2028-01-30
+ * Change Date: 2028-02-27
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -151,15 +151,7 @@ private:
     int      m_port {-1};       /**< Main server port. Typically 3306. */
     bool     m_blocked {false}; /**< Blocked by iptables-rule */
 
-    struct Settings
-    {
-        std::string start_db_cmd;   /**< Command to start DB server process */
-        std::string stop_db_cmd;    /**< Command to stop DB server process */
-        std::string cleanup_db_cmd; /**< Command to remove all data files */
-    };
-
     const std::string m_cnf_name;   /**< MaxScale config name of server */
-    Settings          m_settings;
     Node&             m_vm;
     MariaDBCluster&   m_cluster;
     const int         m_ind {-1};

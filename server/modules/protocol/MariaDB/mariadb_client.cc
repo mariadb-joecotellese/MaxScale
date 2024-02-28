@@ -6,7 +6,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2028-01-30
+ * Change Date: 2028-02-27
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -1333,7 +1333,10 @@ bool MariaDBClientConnection::record_for_history(GWBUF& buffer, uint8_t cmd)
         break;
 
     default:
-        should_record = m_qc.target_is_all(info.target());
+        // If the type mask is exactly TYPE_GSYSVAR_WRITE, the command does not need to be stored in the
+        // history. Otherwise, if it's a mix of TYPE_GSYSVAR_WRITE and TYPE_SESSION_WRITE, it must be
+        // a `SET GLOBAL var_a, SESSION var_b` statement that modifies both the local and the global state.
+        should_record = m_qc.target_is_all(info.target()) && info.type_mask() != mxs::sql::TYPE_GSYSVAR_WRITE;
         break;
     }
 

@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2028-01-30
+ * Change Date: 2028-02-27
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -72,8 +72,11 @@ private:
 struct Settings
 {
     bool verbose {false};               /**< True if printing more details */
-    bool local_test {false};            /**< MaxScale and nodes running locally */
     bool allow_concurrent_run {true};   /**< Allow concurrent_run to run concurrently */
+
+    /**< True when running test with mdbci. Mdbci allows VM creation during test start. If false, backend
+     * info is read from config file and any missing backends is an error. */
+    bool mdbci_test {true};
 };
 
 /**
