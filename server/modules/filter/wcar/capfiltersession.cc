@@ -65,13 +65,23 @@ CapFilterSession::~CapFilterSession()
 
 bool CapFilterSession::routeQuery(GWBUF&& buffer)
 {
+    m_ps_tracker.track_query(buffer);
+
+    if (m_ps_tracker.is_multipart() || m_ps_tracker.should_ignore())
+    {
+        // TODO: This does not work if multiple queries are pending. A small COM_QUERY followed by a very
+        // TODO: big COM_QUERY will cause both to not be recorded.
+        m_capture = false;
+        return mxs::FilterSession::routeQuery(std::move(buffer));
+    }
+
     m_query_event.canonical_args.clear();
     m_capture = true;
 
-    if (mariadb::is_com_query_or_prepare(buffer))
+    if (auto [canonical, args] = m_ps_tracker.get_args(buffer); !canonical.empty())
     {
-        m_query_event.sCanonical = std::make_shared<std::string>(parser().get_sql(buffer));
-        maxsimd::get_canonical_args(&*m_query_event.sCanonical, &m_query_event.canonical_args);
+        m_query_event.sCanonical = std::make_shared<std::string>(std::move(canonical));
+        m_query_event.canonical_args = std::move(args);
     }
     else
     {
@@ -95,6 +105,15 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
                                    const maxscale::ReplyRoute& down,
                                    const maxscale::Reply& reply)
 {
+    m_ps_tracker.track_reply(reply);
+
+    if (m_ps_tracker.is_ldli())
+    {
+        mxb_assert(m_ps_tracker.should_ignore());
+        // LOAD DATA LOCAL INFILE is starting, ignore it.
+        m_capture = false;
+    }
+
     if (m_capture)
     {
         auto* pWorker = mxs::RoutingWorker::get_current();

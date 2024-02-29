@@ -8,6 +8,7 @@
 #include "capdefs.hh"
 #include "capstorage.hh"
 #include <maxscale/filter.hh>
+#include <maxscale/protocol/mariadb/trackers.hh>
 
 class CapFilter;
 
@@ -40,4 +41,6 @@ private:
     // TODO take into account a streaming client (writes without waits)
     bool       m_capture = false;
     QueryEvent m_query_event;
+
+    mariadb::PsTracker m_ps_tracker;
 };
