@@ -36,6 +36,15 @@ private:
      */
     bool generate_canonical_for(const GWBUF& buffer, QueryEvent* pQuery_event);
 
+    /**
+     * @brief Adds a fake SQL event
+     *
+     * This is used to emulate protocol features such as the default database and character sets.
+     *
+     * @param sql The SQL that is added
+     */
+    void add_fake_event(std::string&& sql);
+
     const CapFilter& m_filter;
 
     // TODO take into account a streaming client (writes without waits)

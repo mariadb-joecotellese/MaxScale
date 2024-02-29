@@ -23,28 +23,42 @@ CapFilterSession::CapFilterSession(MXS_SESSION* pSession, SERVICE* pService, con
     , m_filter(*pFilter)
 {
     const auto& maria_ses = static_cast<const MYSQL_session&>(protocol_data());
+    mxb_assert(maria_ses.auth_data);
 
-    if (!maria_ses.current_db.empty())
+    if (!maria_ses.auth_data->default_db.empty())
     {
-        auto* pWorker = mxs::RoutingWorker::get_current();
-        auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
-
-        m_query_event.sCanonical = std::make_shared<std::string>("use " + maria_ses.current_db);
-        m_query_event.session_id = m_pSession->id();
-        m_query_event.flags = 0;
-
-        // start_time==end_time means closing-event, an artificial
-        // event needed in replay. This "real" event needs to
-        // have differing start and end times. TODO: might have to
-        // do something special since it certainly isn't going to take
-        // 1ns when this is actually executed in replay.
-        auto now = mxb::Clock::now(mxb::NowType::EPollTick);
-        m_query_event.start_time = now - 1ns;
-        m_query_event.end_time = now;
-        m_query_event.event_id = m_filter.get_next_event_id();
-
-        pShared_data->send_update(m_query_event);
+        add_fake_event("use " + maria_ses.auth_data->default_db);
     }
+
+    const auto& collations = m_pSession->connection_metadata().collations;
+
+    if (auto it = collations.find(maria_ses.auth_data->collation); it != collations.end())
+    {
+        add_fake_event("set names '" + it->second.character_set + "' "
+                       + "collate '" + it->second.collation + "'");
+    }
+}
+
+void CapFilterSession::add_fake_event(std::string&& query)
+{
+    auto* pWorker = mxs::RoutingWorker::get_current();
+    auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
+
+    m_query_event.sCanonical = std::make_shared<std::string>(std::move(query));
+    m_query_event.session_id = m_pSession->id();
+    m_query_event.flags = 0;
+
+    // start_time==end_time means closing-event, an artificial
+    // event needed in replay. This "real" event needs to
+    // have differing start and end times. TODO: might have to
+    // do something special since it certainly isn't going to take
+    // 1ns when this is actually executed in replay.
+    auto now = mxb::Clock::now(mxb::NowType::EPollTick);
+    m_query_event.start_time = now - 1ns;
+    m_query_event.end_time = now;
+    m_query_event.event_id = m_filter.get_next_event_id();
+
+    pShared_data->send_update(m_query_event);
 }
 
 CapFilterSession::~CapFilterSession()
