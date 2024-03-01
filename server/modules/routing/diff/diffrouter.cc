@@ -84,7 +84,7 @@ DiffRouter* DiffRouter::create(SERVICE* pService)
     return new DiffRouter(pService);
 }
 
-RouterSession* DiffRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpoints)
+std::shared_ptr<mxs::RouterSession> DiffRouter::newSession(MXS_SESSION* pSession, const Endpoints& endpoints)
 {
     const auto& children = m_service.get_children();
 
@@ -110,14 +110,14 @@ RouterSession* DiffRouter::newSession(MXS_SESSION* pSession, const Endpoints& en
         }
     }
 
-    RouterSession* pRouter_session = nullptr;
+    std::shared_ptr<mxs::RouterSession> sRouter_session;
 
     if (connected)
     {
-        pRouter_session = new DiffRouterSession(pSession, this, std::move(sMain), std::move(backends));
+        sRouter_session = std::make_shared<DiffRouterSession>(pSession, this, std::move(sMain), std::move(backends));
     }
 
-    return pRouter_session;
+    return sRouter_session;
 }
 
 std::shared_ptr<DiffExporter> DiffRouter::exporter_for(const mxs::Target* pTarget) const

@@ -74,9 +74,9 @@ CapFilter* CapFilter::create(const char* zName)
     return new CapFilter(zName);
 }
 
-CapFilterSession* CapFilter::newSession(MXS_SESSION* pSession, SERVICE* pService)
+std::shared_ptr<mxs::FilterSession> CapFilter::newSession(MXS_SESSION* pSession, SERVICE* pService)
 {
-    return CapFilterSession::create(pSession, pService, this);
+    return std::shared_ptr<mxs::FilterSession>(CapFilterSession::create(pSession, pService, this));
 }
 
 json_t* CapFilter::diagnostics() const

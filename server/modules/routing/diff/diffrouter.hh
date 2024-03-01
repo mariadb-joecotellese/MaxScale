@@ -47,10 +47,12 @@ public:
     DiffRouter& operator=(const DiffRouter&) = delete;
 
     ~DiffRouter();
-    static DiffRouter*  create(SERVICE* pService);
-    mxs::RouterSession* newSession(MXS_SESSION* pSession, const mxs::Endpoints& endpoints) override;
-    json_t*             diagnostics() const override;
-    uint64_t            getCapabilities() const override;
+    static DiffRouter*                  create(SERVICE* pService);
+    std::shared_ptr<mxs::RouterSession> newSession(MXS_SESSION* pSession,
+                                                   const mxs::Endpoints& endpoints) override;
+
+    json_t*  diagnostics() const override;
+    uint64_t getCapabilities() const override;
 
     std::shared_ptr<DiffExporter> exporter_for(const mxs::Target* pTarget) const;
 
