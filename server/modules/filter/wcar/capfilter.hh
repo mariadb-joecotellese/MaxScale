@@ -56,5 +56,9 @@ private:
     CapConfig                    m_config;
     std::unique_ptr<Storage>     m_sStorage;
     std::shared_ptr<CapRecorder> m_sRecorder;
+
+    std::vector<std::weak_ptr<CapFilterSession>> m_sessions;
+    std::mutex                                   m_sessions_mutex;
+
     mutable std::atomic<int64_t> m_event_id{1};
 };

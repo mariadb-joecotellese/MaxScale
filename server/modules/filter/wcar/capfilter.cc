@@ -75,10 +75,13 @@ CapFilter* CapFilter::create(const char* zName)
 
 std::shared_ptr<mxs::FilterSession> CapFilter::newSession(MXS_SESSION* pSession, SERVICE* pService)
 {
-    auto sSess = std::shared_ptr<CapFilterSession>(CapFilterSession::create(pSession, pService, this));
-    sSess->start_capture(m_sRecorder);
+    auto sSession = std::shared_ptr<CapFilterSession>(CapFilterSession::create(pSession, pService, this));
 
-    return sSess;
+    std::lock_guard guard{m_sessions_mutex};
+
+    sSession->start_capture(m_sRecorder);
+    m_sessions.push_back(sSession);
+    return sSession;
 }
 
 json_t* CapFilter::diagnostics() const
