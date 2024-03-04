@@ -7,9 +7,35 @@
 #include "repconfig.hh"
 #include "reptransform.hh"
 #include <getopt.h>
+#include <algorithm>
 #include <iostream>
 #include <iomanip>
+#include <map>
 
+namespace
+{
+
+const char* MODE_HELP = "Mode of operation: replay (default), transform";
+
+std::map<std::string_view, RepConfig::Mode> s_mode_values{
+    {"replay", RepConfig::Mode::REPLAY},
+    {"transform", RepConfig::Mode::TRANSFORM},
+};
+
+RepConfig::Mode mode_from_string(std::string_view str)
+{
+    auto it = s_mode_values.find(str);
+    return it != s_mode_values.end() ? it->second : RepConfig::Mode::UNKNOWN;
+}
+
+std::string mode_to_string(RepConfig::Mode mode)
+{
+    auto it = std::find_if(s_mode_values.begin(), s_mode_values.end(), [&](const auto& kv){
+        return kv.second == mode;
+    });
+    return std::string(it != s_mode_values.end() ? it->first : "unknown");
+}
+}
 
 const struct option long_opts[] =
 {
@@ -17,11 +43,12 @@ const struct option long_opts[] =
     {"user",     required_argument, 0, 'u'},
     {"password", required_argument, 0, 'p'},
     {"host",     required_argument, 0, 'H'},
+    {"mode",     required_argument, 0, 'm'},
     {0,          0,                 0, 0  }
 };
 
 // This is not seprately checked, keep in sync with long_opts.
-const char* short_opts = "hu:p:H:";
+const char* short_opts = "hu:p:H:m:";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -71,6 +98,7 @@ void RepConfig::show_help()
               << OPT('u', user)
               << OPT('p', password)
               << OPT('H', host)
+              << OPT('m', MODE_HELP)
               << "\nInput file: " << file_name
               << std::endl;
 }
@@ -102,6 +130,15 @@ RepConfig::RepConfig(int argc, char** argv)
             if (!host.is_valid())
             {
                 std::cerr << "Host string is invalid: " << optarg << std::endl;
+                help = true;
+                error = true;
+            }
+            break;
+
+        case 'm':
+            if ((mode = mode_from_string(optarg)) == Mode::UNKNOWN)
+            {
+                std::cerr << "Invalid mode value: " << optarg << std::endl;
                 help = true;
                 error = true;
             }

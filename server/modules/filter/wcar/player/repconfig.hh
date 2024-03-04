@@ -11,6 +11,13 @@
 
 struct RepConfig
 {
+    enum class Mode
+    {
+        UNKNOWN,
+        REPLAY,     // Replay events and transform if necessary
+        TRANSFORM,  // Only transform events
+    };
+
     RepConfig(int argc, char** argv);
 
     std::string   user{"maxskysql"};
@@ -19,6 +26,7 @@ struct RepConfig
 
     std::string capture_dir = "/home/mariadb/maxscale/var/lib/maxscale/capture";
     std::string file_name;      // full path, not necessarily in capture_dir
+    Mode        mode {Mode::REPLAY};
 
     void show_help();
 };

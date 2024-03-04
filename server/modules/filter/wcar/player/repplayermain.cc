@@ -16,7 +16,10 @@ try
     RepConfig config(argc, argv);
     RepPlayer player(&config);
 
-    player.replay();
+    if (config.mode == RepConfig::Mode::REPLAY)
+    {
+        player.replay();
+    }
 
     return EXIT_SUCCESS;
 }
