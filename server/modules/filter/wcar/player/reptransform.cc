@@ -184,13 +184,15 @@ void RepTransform::transform_events(const fs::path& path)
             sessions.erase(qevent.session_id);
             --num_active_session;
         }
-
-        SessionState& state = session_ite->second;
-
-        auto trx = state.update(qevent);
-        if (trx.is_valid())
+        else
         {
-            m_trxs.push_back(trx);
+            SessionState& state = session_ite->second;
+
+            auto trx = state.update(qevent);
+            if (trx.is_valid())
+            {
+                m_trxs.push_back(trx);
+            }
         }
     }
 
