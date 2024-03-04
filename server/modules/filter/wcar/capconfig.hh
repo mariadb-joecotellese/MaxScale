@@ -33,6 +33,7 @@ public:
     std::string   capture_dir;
     StorageType   storage_type;
     StorageMethod storage_method;
+    bool          start_capture;
 
 private:
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;

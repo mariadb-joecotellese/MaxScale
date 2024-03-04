@@ -40,6 +40,9 @@ cfg::ParamEnum<StorageMethod> s_storage_method(
 },
     StorageMethod::DIRECT);
 
+cfg::ParamBool s_start_capture(
+    &s_spec, "start_capture", "Start capture on maxscale start", false);
+
 CapConfig::CapConfig(const std::string& name, std::function<bool ()> filter_post_configure)
     : cfg::Configuration(name, specification())
     , m_filter_post_configure(filter_post_configure)
@@ -47,6 +50,7 @@ CapConfig::CapConfig(const std::string& name, std::function<bool ()> filter_post
     add_native(&CapConfig::capture_dir, &s_capture_dir);
     add_native(&CapConfig::storage_type, &s_storage_type);
     add_native(&CapConfig::storage_method, &s_storage_method);
+    add_native(&CapConfig::start_capture, &s_start_capture);
 }
 
 bool CapConfig::post_configure(const std::map<std::string, maxscale::ConfigParameters>& nested_params)

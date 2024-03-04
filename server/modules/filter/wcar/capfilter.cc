@@ -15,15 +15,16 @@
 #include <filesystem>
 
 namespace fs = std::filesystem;
+using namespace std::string_literals;
 
 namespace
 {
 
-std::string generate_file_base_name()
+std::string generate_file_base_name(const std::string file_prefix)
 {
     auto now = wall_time::Clock::now();
     auto time_str = wall_time::to_string(now, "%F_%H%M%S");
-    auto file_name = "capture_"s + time_str;
+    auto file_name = file_prefix + '_' + time_str;
 
     return file_name;
 }
@@ -35,11 +36,10 @@ CapFilter::CapFilter(const std::string& name)
 })
 {}
 
-bool CapFilter::post_configure()
+std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_prefix = "capture"s)
 {
-    bool ok = true;
     auto base_path = m_config.capture_dir;
-    base_path += '/' + generate_file_base_name();
+    base_path += '/' + generate_file_base_name(file_prefix);
 
     switch (m_config.storage_type)
     {
@@ -52,10 +52,19 @@ bool CapFilter::post_configure()
         break;
     }
 
-    m_sRecorder = std::make_shared<CapRecorder>(std::make_unique<RecorderContext>(m_sStorage.get()));
-    m_sRecorder->start();
+    return std::make_shared<CapRecorder>(std::make_unique<RecorderContext>(m_sStorage.get()));
+}
 
-    return ok;
+
+bool CapFilter::post_configure()
+{
+    if (m_config.start_capture)
+    {
+        m_sRecorder = make_storage();
+        m_sRecorder->start();
+    }
+
+    return true;
 }
 
 CapFilter::~CapFilter()

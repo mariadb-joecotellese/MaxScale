@@ -53,6 +53,7 @@ private:
     ~CapFilter();
 
 private:
+    std::shared_ptr<CapRecorder> make_storage(const std::string file_prefix);
     CapConfig                    m_config;
     std::unique_ptr<Storage>     m_sStorage;
     std::shared_ptr<CapRecorder> m_sRecorder;
