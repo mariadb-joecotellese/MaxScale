@@ -120,13 +120,16 @@ void CapFilterSession::start_capture(const std::shared_ptr<CapRecorder>& sRecord
 
 void CapFilterSession::stop_capture()
 {
-    m_sRecorder.reset();
     handle_cap_state(CapSignal::STOP);
+    m_sRecorder.reset();
 }
 
 CapFilterSession::~CapFilterSession()
 {
-    handle_cap_state(CapSignal::CLOSE_SESSION);
+    if (m_sRecorder)
+    {
+        handle_cap_state(CapSignal::CLOSE_SESSION);
+    }
 }
 
 void CapFilterSession::send_event(QueryEvent&& qevent, Who who)

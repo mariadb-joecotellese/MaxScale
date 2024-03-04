@@ -28,6 +28,9 @@ public:
 
     std::shared_ptr<mxs::FilterSession> newSession(MXS_SESSION* pSession, SERVICE* pService) override;
 
+    bool start_capture(std::string file_prefix);
+    bool stop_capture();
+
     json_t* diagnostics() const override;
 
     uint64_t getCapabilities() const override

@@ -20,6 +20,8 @@ using namespace std::string_literals;
 namespace
 {
 
+const std::string DEFAULT_FILE_PREFIX = "capture";
+
 std::string generate_file_base_name(const std::string file_prefix)
 {
     auto now = wall_time::Clock::now();
@@ -36,7 +38,7 @@ CapFilter::CapFilter(const std::string& name)
 })
 {}
 
-std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_prefix = "capture"s)
+std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_prefix)
 {
     auto base_path = m_config.capture_dir;
     base_path += '/' + generate_file_base_name(file_prefix);
@@ -60,7 +62,7 @@ bool CapFilter::post_configure()
 {
     if (m_config.start_capture)
     {
-        m_sRecorder = make_storage();
+        m_sRecorder = make_storage(DEFAULT_FILE_PREFIX);
         m_sRecorder->start();
     }
 
@@ -69,7 +71,12 @@ bool CapFilter::post_configure()
 
 CapFilter::~CapFilter()
 {
-    m_sRecorder->stop();
+    if (m_sRecorder)
+    {
+        m_sRecorder->stop();
+    }
+
+    m_sStorage.reset();
 
     // TODO: gc_stats are useful to log. Make the stats non-global, i.e.
     //       move the counters inside GCUpdater.
@@ -88,9 +95,63 @@ std::shared_ptr<mxs::FilterSession> CapFilter::newSession(MXS_SESSION* pSession,
 
     std::lock_guard guard{m_sessions_mutex};
 
-    sSession->start_capture(m_sRecorder);
+    if (m_sRecorder)
+    {
+        sSession->start_capture(m_sRecorder);
+    }
+
     m_sessions.push_back(sSession);
+
     return sSession;
+}
+
+bool CapFilter::start_capture(std::string file_prefix)
+{
+    stop_capture();
+
+    std::lock_guard guard{m_sessions_mutex};
+
+    if (file_prefix.empty())
+    {
+        file_prefix = DEFAULT_FILE_PREFIX;
+    }
+
+    m_sRecorder = make_storage(file_prefix);
+    m_sRecorder->start();
+
+    for (auto& w : m_sessions)
+    {
+        auto s = w.lock();
+        if (s)
+        {
+            s->start_capture(m_sRecorder);
+        }
+    }
+
+    return true;
+}
+
+bool CapFilter::stop_capture()
+{
+    std::lock_guard guard{m_sessions_mutex};
+
+    if (m_sRecorder)
+    {
+        for (auto& w : m_sessions)
+        {
+            auto s = w.lock();
+            if (s)
+            {
+                s->stop_capture();
+            }
+        }
+
+        m_sRecorder->stop();
+        m_sRecorder.reset();
+        m_sStorage.reset();
+    }
+
+    return true;
 }
 
 json_t* CapFilter::diagnostics() const
