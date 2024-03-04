@@ -585,17 +585,20 @@ void MariaDBMonitor::assign_server_roles()
                 }
             }
 
-            if (master_conds_ok && (master_conds & MasterConds::MCOND_COOP_M) && is_slave_maxscale()
-                && !m_master->marked_as_master())
+            // Check other master conditions.
+            if (master_conds_ok)
             {
-                // Master was not marked as such by primary monitor.
-                master_conds_ok = false;
+                if (((master_conds & MasterConds::MCOND_COOP_M) && is_slave_maxscale()
+                     && !m_master->marked_as_master())
+                    || ((master_conds & MasterConds::MCOND_DISK_OK) && m_master->is_low_on_disk_space()))
+                {
+                    // Master was not marked as such by primary monitor or is low on disk space.
+                    master_conds_ok = false;
+                }
             }
 
-            // Master may never have read-only and should have disk space. Binlogrouter cannot get
-            // master-status.
-            if (master_conds_ok && !m_master->is_read_only() && m_master->is_database()
-                && !m_master->is_low_on_disk_space())
+            // Master may never have read-only. Also, binlogrouter cannot get master-status.
+            if (master_conds_ok && !m_master->is_read_only() && m_master->is_database())
             {
                 m_master->set_status(SERVER_MASTER);
             }
@@ -647,10 +650,13 @@ void MariaDBMonitor::assign_slave_and_relay_master()
         return;
     }
 
+    const bool req_disk_ok = slave_conds & SlaveConds::SCOND_DISK_OK;
+
     // Second, check if the start node itself should be labeled [Slave]. This is the case if the master
     // fulfills general slave requirements but is not labeled [Master]. Binlogrouter may get [Slave] for now,
     // is removed later.
-    if (m_master->is_running() && !m_master->is_master())
+    if (m_master->is_running() && !m_master->is_master()
+        && !(req_disk_ok && m_master->is_low_on_disk_space()))
     {
         m_master->set_status(SERVER_SLAVE);
     }
@@ -727,7 +733,11 @@ void MariaDBMonitor::assign_slave_and_relay_master()
                     // TODO: If slaves with broken links should be given different flags, add that here.
                     if (slave_is_running)
                     {
-                        slave->set_status(SERVER_SLAVE);
+                        if (!(req_disk_ok && slave->is_low_on_disk_space()))
+                        {
+                            slave->set_status(SERVER_SLAVE);
+                        }
+
                         // Write the replication lag for this slave. It may have multiple slave connections,
                         // in which case take the smallest value. This only counts the slave connections
                         // leading to the master or a relay.
@@ -1115,16 +1125,32 @@ void MariaDBMonitor::update_cluster_lock_status()
 
         int server_locks_free = 0;
         int server_locks_held = 0;
-        int master_locks_held = 0;
+        int server_locks_owned_other = 0;
         int running_servers = 0;
+
+        MariaDBServer* master_lock_srv = nullptr;
 
         for (MariaDBServer* server : m_servers)
         {
-            auto lockstatus = server->lock_status(MariaDBServer::LockType::SERVER);
-            server_locks_held += lockstatus.status() == ServerLock::Status::OWNED_SELF;
-            server_locks_free += lockstatus.status() == ServerLock::Status::FREE;
-            master_locks_held += server->lock_owned(MariaDBServer::LockType::MASTER);
+            auto lockstatus = server->lock_status(MariaDBServer::LockType::SERVER).status();
+            if (lockstatus == ServerLock::Status::OWNED_SELF)
+            {
+                server_locks_held++;
+            }
+            else if (lockstatus == ServerLock::Status::OWNED_OTHER)
+            {
+                server_locks_owned_other++;
+            }
+            else if (lockstatus == ServerLock::Status::FREE)
+            {
+                server_locks_free++;
+            }
             running_servers += server->is_running();
+
+            if (server->lock_owned(MariaDBServer::LockType::MASTER))
+            {
+                master_lock_srv = server;   // Should be the master.
+            }
         }
 
         // Check if the monitor has a majority of locks. Either require majority of running servers or
@@ -1198,12 +1224,45 @@ void MariaDBMonitor::update_cluster_lock_status()
 
         // Release locks if no majority. This gives another MaxScale the chance to get them. Should be a
         // rare occurrence.
-        int total_locks = server_locks_held + master_locks_held;
+        int total_locks = server_locks_held + (master_lock_srv ? 1 : 0);
         if (!have_lock_majority && total_locks > 0)
         {
-            MXB_WARNING("'%s' holds %i lock(s) without lock majority, and will release them. "
-                        "The monitor of the primary MaxScale must have failed to acquire all server locks.",
-                        name(), total_locks);
+            string msg;
+            if (server_locks_held > 0)
+            {
+                msg.append(mxb::string_printf(
+                    "'%s' holds %i exclusive server lock(s) out of %i required for lock majority, "
+                    "and will release them.",
+                    name(), server_locks_held, required_for_majority));
+
+                if (m_settings.require_server_locks == LOCKS_MAJORITY_ALL
+                    && running_servers < (int)m_servers.size())
+                {
+                    int servers_down = m_servers.size() - running_servers;
+                    msg.append(mxb::string_printf(" %i lock(s) could not be acquired because server is down.",
+                                                  servers_down));
+                }
+                if (server_locks_owned_other > 0)
+                {
+                    msg.append(mxb::string_printf(" %i lock(s) were held by another MaxScale.",
+                                                  server_locks_owned_other));
+                }
+                msg.append(" Will try to reacquire locks later if majority is possible.");
+                if (master_lock_srv)
+                {
+                    msg.append(mxb::string_printf(" The monitor will also release its master lock on %s.",
+                                                  master_lock_srv->name()));
+                }
+            }
+            else
+            {
+                // This is a highly unlikely situation.
+                msg.append(mxb::string_printf(
+                    "'%s' lost all exclusive server locks, releasing master lock on %s.",
+                    name(), master_lock_srv->name()));
+            }
+            MXB_WARNING("%s", msg.c_str());
+
             for (MariaDBServer* server : m_servers)
             {
                 server->release_all_locks();
