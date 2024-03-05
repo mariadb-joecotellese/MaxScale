@@ -149,8 +149,16 @@ private:
 
 void RepTransform::transform_events(const fs::path& path)
 {
+    auto tx_path = path;
+    tx_path.replace_extension("tx");
+    bool needs_sorting = !fs::exists(tx_path);
+
     CapBoostStorage boost{path, ReadWrite::READ_ONLY};
-    boost.sort_query_event_file();
+
+    if (needs_sorting)
+    {
+        boost.sort_query_event_file();
+    }
 
     mxb::StopWatch sw;
     int num_active_session = 0;
@@ -201,4 +209,13 @@ void RepTransform::transform_events(const fs::path& path)
     }
 
     std::cout << "transform_events ex sort " << mxb::to_string(sw.split()) << std::endl;
+
+    if (needs_sorting)
+    {
+        // TODO: Write the statistics to this file instead of printing to stdout.
+        std::ofstream tx_file(tx_path);
+        tx_file << "sorted" << std::endl;
+    }
+
+    std::cout << std::ifstream(tx_path).rdbuf() << std::endl;
 }

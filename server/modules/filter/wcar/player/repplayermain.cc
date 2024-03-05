@@ -14,11 +14,20 @@ try
     mxb::MaxBase mxb(MXB_LOG_TARGET_STDOUT);
 
     RepConfig config(argc, argv);
-    RepPlayer player(&config);
 
     if (config.mode == RepConfig::Mode::REPLAY)
     {
+        RepPlayer player(&config);
         player.replay();
+    }
+    else if (config.mode == RepConfig::Mode::TRANSFORM)
+    {
+        RepTransform transform(&config);
+    }
+    else
+    {
+        // The code should never end up here: RepConfig::RepConfig exits on invalid options
+        mxb_assert(!true);
     }
 
     return EXIT_SUCCESS;
