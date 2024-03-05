@@ -23,45 +23,70 @@ CapFilterSession::CapFilterSession(MXS_SESSION* pSession, SERVICE* pService, con
     , m_filter(*pFilter)
 {
     const auto& maria_ses = static_cast<const MYSQL_session&>(protocol_data());
-    mxb_assert(maria_ses.auth_data);
-
-    if (!maria_ses.auth_data->default_db.empty())
+    m_current_db = maria_ses.current_db;
+    for (auto&& e : make_opening_events())
     {
-        add_fake_event("use " + maria_ses.auth_data->default_db);
-    }
-
-    const auto& collations = m_pSession->connection_metadata().collations;
-
-    if (auto it = collations.find(maria_ses.auth_data->collation); it != collations.end())
-    {
-        add_fake_event("set names '" + it->second.character_set + "' "
-                       + "collate '" + it->second.collation + "'");
+        send_event(std::move(e));
     }
 }
 
-void CapFilterSession::add_fake_event(std::string&& query)
+CapFilterSession::~CapFilterSession()
 {
-    auto* pWorker = mxs::RoutingWorker::get_current();
-    auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
+    send_event(make_closing_event());
+}
 
-    m_query_event.sCanonical = std::make_shared<std::string>(std::move(query));
-    m_query_event.session_id = m_pSession->id();
-    m_query_event.flags = 0;
 
+void CapFilterSession::send_event(QueryEvent&& qevent, int worker_idx)
+{
+    if (worker_idx == -1)
+    {
+        auto* pWorker = mxs::RoutingWorker::get_current();
+        worker_idx = pWorker->index();
+    }
+    auto* pShared_data = m_filter.recorder().get_shared_data_by_index(worker_idx);
+    pShared_data->send_update(std::move(qevent));
+}
+
+std::vector<QueryEvent> CapFilterSession::make_opening_events()
+{
+    std::vector<QueryEvent> events;
+
+    const auto& maria_ses = static_cast<const MYSQL_session&>(protocol_data());
+    mxb_assert(maria_ses.auth_data);
+    QueryEvent opening_event;
+    opening_event.session_id = m_pSession->id();
+    opening_event.flags = 0;
     // start_time==end_time means closing-event, an artificial
     // event needed in replay. This "real" event needs to
     // have differing start and end times. TODO: might have to
     // do something special since it certainly isn't going to take
     // 1ns when this is actually executed in replay.
     auto now = mxb::Clock::now(mxb::NowType::EPollTick);
-    m_query_event.start_time = now - 1ns;
-    m_query_event.end_time = now;
-    m_query_event.event_id = m_filter.get_next_event_id();
+    opening_event.start_time = now - 1ns;
+    opening_event.end_time = now;
 
-    pShared_data->send_update(m_query_event);
+    if (!m_current_db.empty())
+    {
+        opening_event.event_id = m_filter.get_next_event_id();
+        opening_event.sCanonical = std::make_shared<std::string>("use " + m_current_db);
+        events.push_back(opening_event);
+    }
+
+    const auto& collations = m_pSession->connection_metadata().collations;
+
+    if (auto it = collations.find(maria_ses.auth_data->collation); it != collations.end())
+    {
+        auto sql = "set names '"s + it->second.character_set + "' "
+            + "collate '" + it->second.collation + "'";
+        opening_event.event_id = m_filter.get_next_event_id();
+        opening_event.sCanonical = std::make_shared<std::string>(std::move(sql));
+        events.push_back(opening_event);
+    }
+
+    return events;
 }
 
-CapFilterSession::~CapFilterSession()
+QueryEvent CapFilterSession::make_closing_event()
 {
     QueryEvent closing_event;
     // Non empty canonical to avoid checking, with a message for debug.
@@ -72,9 +97,7 @@ CapFilterSession::~CapFilterSession()
     closing_event.end_time = closing_event.start_time;
     closing_event.event_id = m_filter.get_next_event_id();
 
-    auto* pWorker = mxs::RoutingWorker::get_current();
-    auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
-    pShared_data->send_update(closing_event);
+    return closing_event;
 }
 
 bool CapFilterSession::routeQuery(GWBUF&& buffer)
@@ -89,7 +112,6 @@ bool CapFilterSession::routeQuery(GWBUF&& buffer)
         return mxs::FilterSession::routeQuery(std::move(buffer));
     }
 
-    m_query_event.canonical_args.clear();
     m_capture = true;
 
     if (auto [canonical, args] = m_ps_tracker.get_args(buffer); !canonical.empty())
@@ -107,6 +129,8 @@ bool CapFilterSession::routeQuery(GWBUF&& buffer)
 
     if (m_capture)
     {
+        const auto& maria_ses = static_cast<const MYSQL_session&>(protocol_data());
+        m_current_db = maria_ses.current_db;
         m_query_event.session_id = m_pSession->id();
         m_query_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
         m_query_event.flags = parser().get_type_mask(buffer);
@@ -130,11 +154,9 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
 
     if (m_capture)
     {
-        auto* pWorker = mxs::RoutingWorker::get_current();
-        auto* pShared_data = m_filter.recorder().get_shared_data_by_index(pWorker->index());
         m_query_event.end_time = mxb::Clock::now(mxb::NowType::EPollTick);
         m_query_event.event_id = m_filter.get_next_event_id();
-        pShared_data->send_update(m_query_event);
+        send_event(std::move(m_query_event));
     }
 
     return mxs::FilterSession::clientReply(std::move(buffer), down, reply);
@@ -143,6 +165,7 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
 bool CapFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* pQuery_event)
 {
     auto cmd = mariadb::get_command(buffer);
+    bool generated = true;
 
     // TODO add prepared statement handling (text and binary)
     switch (cmd)
@@ -193,7 +216,9 @@ bool CapFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* p
     case MXS_COM_PROCESS_KILL:
     case MXS_COM_SHUTDOWN:
     default:
+        generated = false;
         MXB_SDEV("Ignore " << mariadb::cmd_to_string(cmd));
     }
-    return false;
+
+    return generated;
 }

@@ -36,20 +36,18 @@ private:
      */
     bool generate_canonical_for(const GWBUF& buffer, QueryEvent* pQuery_event);
 
-    /**
-     * @brief Adds a fake SQL event
-     *
-     * This is used to emulate protocol features such as the default database and character sets.
-     *
-     * @param sql The SQL that is added
-     */
-    void add_fake_event(std::string&& sql);
+    // Index of the worker passed in because there are cases where
+    // no RoutingWorker is involved.
+    void                    send_event(QueryEvent&& qevent, int worker_idx = -1);
+    std::vector<QueryEvent> make_opening_events();
+    QueryEvent              make_closing_event();
 
     const CapFilter& m_filter;
 
     // TODO take into account a streaming client (writes without waits)
-    bool       m_capture = false;
-    QueryEvent m_query_event;
+    std::string m_current_db;
+    bool        m_capture = false;
+    QueryEvent  m_query_event;
 
     mariadb::PsTracker m_ps_tracker;
 };
