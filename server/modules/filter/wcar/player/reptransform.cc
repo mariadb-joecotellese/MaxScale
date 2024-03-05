@@ -33,19 +33,8 @@ RepTransform::RepTransform(const RepConfig* pConfig)
 
 void RepTransform::finalize()
 {
-
     m_player_storage.reset();
     m_rep_event_storage.reset();
-
-    auto sqlite_path = fs::path{m_config.file_name};
-    auto boost_path = fs::path{m_config.file_name};
-
-    sqlite_path.replace_extension(".sqlite");
-    boost_path.replace_extension(".cx");
-    CapSqliteStorage sqlite{sqlite_path};
-    CapBoostStorage boost{boost_path, ReadWrite::READ_ONLY};
-
-    sqlite.move_values_from(boost);
 }
 
 // Expected transaction behavior
