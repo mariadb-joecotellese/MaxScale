@@ -13,7 +13,6 @@
  */
 import { MXS_OBJ_TYPES } from '@/constants'
 import ConfigSync from '@/components/dashboard/ConfigSync.vue'
-import { watch } from 'vue'
 
 defineProps({
   onCountDone: { type: Function, required: true },
@@ -95,87 +94,84 @@ function copyToClipboard(txt) {
 onBeforeUnmount(() => workerTimer && workerTimer.terminate())
 </script>
 <template>
-  <portal to="view-header__left">
-    <div class="pb-6 d-flex flex-column page-header--left">
-      <h4 class="text-navigation text-h4 text-capitalize page-title">
-        {{ pageTitle }}
-      </h4>
-      <div class="d-flex align-center">
-        <ConfigSync v-if="config_sync" :data="config_sync" className="mr-5" />
-        <span class="grayed-out-info text-capitalize">
-          {{ $t('uptime') }}
-          {{ humanizedUptime }}
+  <div class="pb-6 d-flex align-center">
+    <portal to="view-header__left">
+      <div class="d-flex flex-column page-header--left">
+        <h4 class="text-navigation text-h4 text-capitalize page-title">
+          {{ pageTitle }}
+        </h4>
+      </div>
+    </portal>
+    <portal to="view-header__right">
+      <RefreshRate :onCountDone="onCountDone" />
+      <GlobalSearch class="ml-4 d-inline-block" />
+      <CreateMxsObj class="ml-4 d-inline-block" :defFormType="defFormType" />
+    </portal>
+    <ConfigSync v-if="config_sync" :data="config_sync" className="mr-5" />
+    <pre class="grayed-out-info text-capitalize">{{ $t('uptime') }}{{ humanizedUptime }}</pre>
+    <VMenu
+      transition="slide-y-transition"
+      :close-on-content-click="false"
+      open-on-hover
+      content-class="rounded-10 with-arrow with-arrow--top-left no-border shadow-drop"
+      offset="0 20"
+    >
+      <template #activator="{ props }">
+        <VIcon
+          class="ml-1 pointer"
+          size="16"
+          color="#9DB4BB"
+          icon="$mdiInformationOutline"
+          v-bind="props"
+        />
+      </template>
+      <VSheet class="px-6 py-6" max-width="320px">
+        <span class="d-block mb-1 text-body-2 font-weight-bold text-capitalize">
+          {{ $t('aboutMaxScale') }}
         </span>
-        <VMenu
-          transition="slide-y-transition"
-          :close-on-content-click="false"
-          open-on-hover
-          content-class="rounded-10 with-arrow with-arrow--top-left no-border shadow-drop"
-          offset="0 20"
-        >
-          <template #activator="{ props }">
-            <VIcon
-              class="ml-1 pointer"
-              size="16"
-              color="#9DB4BB"
-              icon="$mdiInformationOutline"
-              v-bind="props"
-            />
-          </template>
-          <VSheet class="px-6 py-6" max-width="320px">
-            <span class="d-block mb-1 text-body-2 font-weight-bold text-capitalize">
-              {{ $t('aboutMaxScale') }}
+        <div v-for="(value, name) in mxsInfo" :key="name">
+          <span class="d-flex text-body-2">
+            <span class="text-capitalize" style="width: 35%">
+              {{ name.split('_').join(' ') }}
             </span>
-            <div v-for="(value, name) in mxsInfo" :key="name">
-              <span class="d-flex text-body-2">
-                <span class="text-capitalize" style="width: 35%">
-                  {{ name.split('_').join(' ') }}
-                </span>
-                <VTooltip
-                  v-if="name === 'commit'"
-                  :key="copyState"
-                  transition="slide-y-reverse-transition"
-                  top
-                >
-                  <template #activator="{ props }">
-                    <div
-                      style="width: 65%"
-                      class="pointer d-inline-block text-truncate"
-                      @dblclick="copyToClipboard(value)"
-                      v-bind="props"
-                    >
-                      {{ value }}
-                    </div>
-                  </template>
-                  {{ copyState }}
-                </VTooltip>
+            <VTooltip
+              v-if="name === 'commit'"
+              :key="copyState"
+              transition="slide-y-reverse-transition"
+              top
+            >
+              <template #activator="{ props }">
                 <div
-                  v-else-if="value && (name === 'started_at' || name === 'activated_at')"
                   style="width: 65%"
-                  class="d-inline-block"
+                  class="pointer d-inline-block text-truncate"
+                  @dblclick="copyToClipboard(value)"
+                  v-bind="props"
                 >
-                  {{
-                    $helpers.dateFormat({
-                      value,
-                      formatType: 'dd MMM yyyy HH:mm:ss',
-                    })
-                  }}
-                </div>
-                <div v-else style="width: 65%" class="d-inline-block">
                   {{ value }}
                 </div>
-              </span>
+              </template>
+              {{ copyState }}
+            </VTooltip>
+            <div
+              v-else-if="value && (name === 'started_at' || name === 'activated_at')"
+              style="width: 65%"
+              class="d-inline-block"
+            >
+              {{
+                $helpers.dateFormat({
+                  value,
+                  formatType: 'dd MMM yyyy HH:mm:ss',
+                })
+              }}
             </div>
-          </VSheet>
-        </VMenu>
-      </div>
-    </div>
-  </portal>
-  <portal to="view-header__right">
-    <RefreshRate :onCountDone="onCountDone" />
-    <GlobalSearch class="ml-4 d-inline-block" />
-    <!-- TODO Add CreateMxsObj component -->
-  </portal>
+            <div v-else style="width: 65%" class="d-inline-block">
+              {{ value }}
+            </div>
+          </span>
+        </div>
+      </VSheet>
+    </VMenu>
+  </div>
 </template>
 
 <style lang="scss" scoped>

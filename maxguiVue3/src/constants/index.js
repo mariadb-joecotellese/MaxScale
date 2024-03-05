@@ -13,6 +13,8 @@
 
 export const PERSIST_TOKEN_OPT = 'persist=yes&max-age=604800'
 
+export const LOADING_TIME = 400 // loading time animation for table
+
 // Do not alter the order of the keys as it's used for generating steps for the Config Wizard page
 export const MXS_OBJ_TYPES = Object.freeze({
   SERVERS: 'servers',
@@ -75,6 +77,8 @@ export const MONITOR_OP_TYPES = Object.freeze({
   CS_ADD_NODE: 'async-cs-add-node',
   CS_REMOVE_NODE: 'async-cs-remove-node',
 })
+
+export const COMMON_OBJ_OP_TYPES = Object.freeze({ DESTROY: 'destroy' })
 
 export const USER_ROLES = Object.freeze({ ADMIN: 'admin', BASIC: 'basic' })
 

@@ -14,13 +14,25 @@
 
 import PageHeader from '@/components/dashboard/PageHeader.vue'
 import DashboardGraphs from '@/components/dashboard/DashboardGraphs.vue'
+import ServersTbl from '@/components/dashboard/ServersTbl.vue'
+import ServicesTbl from '@/components/dashboard/ServicesTbl.vue'
+import ListenersTbl from '@/components/dashboard/ListenersTbl.vue'
+import FiltersTbl from '@/components/dashboard/FiltersTbl.vue'
+import SessionsTbl from '@/components/dashboard/SessionsTbl.vue'
+import { MXS_OBJ_TYPES } from '@/constants'
 
 const store = useStore()
 const typy = useTypy()
 
 let activeTab = ref(null)
 const graphsRef = ref(null)
-const TABS = ['servers', 'sessions', 'services', 'listeners', 'filters']
+const TABS = [
+  MXS_OBJ_TYPES.SERVERS,
+  'sessions',
+  MXS_OBJ_TYPES.SERVICES,
+  MXS_OBJ_TYPES.LISTENERS,
+  MXS_OBJ_TYPES.FILTERS,
+]
 const tabActions = TABS.map((name) => () => store.dispatch(`${name}/fetchAll`))
 
 const countMap = computed(() => {
@@ -56,14 +68,20 @@ async function onCountDone() {
 
 function loadTabComponent(name) {
   switch (name) {
-    case 'servers':
-      return defineAsyncComponent(() => import('@/components/dashboard/ServersTab.vue'))
+    case MXS_OBJ_TYPES.SERVERS:
+      return ServersTbl
+    case MXS_OBJ_TYPES.SERVICES:
+      return ServicesTbl
+    case MXS_OBJ_TYPES.LISTENERS:
+      return ListenersTbl
+    case MXS_OBJ_TYPES.FILTERS:
+      return FiltersTbl
+    case 'sessions':
+      return SessionsTbl
     default:
       return 'div'
   }
 }
-
-defineExpose({ TABS })
 </script>
 <template>
   <ViewWrapper>
@@ -71,14 +89,14 @@ defineExpose({ TABS })
       <PageHeader :onCountDone="onCountDone" />
       <DashboardGraphs ref="graphsRef" />
       <VTabs v-model="activeTab">
-        <VTab v-for="name in TABS" :key="name" :to="`/dashboard/${name}`">
+        <VTab v-for="name in TABS" :key="name" :to="`/dashboard/${name}`" :value="name">
           {{ $t(name === 'sessions' ? 'currentSessions' : name, 2) }}
           <span class="grayed-out-info"> ({{ countMap[name] }}) </span>
         </VTab>
       </VTabs>
-      <VWindow v-model="activeTab" class="fill-height">
-        <VWindowItem v-for="name in TABS" :key="name" class="pt-2">
-          <component :is="loadTabComponent(name)" />
+      <VWindow v-model="activeTab">
+        <VWindowItem v-for="name in TABS" :key="name" :value="name" class="pt-2">
+          <component :is="loadTabComponent(activeTab)" />
         </VWindowItem>
       </VWindow>
     </VSheet>

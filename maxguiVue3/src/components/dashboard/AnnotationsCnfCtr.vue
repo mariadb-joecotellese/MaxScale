@@ -63,7 +63,7 @@ function onAdd() {
     <div class="d-flex align-center mb-4 justify-space-between">
       <p
         data-test="headline"
-        class="mb-0 text-body-2 font-weight-bold mxs-color-helper text-navigation text-uppercase"
+        class="mb-0 text-body-2 font-weight-bold text-navigation text-uppercase"
       >
         {{ cnfType }}
       </p>
@@ -80,7 +80,7 @@ function onAdd() {
       </VBtn>
     </div>
     <template v-for="(data, key) in annotations">
-      <annotation-cnf
+      <AnnotationCnf
         v-if="!$typy(annotations, key).isEmptyObject"
         :key="key"
         v-model="annotations[key]"

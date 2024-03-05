@@ -44,20 +44,22 @@ export default {
     <v-spacer />
     <TooltipBtn
       v-if="selectedItems.length"
-      btnClass="delete-btn ml-2 px-1 text-capitalize"
+      data-test="delete-btn"
+      btnClass="ml-2 px-1 text-capitalize"
       size="x-small"
       color="error"
       variant="outlined"
       @click="$emit('on-delete-selected-items', selectedItems)"
     >
-      <template v-slot:btn-content>
+      <template #btn-content>
         {{ $t('drop') }}
         <template v-if="selectedItems.length > 1"> ({{ selectedItems.length }}) </template>
       </template>
       {{ $t('dropSelected') }}
     </TooltipBtn>
     <VBtn
-      class="add-btn ml-2 px-1 text-capitalize"
+      data-test="add-btn"
+      class="ml-2 px-1 text-capitalize"
       size="x-small"
       color="primary"
       variant="outlined"
@@ -67,13 +69,14 @@ export default {
     </VBtn>
     <TooltipBtn
       v-if="showRotateTable"
-      btnClass="rotate-btn ml-2 px-1"
+      data-test="rotate-btn"
+      btnClass="ml-2 px-1"
       size="x-small"
       color="primary"
       variant="outlined"
       @click="isVertTableMode = !isVertTableMode"
     >
-      <template v-slot:btn-content>
+      <template #btn-content>
         <VIcon size="14" icon="$mdiFormatRotate90" :class="{ 'rotate-left': !isVertTableMode }" />
       </template>
       {{ $t(isVertTableMode ? 'switchToHorizTable' : 'switchToVertTable') }}

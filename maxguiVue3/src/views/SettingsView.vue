@@ -18,6 +18,7 @@ let activeTab = ref(null)
 const tabs = [t('maxScaleParameters')]
 const module_parameters = computed(() => store.state.module_parameters)
 const maxscale_parameters = computed(() => store.state.maxscale.maxscale_parameters)
+const search_keyword = computed(() => store.state.search_keyword)
 
 const paramsInfo = computed(() => {
   const parameters = module_parameters.value
@@ -25,6 +26,7 @@ const paramsInfo = computed(() => {
   // hard code type for child parameter of log_throttling
   const log_throttingIndex = parameters.findIndex((param) => param.name === 'log_throttling')
   const log_throttling = parameters[log_throttingIndex]
+  if (!log_throttling) return []
   const log_throttling_child_params = [
     {
       name: 'count',
@@ -100,10 +102,8 @@ watch(activeTab, async (v) => {
                 v-if="paramsInfo.length && !$typy(maxscale_parameters).isEmptyObject"
                 :data="maxscale_parameters"
                 :paramsInfo="paramsInfo"
-                :hasNestedParams="true"
-                :showCellBorder="true"
-                :expandAll="true"
                 :confirmEdit="updateParams"
+                :treeTableProps="{ search: search_keyword }"
               />
             </VCol>
           </template>

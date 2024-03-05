@@ -11,7 +11,7 @@
  * Public License.
  */
 import { MONITOR_OP_TYPES } from '@/constants'
-import { genSetMutations } from '@/utils/helpers'
+import { genSetMutations, lodash } from '@/utils/helpers'
 
 /**
  * @param {Object} param.meta -
@@ -61,13 +61,14 @@ export default {
         this.vue.$logger.error(e)
       }
     },
-    async fetchMonitorDiagnosticsById({ commit }, id) {
-      try {
-        let res = await this.vue.$http.get(`/monitors/${id}?fields[monitors]=monitor_diagnostics`)
-        if (res.data.data) commit('SET_MONITOR_DIAGNOSTICS', res.data.data)
-      } catch (e) {
-        this.vue.$logger.error(e)
-      }
+    async fetchDiagnostics({ commit }, id) {
+      const [, res] = await this.vue.$helpers.tryAsync(
+        this.vue.$http.get(`/monitors/${id}?fields[monitors]=monitor_diagnostics`)
+      )
+      commit(
+        'SET_MONITOR_DIAGNOSTICS',
+        this.vue.$typy(res, 'data.data.attributes.monitor_diagnostics').safeObjectOrEmpty
+      )
     },
     /**
      * @param {Object} payload payload object
@@ -419,14 +420,8 @@ export default {
   },
   getters: {
     // -------------- below getters are available only when fetchAll has been dispatched
-    getTotalMonitors: (state) => state.all_monitors.length,
-    getAllMonitorsMap: (state) => {
-      let map = new Map()
-      state.all_monitors.forEach((ele) => {
-        map.set(ele.id, ele)
-      })
-      return map
-    },
+    total: (state) => state.all_monitors.length,
+    monitorsMap: (state) => lodash.keyBy(state.all_monitors, 'id'),
     getMonitorOps: () => {
       const {
         STOP,

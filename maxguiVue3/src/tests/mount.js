@@ -18,6 +18,7 @@ import helpers from '@/plugins/helpers'
 import logger from '@/plugins/logger'
 import vuetify from '@/plugins/vuetify'
 import axios from '@/plugins/axios'
+import txtHighlighter from '@/plugins/txtHighlighter'
 import store from '@/store'
 import { useI18n } from 'vue-i18n'
 
@@ -33,8 +34,9 @@ export default (component, options) => {
     component,
     lodash.mergeWith(
       {
+        shallow: true,
         global: {
-          plugins: [typy, helpers, logger, vuetify, axios, PortalVue, store],
+          plugins: [typy, helpers, logger, vuetify, axios, PortalVue, store, txtHighlighter],
           mocks: {
             $t: (tKey) => tKey,
           },
