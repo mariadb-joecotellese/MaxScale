@@ -44,11 +44,12 @@ const struct option long_opts[] =
     {"password", required_argument, 0, 'p'},
     {"host",     required_argument, 0, 'H'},
     {"mode",     required_argument, 0, 'm'},
+    {"verbose",  no_argument,       0, 'v'},
     {0,          0,                 0, 0  }
 };
 
 // This is not seprately checked, keep in sync with long_opts.
-const char* short_opts = "hu:p:H:m:";
+const char* short_opts = "hvu:p:H:m:";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -95,10 +96,11 @@ void RepConfig::show_help()
 {
     std::cout << "Usage: player [OPTION]... FILE"
               << OPT('h', "this help text (with current option values)")
+              << OPT('m', MODE_HELP)
               << OPT('u', user)
               << OPT('p', password)
               << OPT('H', host)
-              << OPT('m', MODE_HELP)
+              << OPT('v', verbosity)
               << "\nInput file: " << file_name
               << std::endl;
 }
@@ -142,6 +144,10 @@ RepConfig::RepConfig(int argc, char** argv)
                 help = true;
                 error = true;
             }
+            break;
+
+        case 'v':
+            verbosity++;
             break;
         }
     }

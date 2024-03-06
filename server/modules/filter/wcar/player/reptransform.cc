@@ -171,6 +171,11 @@ void RepTransform::transform_events(const fs::path& path)
     std::unordered_map<int64_t, SessionState> sessions;
     for (auto&& qevent : boost)
     {
+        if (m_config.verbosity > 1)
+        {
+            dump_event(qevent, std::cout);
+        }
+
         auto session_ite = sessions.find(qevent.session_id);
         if (session_ite == end(sessions))
         {
@@ -233,4 +238,23 @@ void RepTransform::transform_events(const fs::path& path)
     }
 
     std::cout << std::ifstream(tx_path).rdbuf() << std::endl;
+}
+
+void RepTransform::dump_event(const QueryEvent& qevent, std::ostream& out)
+{
+    if (qevent.is_session_close())
+    {
+        out << "/** Session: " << qevent.session_id << " quit */;\n";
+    }
+    else
+    {
+        out
+            << "/**"
+            << " Session: " << qevent.session_id
+            << " Event: " << qevent.event_id
+            << " Duration: " << mxb::to_string(qevent.end_time - qevent.start_time)
+            << " */ "
+            << maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args)
+            << ";\n";
+    }
 }

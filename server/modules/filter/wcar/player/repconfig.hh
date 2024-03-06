@@ -23,6 +23,7 @@ struct RepConfig
     std::string   user{"maxskysql"};
     std::string   password{"skysql"};
     maxbase::Host host{"127.1.1.0", 3306};
+    int           verbosity = 0;
 
     std::string capture_dir = "/home/mariadb/maxscale/var/lib/maxscale/capture";
     std::string file_name;      // full path, not necessarily in capture_dir

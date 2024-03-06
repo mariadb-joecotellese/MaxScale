@@ -78,6 +78,7 @@ public:
     }
 private:
     void transform_events(const fs::path& path);
+    void dump_event(const QueryEvent& qevent, std::ostream& out);
 
     const RepConfig&         m_config;
     std::unique_ptr<Storage> m_player_storage;
