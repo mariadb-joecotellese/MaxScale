@@ -2,6 +2,7 @@
 #include "../capsqlitestorage.hh"
 #include "../capbooststorage.hh"
 #include "maxbase/assert.hh"
+#include <maxbase/json.hh>
 #include <maxscale/parser.hh>
 #include <execution>
 
@@ -154,15 +155,17 @@ void RepTransform::transform_events(const fs::path& path)
     bool needs_sorting = !fs::exists(tx_path);
 
     CapBoostStorage boost{path, ReadWrite::READ_ONLY};
+    CapBoostStorage::SortReport report;
 
     if (needs_sorting)
     {
-        boost.sort_query_event_file();
+        report = boost.sort_query_event_file();
     }
 
     mxb::StopWatch sw;
     int num_active_session = 0;
     m_max_parallel_sessions = 0;
+    int64_t num_sessions = 0;
 
     // Keyed by session_id.
     std::unordered_map<int64_t, SessionState> sessions;
@@ -171,6 +174,7 @@ void RepTransform::transform_events(const fs::path& path)
         auto session_ite = sessions.find(qevent.session_id);
         if (session_ite == end(sessions))
         {
+            ++num_sessions;
             ++num_active_session;
             m_max_parallel_sessions = std::max(num_active_session, m_max_parallel_sessions);
             auto ins = sessions.emplace(qevent.session_id, SessionState {qevent.session_id});
@@ -193,9 +197,6 @@ void RepTransform::transform_events(const fs::path& path)
         }
     }
 
-    std::cout << "transform_events loop " << mxb::to_string(sw.lap()) << std::endl;
-    std::cout << "max_parallel_sessions " << m_max_parallel_sessions << std::endl;
-
     std::sort(std::execution::par, begin(m_trxs), end(m_trxs),
               [](const Transaction& lhs, const Transaction& rhs){
         return lhs.end_time < rhs.end_time;
@@ -208,13 +209,27 @@ void RepTransform::transform_events(const fs::path& path)
         m_trx_end_mapping.emplace(ite->end_event_id, ite);
     }
 
-    std::cout << "transform_events ex sort " << mxb::to_string(sw.split()) << std::endl;
-
     if (needs_sorting)
     {
-        // TODO: Write the statistics to this file instead of printing to stdout.
+        mxb::Json capture(mxb::Json::Type::OBJECT);
+        capture.set_real("duration", mxb::to_secs(report.capture_duration));
+        capture.set_int("events", report.events);
+        capture.set_int("sessions", num_sessions);
+        capture.set_int("transactions", m_trxs.size());
+        capture.set_int("max_parallel_sessions", m_max_parallel_sessions);
+
+        mxb::Json transform(mxb::Json::Type::OBJECT);
+        transform.set_real("read", mxb::to_secs(report.read));
+        transform.set_real("sort", mxb::to_secs(report.sort));
+        transform.set_real("write", mxb::to_secs(report.write));
+
+        mxb::Json js(mxb::Json::Type::OBJECT);
+        js.set_real("duration", mxb::to_secs(sw.split()));
+        js.set_object("capture", std::move(capture));
+        js.set_object("transform_steps", std::move(transform));
+
         std::ofstream tx_file(tx_path);
-        tx_file << "sorted" << std::endl;
+        tx_file << js.to_string(mxb::Json::Format::PRETTY) << std::endl;
     }
 
     std::cout << std::ifstream(tx_path).rdbuf() << std::endl;

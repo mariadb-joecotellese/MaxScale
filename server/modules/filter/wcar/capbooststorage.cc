@@ -260,21 +260,33 @@ void CapBoostStorage::preload_query_events(int64_t max_in_container)
     }
 }
 
-void CapBoostStorage::sort_query_event_file()
+CapBoostStorage::SortReport CapBoostStorage::sort_query_event_file()
 {
     mxb::StopWatch sw;
     // First version - read the entire file into memory, sort and write back.
     preload_query_events(std::numeric_limits<int64_t>::max());
     m_sQuery_event_in.reset();
 
-    std::cout << "preload_query_events " << mxb::to_string(sw.lap()) << std::endl;
+    SortReport report;
+    report.read = sw.lap();
 
     std::sort(std::execution::par, m_query_events.begin(), m_query_events.end(),
               [](const auto& lhs, const auto& rhs){
         return lhs.start_time < rhs.start_time;
     });
 
-    std::cout << "std::sort " << mxb::to_string(sw.lap()) << std::endl;
+    auto final_event = std::max_element(std::execution::par, m_query_events.begin(), m_query_events.end(),
+                                        [](const auto& lhs, const auto& rhs){
+        return lhs.end_time < rhs.end_time;
+    });
+
+    report.sort = sw.lap();
+    report.events = m_query_events.size();
+
+    if (report.events)
+    {
+        report.capture_duration = final_event->end_time - m_query_events.front().start_time;
+    }
 
     auto new_path = m_query_event_path;
     new_path.replace_extension("ex");
@@ -292,7 +304,11 @@ void CapBoostStorage::sort_query_event_file()
     m_query_events.clear();
 
     m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
-    std::cout << "sort " << mxb::to_string(sw.split()) << std::endl;
+
+    report.write = sw.lap();
+    report.total = sw.split();
+
+    return report;
 }
 
 std::shared_ptr<std::string> CapBoostStorage::find_canonical(int64_t can_id)

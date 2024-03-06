@@ -67,8 +67,25 @@ public:
     Iterator begin() override;
     Iterator end() const override;
 
-    // Sort query event file, write back and re-open.
-    void sort_query_event_file();
+    struct SortReport
+    {
+        // Statistics about the sorting
+        mxb::Duration total {0};
+        mxb::Duration read {0};
+        mxb::Duration sort {0};
+        mxb::Duration write {0};
+
+        // Statistics about the capture itself
+        int64_t       events {0};
+        mxb::Duration capture_duration {0};
+    };
+
+    /**
+     * Sort query event file, write back and re-open.
+     *
+     * @return A report on the sorting and capture statistics
+     */
+    SortReport sort_query_event_file();
 
 private:
     QueryEvent next_event() override;
