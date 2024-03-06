@@ -23,7 +23,8 @@ struct ReplicationInfo
     const SERVER* pServer { nullptr };
     std::string   master_host;
     int           master_port { 0 };
-    std::string   slave_io_state;
+    bool          slave_io_running { false };
+    bool          slave_sql_running { false };
 
     bool will_replicate_from(const SERVER& server) const
     {
@@ -43,7 +44,7 @@ struct ReplicationInfo
 
     bool is_currently_replicating() const
     {
-        return !this->slave_io_state.empty();
+        return this->slave_io_running && this->slave_sql_running;
     }
 };
 

@@ -36,7 +36,8 @@ std::optional<ReplicationInfo> get_replication_info(const SERVER& server,
             {
                 rinfo.master_host = sResult->get_string("Master_Host");
                 rinfo.master_port = sResult->get_int("Master_Port");
-                rinfo.slave_io_state = sResult->get_string("Slave_IO_State");
+                rinfo.slave_io_running = sResult->get_string("Slave_IO_Running") == "Yes";
+                rinfo.slave_sql_running = sResult->get_string("Slave_SQL_Running") == "Yes";
             }
 
             rv = rinfo;
@@ -109,7 +110,10 @@ ReplicationStatus get_replication_status(const SERVICE& service,
                                  main.name(), other.name(),
                                  ri_other->master_host.c_str(), ri_other->master_port);
 
-                        if (ri_other->slave_io_state == ri_main->slave_io_state)
+                        bool main_replicating = ri_main->is_currently_replicating();
+                        bool other_replicating = ri_other->is_currently_replicating();
+
+                        if (other_replicating == main_replicating)
                         {
                             // Both are replicating or neither is. Either way, we don't care.
                             rv = ReplicationStatus::BOTH_REPLICATES_FROM_THIRD;
@@ -120,8 +124,8 @@ ReplicationStatus get_replication_status(const SERVICE& service,
                                       "but main is %s and other is %s.",
                                       main.name(), other.name(),
                                       ri_other->master_host.c_str(), ri_other->master_port,
-                                      ri_main->slave_io_state.empty() ? "replicating" : "not replicating",
-                                      ri_other->slave_io_state.empty() ? "replicating" : "not replicating");
+                                      main_replicating ? "replicating" : "not replicating",
+                                      other_replicating ? "replicating" : "not replicating");
                         }
                     }
                     else
