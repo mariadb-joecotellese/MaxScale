@@ -6,9 +6,13 @@
 #pragma once
 
 #include "capdefs.hh"
+#include "caprecorder.hh"
 #include "capstorage.hh"
 #include <maxscale/filter.hh>
 #include <maxscale/protocol/mariadb/trackers.hh>
+
+enum class CapState {DISABLED, PENDING_ENABLE, ENABLED};
+enum class CapSignal {START, STOP, QEVENT, CLOSE_SESSION};
 
 class CapFilter;
 
@@ -17,10 +21,16 @@ class CapFilterSession final : public maxscale::FilterSession
 public:
     ~CapFilterSession();
 
+    // Starts with capture disabled
     static CapFilterSession* create(MXS_SESSION* pSession, SERVICE* pService, const CapFilter* pFilter);
+
+    void start_capture(const std::shared_ptr<CapRecorder>& sRecorder);
+    void stop_capture();
 
     bool routeQuery(GWBUF&& buffer) override;
     bool clientReply(GWBUF&& buffer, const mxs::ReplyRoute& down, const mxs::Reply& reply) override;
+
+    void handle_cap_state(CapSignal signal);
 
 private:
     CapFilterSession(MXS_SESSION* pSession, SERVICE* pService, const CapFilter* pFilter);
@@ -38,16 +48,20 @@ private:
 
     // Index of the worker passed in because there are cases where
     // no RoutingWorker is involved.
-    void                    send_event(QueryEvent&& qevent, int worker_idx = -1);
-    std::vector<QueryEvent> make_opening_events();
+    enum Who {CURRENT_WORKER, MAIN_WORKER};
+    void                    send_event(QueryEvent&& qevent, Who who = CURRENT_WORKER);
+    std::vector<QueryEvent> make_opening_events(maxbase::TimePoint start_time);
     QueryEvent              make_closing_event();
 
-    const CapFilter& m_filter;
+    const CapFilter&             m_filter;
+    std::shared_ptr<CapRecorder> m_sRecorder;
+    std::atomic<CapState>        m_state {CapState::DISABLED};
+    std::mutex                   m_state_mutex;
+
 
     // TODO take into account a streaming client (writes without waits)
-    std::string m_current_db;
-    bool        m_capture = false;
-    QueryEvent  m_query_event;
+    bool       m_capture = false;
+    QueryEvent m_query_event;
 
     mariadb::PsTracker m_ps_tracker;
 };

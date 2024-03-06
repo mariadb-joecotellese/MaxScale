@@ -52,7 +52,7 @@ bool CapFilter::post_configure()
         break;
     }
 
-    m_sRecorder = std::make_unique<CapRecorder>(std::make_unique<RecorderContext>(m_sStorage.get()));
+    m_sRecorder = std::make_shared<CapRecorder>(std::make_unique<RecorderContext>(m_sStorage.get()));
     m_sRecorder->start();
 
     return ok;
@@ -62,7 +62,6 @@ CapFilter::~CapFilter()
 {
     m_sRecorder->stop();
 
-    auto s = maxbase::get_collector_stats();
     // TODO: gc_stats are useful to log. Make the stats non-global, i.e.
     //       move the counters inside GCUpdater.
     MXB_SNOTICE("Workload Capture stats:\n" << maxbase::get_collector_stats());
@@ -76,7 +75,10 @@ CapFilter* CapFilter::create(const char* zName)
 
 std::shared_ptr<mxs::FilterSession> CapFilter::newSession(MXS_SESSION* pSession, SERVICE* pService)
 {
-    return std::shared_ptr<mxs::FilterSession>(CapFilterSession::create(pSession, pService, this));
+    auto sSess = std::shared_ptr<CapFilterSession>(CapFilterSession::create(pSession, pService, this));
+    sSess->start_capture(m_sRecorder);
+
+    return sSess;
 }
 
 json_t* CapFilter::diagnostics() const

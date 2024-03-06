@@ -45,11 +45,6 @@ public:
         return {MXS_ANY_PROTOCOL};
     }
 
-    CapRecorder& recorder() const
-    {
-        return *m_sRecorder;
-    }
-
     int64_t get_next_event_id() const;
 
 private:
@@ -60,6 +55,6 @@ private:
 private:
     CapConfig                    m_config;
     std::unique_ptr<Storage>     m_sStorage;
-    std::unique_ptr<CapRecorder> m_sRecorder;
+    std::shared_ptr<CapRecorder> m_sRecorder;
     mutable std::atomic<int64_t> m_event_id{1};
 };
