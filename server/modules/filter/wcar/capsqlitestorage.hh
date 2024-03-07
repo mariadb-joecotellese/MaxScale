@@ -28,8 +28,8 @@ public:
     void add_rep_event(RepEvent&& revent) override;
     void add_rep_event(std::vector<RepEvent>& revents) override;
 
-    Iterator begin() override;
-    Iterator end() const override;
+    Iterator<QueryEvent> begin() override;
+    Iterator<QueryEvent> end() const override;
 
     // this will have to become virtual if other storages are used for rep_events
     void truncate_rep_events() const;

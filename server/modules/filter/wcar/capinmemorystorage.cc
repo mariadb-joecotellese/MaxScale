@@ -55,14 +55,14 @@ void CapInmemoryStorage::add_rep_event(std::vector<RepEvent>& revents)
     }
 }
 
-Storage::Iterator CapInmemoryStorage::begin()
+Storage::Iterator<QueryEvent> CapInmemoryStorage::begin()
 {
-    return Storage::Iterator(this, next_event());
+    return Storage::Iterator<QueryEvent>(this, next_event());
 }
 
-Storage::Iterator CapInmemoryStorage::end() const
+Storage::Iterator<QueryEvent> CapInmemoryStorage::end() const
 {
-    return Storage::Iterator(nullptr, QueryEvent {});
+    return Storage::Iterator<QueryEvent>(nullptr, QueryEvent {});
 }
 
 QueryEvent CapInmemoryStorage::next_event()

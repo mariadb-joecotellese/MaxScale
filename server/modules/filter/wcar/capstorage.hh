@@ -52,29 +52,33 @@ class Storage
 {
 public:
     // Acts like a constant input iterator. The difference_type is meaningless.
+    template<class T>
     class Iterator
     {
     public:
         using iterator_category = std::input_iterator_tag;
         using difference_type = std::ptrdiff_t;
-        using value_type = QueryEvent;
-        using pointer = QueryEvent*;
-        using reference = QueryEvent&;
+        using value_type = T;
+        using pointer = T*;
+        using reference = T&;
 
-        // non-const. The returned QueryEvent can be moved by the client
-        QueryEvent& operator*();
-        QueryEvent* operator->();
+        // non-const. The returned value can be moved by the client
+        T& operator*();
+        T* operator->();
 
-        Iterator& operator++();
+        Iterator<T>& operator++();
 
-        friend bool operator==(const Iterator& lhs, const Iterator& rhs);
-        friend bool operator!=(const Iterator& lhs, const Iterator& rhs);
+        template<class V>
+        friend bool operator==(const Iterator<V>& lhs, const Iterator<V>& rhs);
 
-        Iterator(Storage* pStorage, QueryEvent&& event);
+        template<class V>
+        friend bool operator!=(const Iterator<V>& lhs, const Iterator<V>& rhs);
+
+        Iterator(Storage* pStorage, T&& event);
 
     private:
-        Storage*   m_pStorage;
-        QueryEvent m_event;
+        Storage* m_pStorage;
+        T        m_event;
     };
 
     Storage() = default;
@@ -86,8 +90,8 @@ public:
     virtual void add_rep_event(RepEvent&& revent) = 0;
     virtual void add_rep_event(std::vector<RepEvent>& revents) = 0;
 
-    virtual Iterator begin() = 0;
-    virtual Iterator end() const = 0;
+    virtual Iterator<QueryEvent> begin() = 0;
+    virtual Iterator<QueryEvent> end() const = 0;
 
 protected:
     int64_t            next_can_id();
@@ -126,34 +130,52 @@ inline int64_t Storage::next_can_id()
     return ++m_can_id_generator;
 }
 
-inline Storage::Iterator::Iterator(Storage* pStorage, QueryEvent&& event)
+template<class T>
+inline Storage::Iterator<T>::Iterator(Storage* pStorage, T&& event)
     : m_pStorage(pStorage)
     , m_event(std::move(event))
 {
 }
 
-inline QueryEvent& Storage::Iterator::operator*()
+template<class T>
+inline T& Storage::Iterator<T>::operator*()
 {
     return m_event;
 }
 
-inline QueryEvent* Storage::Iterator::operator->()
+template<class T>
+inline T* Storage::Iterator<T>::operator->()
 {
     return &m_event;
 }
 
-inline Storage::Iterator& Storage::Iterator::operator++()
+template<class T>
+inline Storage::Iterator<T>& Storage::Iterator<T>::operator++()
 {
-    m_event = m_pStorage->next_event();
+    if constexpr (std::is_same_v<T, QueryEvent> )
+    {
+        m_event = m_pStorage->next_event();
+    }
+    else if constexpr (std::is_same_v<T, RepEvent> )
+    {
+        static_assert(!true, "Not implemented yet");
+    }
+    else
+    {
+        static_assert(!true, "Unknown type");
+    }
+
     return *this;
 }
 
-inline bool operator==(const Storage::Iterator& lhs, const Storage::Iterator& rhs)
+template<class V>
+inline bool operator==(const Storage::Iterator<V>& lhs, const Storage::Iterator<V>& rhs)
 {
     return lhs.m_event.event_id == rhs.m_event.event_id;
 }
 
-inline bool operator!=(const Storage::Iterator& lhs, const Storage::Iterator& rhs)
+template<class V>
+inline bool operator!=(const Storage::Iterator<V>& lhs, const Storage::Iterator<V>& rhs)
 {
     return !(lhs == rhs);
 }

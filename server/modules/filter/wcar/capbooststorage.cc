@@ -153,14 +153,14 @@ void CapBoostStorage::add_rep_event(std::vector<RepEvent>& revents)
     }
 }
 
-Storage::Iterator CapBoostStorage::begin()
+Storage::Iterator<QueryEvent> CapBoostStorage::begin()
 {
-    return Storage::Iterator(this, next_event());
+    return Storage::Iterator<QueryEvent>(this, next_event());
 }
 
-Storage::Iterator CapBoostStorage::end() const
+Storage::Iterator<QueryEvent> CapBoostStorage::end() const
 {
-    return Storage::Iterator(nullptr, QueryEvent {});
+    return Storage::Iterator<QueryEvent>(nullptr, QueryEvent {});
 }
 
 QueryEvent CapBoostStorage::next_event()

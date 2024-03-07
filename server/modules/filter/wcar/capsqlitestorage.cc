@@ -303,7 +303,7 @@ void CapSqliteStorage::add_rep_event(std::vector<RepEvent>& revents)
     sqlite_execute("commit transaction");
 }
 
-Storage::Iterator CapSqliteStorage::begin()
+Storage::Iterator<QueryEvent> CapSqliteStorage::begin()
 {
     sqlite_execute(SQL_CREATE_CANONICAL_INDEX);
     sqlite_execute(SQL_CREATE_ARGUMENT_INDEX);
@@ -321,10 +321,10 @@ Storage::Iterator CapSqliteStorage::begin()
 
     sqlite_prepare(event_query, &m_pQuery_event_read_stmt);
 
-    return Storage::Iterator(this, next_event());
+    return Storage::Iterator<QueryEvent>(this, next_event());
 }
 
-Storage::Iterator CapSqliteStorage::end() const
+Storage::Iterator<QueryEvent> CapSqliteStorage::end() const
 {
     return {nullptr, QueryEvent {}};
 }

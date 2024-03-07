@@ -17,8 +17,8 @@ public:
     void add_rep_event(RepEvent&& revent) override;
     void add_rep_event(std::vector<RepEvent>& revents) override;
 
-    Iterator begin() override;
-    Iterator end() const override;
+    Iterator<QueryEvent> begin() override;
+    Iterator<QueryEvent> end() const override;
 
 private:
     QueryEvent next_event() override;
