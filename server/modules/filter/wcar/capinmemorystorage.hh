@@ -20,8 +20,12 @@ public:
     Iterator<QueryEvent> begin() override;
     Iterator<QueryEvent> end() const override;
 
+    Iterator<RepEvent> rep_begin() override;
+    Iterator<RepEvent> rep_end() const override;
+
 private:
     QueryEvent next_event() override;
+    RepEvent   next_rep_event() override;
 
     // <canonical_hash, weak_canonical>
     // weak_ptr here, shared_ptr in QueryEvent.

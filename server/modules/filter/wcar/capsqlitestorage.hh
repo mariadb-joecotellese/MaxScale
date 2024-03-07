@@ -31,11 +31,15 @@ public:
     Iterator<QueryEvent> begin() override;
     Iterator<QueryEvent> end() const override;
 
+    Iterator<RepEvent> rep_begin() override;
+    Iterator<RepEvent> rep_end() const override;
+
     // this will have to become virtual if other storages are used for rep_events
     void truncate_rep_events() const;
 
 private:
     QueryEvent next_event() override;
+    RepEvent   next_rep_event() override;
 
     void                   sqlite_execute(const std::string& sql);
     void                   sqlite_prepare(const std::string& sql, sqlite3_stmt** ppStmt);
@@ -63,5 +67,6 @@ private:
     sqlite3_stmt* m_pArg_insert_stmt = nullptr;
     sqlite3_stmt* m_pRep_event_insert_stmt = nullptr;
     sqlite3_stmt* m_pQuery_event_read_stmt = nullptr;
+    sqlite3_stmt* m_pRep_event_read_stmt = nullptr;
     bool          m_sort_by_start_time = false;
 };

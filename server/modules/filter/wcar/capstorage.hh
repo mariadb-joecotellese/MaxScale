@@ -81,6 +81,29 @@ public:
         T        m_event;
     };
 
+    // Adapter class for iterating over the RepEvents of the storage with a range-for loop.
+    class RepEventAdapter
+    {
+    public:
+        RepEventAdapter(Storage* pStorage)
+            : m_pStorage(pStorage)
+        {
+        }
+
+        Iterator<RepEvent> begin()
+        {
+            return m_pStorage->rep_begin();
+        }
+
+        Iterator<RepEvent> end()
+        {
+            return m_pStorage->rep_end();
+        }
+
+    private:
+        Storage* m_pStorage;
+    };
+
     Storage() = default;
     virtual ~Storage() = default;
     void move_values_from(Storage& other);
@@ -93,9 +116,23 @@ public:
     virtual Iterator<QueryEvent> begin() = 0;
     virtual Iterator<QueryEvent> end() const = 0;
 
+    virtual Iterator<RepEvent> rep_begin() = 0;
+    virtual Iterator<RepEvent> rep_end() const = 0;
+
+    /**
+     * Adapter for the begin() and end() functions that uses rep_begin() and rep_end()
+     *
+     * Intended to be used with a range-based for loop.
+     */
+    RepEventAdapter rep_events()
+    {
+        return RepEventAdapter(this);
+    }
+
 protected:
     int64_t            next_can_id();
     virtual QueryEvent next_event() = 0;
+    virtual RepEvent   next_rep_event() = 0;
 
 private:
     int64_t m_can_id_generator{0};
@@ -158,7 +195,7 @@ inline Storage::Iterator<T>& Storage::Iterator<T>::operator++()
     }
     else if constexpr (std::is_same_v<T, RepEvent> )
     {
-        static_assert(!true, "Not implemented yet");
+        m_event = m_pStorage->next_rep_event();
     }
     else
     {

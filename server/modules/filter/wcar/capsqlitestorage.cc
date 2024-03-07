@@ -114,6 +114,7 @@ CapSqliteStorage::~CapSqliteStorage()
     sqlite3_finalize(m_pQuery_event_read_stmt);
     sqlite3_finalize(m_pQuery_event_insert_stmt);
     sqlite3_finalize(m_pRep_event_insert_stmt);
+    sqlite3_finalize(m_pRep_event_read_stmt);
     sqlite3_finalize(m_pArg_insert_stmt);
     sqlite3_close_v2(m_pDb);
 }
@@ -329,6 +330,25 @@ Storage::Iterator<QueryEvent> CapSqliteStorage::end() const
     return {nullptr, QueryEvent {}};
 }
 
+Storage::Iterator<RepEvent> CapSqliteStorage::rep_begin()
+{
+    if (m_pRep_event_read_stmt != nullptr)
+    {
+        sqlite3_finalize(m_pRep_event_read_stmt);
+        m_pRep_event_read_stmt = nullptr;
+    }
+
+    const std::string event_query = "select event_id, start_time, end_time, num_rows from rep_event";
+    sqlite_prepare(event_query, &m_pRep_event_read_stmt);
+
+    return Storage::Iterator<RepEvent>(this, next_rep_event());
+}
+
+Storage::Iterator<RepEvent> CapSqliteStorage::rep_end() const
+{
+    return {nullptr, RepEvent {}};
+}
+
 void CapSqliteStorage::truncate_rep_events() const
 {
     char* pError = nullptr;
@@ -438,4 +458,37 @@ QueryEvent CapSqliteStorage::next_event()
                       start_time,
                       end_time,
                       event_id};
+}
+
+RepEvent CapSqliteStorage::next_rep_event()
+{
+    mxb_assert(m_pRep_event_read_stmt != nullptr);
+    auto rc = sqlite3_step(m_pRep_event_read_stmt);
+
+    if (rc == SQLITE_DONE)
+    {
+        sqlite3_finalize(m_pRep_event_read_stmt);
+        m_pRep_event_read_stmt = nullptr;
+        return RepEvent {};
+    }
+    else if (rc != SQLITE_ROW)
+    {
+        MXB_THROW(WcarError, "sqlite3_step error: "
+                  << sqlite3_errmsg(m_pDb)
+                  << " database " << m_path
+                  << " Note: add_rep_event() cannot be called during iteration");
+    }
+
+    int idx = -1;
+    auto event_id = sqlite3_column_int64(m_pRep_event_read_stmt, ++idx);
+    auto start_time = sqlite3_column_int64(m_pRep_event_read_stmt, ++idx);
+    auto end_time = sqlite3_column_int64(m_pRep_event_read_stmt, ++idx);
+    auto num_rows = sqlite3_column_int64(m_pRep_event_read_stmt, ++idx);
+
+    RepEvent ev;
+    ev.event_id = event_id;
+    ev.start_time = mxb::TimePoint{mxb::Duration{start_time}};
+    ev.end_time = mxb::TimePoint{mxb::Duration{end_time}};
+    ev.num_rows = num_rows;
+    return ev;
 }
