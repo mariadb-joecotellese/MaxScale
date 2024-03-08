@@ -1,5 +1,4 @@
 #include "reptransform.hh"
-#include "../capsqlitestorage.hh"
 #include "../capbooststorage.hh"
 #include "maxbase/assert.hh"
 #include <maxbase/json.hh>

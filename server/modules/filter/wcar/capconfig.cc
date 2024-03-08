@@ -27,10 +27,9 @@ cfg::ParamPath s_capture_dir(
 cfg::ParamEnum<StorageType> s_storage_type(
     &s_spec, "storage_type", "Type of persistent storage",
 {
-    {StorageType::SQLITE, "sqlite"},
     {StorageType::BINARY, "binary"},
 },
-    StorageType::SQLITE);
+    StorageType::BINARY);
 
 cfg::ParamEnum<StorageMethod> s_storage_method(
     &s_spec, "storage_method", "Type of persistent storage",

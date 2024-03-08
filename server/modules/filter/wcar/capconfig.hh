@@ -14,7 +14,6 @@ DEFINE_EXCEPTION(WcarError);
 
 enum class StorageType
 {
-    SQLITE,
     BINARY
 };
 

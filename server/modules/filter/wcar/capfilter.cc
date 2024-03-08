@@ -6,7 +6,6 @@
 
 #include "capfilter.hh"
 #include "capinmemorystorage.hh"
-#include "capsqlitestorage.hh"
 #include "capbooststorage.hh"
 #include "capconfig.hh"
 #include <maxbase/stopwatch.hh>
@@ -45,10 +44,6 @@ std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_pref
 
     switch (m_config.storage_type)
     {
-    case StorageType::SQLITE:
-        m_sStorage = std::make_unique<CapSqliteStorage>(base_path);
-        break;
-
     case StorageType::BINARY:
         m_sStorage = std::make_unique<CapBoostStorage>(base_path, ReadWrite::WRITE_ONLY);
         break;

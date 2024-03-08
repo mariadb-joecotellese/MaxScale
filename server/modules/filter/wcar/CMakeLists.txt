@@ -2,7 +2,6 @@
 
 add_library(wcar-core
   capinmemorystorage.cc
-  capsqlitestorage.cc
   capbooststorage.cc
 )
 
