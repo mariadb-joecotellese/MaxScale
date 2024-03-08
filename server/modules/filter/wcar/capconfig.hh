@@ -12,11 +12,6 @@
 
 DEFINE_EXCEPTION(WcarError);
 
-enum class StorageType
-{
-    BINARY
-};
-
 enum class StorageMethod
 {
     DIRECT,
@@ -30,7 +25,6 @@ public:
     CapConfig(const std::string& name, std::function<bool()> filter_post_configure);
 
     std::string   capture_dir;
-    StorageType   storage_type;
     StorageMethod storage_method;
     bool          start_capture;
     mxb::Duration capture_duration;

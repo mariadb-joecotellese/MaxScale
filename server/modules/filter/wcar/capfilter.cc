@@ -5,7 +5,6 @@
  */
 
 #include "capfilter.hh"
-#include "capinmemorystorage.hh"
 #include "capbooststorage.hh"
 #include "capconfig.hh"
 #include <maxbase/stopwatch.hh>
@@ -42,12 +41,7 @@ std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_pref
     auto base_path = m_config.capture_dir;
     base_path += '/' + generate_file_base_name(file_prefix);
 
-    switch (m_config.storage_type)
-    {
-    case StorageType::BINARY:
-        m_sStorage = std::make_unique<CapBoostStorage>(base_path, ReadWrite::WRITE_ONLY);
-        break;
-    }
+    m_sStorage = std::make_unique<CapBoostStorage>(base_path, ReadWrite::WRITE_ONLY);
 
     return std::make_shared<CapRecorder>(std::make_unique<RecorderContext>(m_sStorage.get()));
 }

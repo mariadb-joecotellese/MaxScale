@@ -24,13 +24,6 @@ cfg::ParamPath s_capture_dir(
     cfg::ParamPath::C | cfg::ParamPath::W | cfg::ParamPath::R | cfg::ParamPath::X,
     mxs::datadir() + std::string("/capture"));
 
-cfg::ParamEnum<StorageType> s_storage_type(
-    &s_spec, "storage_type", "Type of persistent storage",
-{
-    {StorageType::BINARY, "binary"},
-},
-    StorageType::BINARY);
-
 cfg::ParamEnum<StorageMethod> s_storage_method(
     &s_spec, "storage_method", "Type of persistent storage",
 {
@@ -53,7 +46,6 @@ CapConfig::CapConfig(const std::string& name, std::function<bool ()> filter_post
     , m_filter_post_configure(filter_post_configure)
 {
     add_native(&CapConfig::capture_dir, &s_capture_dir);
-    add_native(&CapConfig::storage_type, &s_storage_type);
     add_native(&CapConfig::storage_method, &s_storage_method);
     add_native(&CapConfig::start_capture, &s_start_capture);
     add_native(&CapConfig::capture_duration, &s_capture_duration);

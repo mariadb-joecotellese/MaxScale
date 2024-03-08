@@ -1,7 +1,6 @@
 #include(${CMAKE_SOURCE_DIR}/cmake/BuildBoost.cmake)
 
 add_library(wcar-core
-  capinmemorystorage.cc
   capbooststorage.cc
 )
 
