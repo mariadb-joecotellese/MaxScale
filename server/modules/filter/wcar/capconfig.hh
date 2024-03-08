@@ -33,6 +33,8 @@ public:
     StorageType   storage_type;
     StorageMethod storage_method;
     bool          start_capture;
+    mxb::Duration capture_duration;
+    int64_t       capture_size;
 
 private:
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;

@@ -42,6 +42,12 @@ cfg::ParamEnum<StorageMethod> s_storage_method(
 cfg::ParamBool s_start_capture(
     &s_spec, "start_capture", "Start capture on maxscale start", false);
 
+cfg::ParamDuration<wall_time::Duration> s_capture_duration(
+    &s_spec, "capture_duration", "Limit capture to this duration", 0s);
+
+cfg::ParamSize s_capture_size(
+    &s_spec, "capture_size", "Limit capture to approximately this many bytes in the file system", 0);
+
 CapConfig::CapConfig(const std::string& name, std::function<bool ()> filter_post_configure)
     : cfg::Configuration(name, specification())
     , m_filter_post_configure(filter_post_configure)
@@ -50,6 +56,8 @@ CapConfig::CapConfig(const std::string& name, std::function<bool ()> filter_post
     add_native(&CapConfig::storage_type, &s_storage_type);
     add_native(&CapConfig::storage_method, &s_storage_method);
     add_native(&CapConfig::start_capture, &s_start_capture);
+    add_native(&CapConfig::capture_duration, &s_capture_duration);
+    add_native(&CapConfig::capture_size, &s_capture_size);
 }
 
 bool CapConfig::post_configure(const std::map<std::string, maxscale::ConfigParameters>& nested_params)
