@@ -5,14 +5,14 @@
  */
 #pragma once
 
-#include "../capstorage.hh"
+#include "repstorage.hh"
 #include <maxscale/ccdefs.hh>
 #include <maxbase/collector.hh>
 
 struct RecorderContext
 {
-    Storage* pStorage;
-    RecorderContext(Storage* pStorage)
+    RepStorage* pStorage;
+    RecorderContext(RepStorage* pStorage)
         : pStorage(pStorage)
     {
     }

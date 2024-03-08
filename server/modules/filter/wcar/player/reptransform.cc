@@ -1,5 +1,6 @@
 #include "reptransform.hh"
 #include "../capbooststorage.hh"
+#include "repbooststorage.hh"
 #include "maxbase/assert.hh"
 #include <maxbase/json.hh>
 #include <maxscale/parser.hh>
@@ -25,8 +26,12 @@ RepTransform::RepTransform(const RepConfig* pConfig)
     // Open files for reading.
     m_player_storage = std::make_unique<CapBoostStorage>(path, ReadWrite::READ_ONLY);
 
-    // Open for writing. Only rep events will be written.
-    m_rep_event_storage = std::make_unique<CapBoostStorage>(path, ReadWrite::WRITE_ONLY);
+    if (m_config.mode == RepConfig::Mode::REPLAY)
+    {
+        // Open for writing. Only rep events will be written.
+        path.replace_extension("rx");
+        m_rep_event_storage = std::make_unique<RepBoostStorage>(path, RepBoostStorage::WRITE_ONLY);
+    }
 
     std::cout << "Transform: " << mxb::to_string(sw.split()) << std::endl;
 }

@@ -83,18 +83,15 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
     , m_canonical_path(base_path)
     , m_query_event_path(base_path)
-    , m_rep_event_path(base_path)
     , m_access(access)
 {
     m_canonical_path.replace_extension("cx");
     m_query_event_path.replace_extension("ex");
-    m_rep_event_path.replace_extension("rx");
 
     if (m_access == ReadWrite::READ_ONLY)
     {
         m_sCanonical_in = std::make_unique<BoostIFile>(m_canonical_path);
         m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
-        m_sRep_event_in = std::make_unique<BoostIFile>(m_rep_event_path);
         read_canonicals();
         preload_query_events(MAX_QUERY_EVENTS);
     }
@@ -102,7 +99,6 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     {
         m_sCanonical_out = std::make_unique<BoostOFile>(m_canonical_path);
         m_sQuery_event_out = std::make_unique<BoostOFile>(m_query_event_path);
-        m_sRep_event_out = std::make_unique<BoostOFile>(m_rep_event_path);
     }
 }
 
@@ -134,43 +130,14 @@ void CapBoostStorage::add_query_event(std::vector<QueryEvent>& qevents)
     }
 }
 
-void CapBoostStorage::add_rep_event(RepEvent&& revent)
+Storage::Iterator CapBoostStorage::begin()
 {
-    mxb::Duration start_time_dur = revent.start_time.time_since_epoch();
-    mxb::Duration end_time_dur = revent.end_time.time_since_epoch();
-
-    (**m_sRep_event_out) & revent.event_id;
-    (**m_sRep_event_out) & *reinterpret_cast<const int64_t*>(&start_time_dur);
-    (**m_sRep_event_out) & *reinterpret_cast<const int64_t*>(&end_time_dur);
-    (**m_sRep_event_out) & revent.num_rows;
+    return Storage::Iterator(this, next_event());
 }
 
-void CapBoostStorage::add_rep_event(std::vector<RepEvent>& revents)
+Storage::Iterator CapBoostStorage::end() const
 {
-    for (auto& revent : revents)
-    {
-        add_rep_event(std::move(revent));
-    }
-}
-
-Storage::Iterator<QueryEvent> CapBoostStorage::begin()
-{
-    return Storage::Iterator<QueryEvent>(this, next_event());
-}
-
-Storage::Iterator<QueryEvent> CapBoostStorage::end() const
-{
-    return Storage::Iterator<QueryEvent>(nullptr, QueryEvent {});
-}
-
-Storage::Iterator<RepEvent> CapBoostStorage::rep_begin()
-{
-    return Storage::Iterator<RepEvent>(this, next_rep_event());
-}
-
-Storage::Iterator<RepEvent> CapBoostStorage::rep_end() const
-{
-    return Storage::Iterator<RepEvent>(nullptr, RepEvent {});
+    return Storage::Iterator(nullptr, QueryEvent {});
 }
 
 QueryEvent CapBoostStorage::next_event()
@@ -190,31 +157,6 @@ QueryEvent CapBoostStorage::next_event()
     {
         return QueryEvent{};
     }
-}
-
-RepEvent CapBoostStorage::next_rep_event()
-{
-    if (m_sRep_event_in->at_end_of_stream())
-    {
-        return RepEvent{};
-    }
-
-    int64_t event_id;
-    int64_t start_time;
-    int64_t end_time;
-    int32_t num_rows;
-
-    (**m_sRep_event_in) & event_id;
-    (**m_sRep_event_in) & start_time;
-    (**m_sRep_event_in) & end_time;
-    (**m_sRep_event_in) & num_rows;
-
-    RepEvent ev;
-    ev.event_id = event_id;
-    ev.start_time = mxb::TimePoint{mxb::Duration{start_time}};
-    ev.end_time = mxb::TimePoint{mxb::Duration{end_time}};
-    ev.num_rows = num_rows;
-    return ev;
 }
 
 void CapBoostStorage::save_canonical(int64_t can_id, const std::string& canonical)

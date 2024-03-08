@@ -42,37 +42,14 @@ void CapInmemoryStorage::add_query_event(std::vector<QueryEvent>& qevents)
     }
 }
 
-void CapInmemoryStorage::add_rep_event(RepEvent&& revent)
+Storage::Iterator CapInmemoryStorage::begin()
 {
-    throw std::runtime_error("CapInmemoryStorage::add_rep_event not implemented yet");
+    return Storage::Iterator(this, next_event());
 }
 
-void CapInmemoryStorage::add_rep_event(std::vector<RepEvent>& revents)
+Storage::Iterator CapInmemoryStorage::end() const
 {
-    for (auto& revent : revents)
-    {
-        add_rep_event(std::move(revent));
-    }
-}
-
-Storage::Iterator<QueryEvent> CapInmemoryStorage::begin()
-{
-    return Storage::Iterator<QueryEvent>(this, next_event());
-}
-
-Storage::Iterator<QueryEvent> CapInmemoryStorage::end() const
-{
-    return Storage::Iterator<QueryEvent>(nullptr, QueryEvent {});
-}
-
-Storage::Iterator<RepEvent> CapInmemoryStorage::rep_begin()
-{
-    return Storage::Iterator<RepEvent>(this, next_rep_event());
-}
-
-Storage::Iterator<RepEvent> CapInmemoryStorage::rep_end() const
-{
-    return Storage::Iterator<RepEvent>(nullptr, RepEvent {});
+    return Storage::Iterator(nullptr, QueryEvent {});
 }
 
 QueryEvent CapInmemoryStorage::next_event()
@@ -91,9 +68,4 @@ QueryEvent CapInmemoryStorage::next_event()
     }
 
     return ret;
-}
-
-RepEvent CapInmemoryStorage::next_rep_event()
-{
-    throw std::runtime_error("CapInmemoryStorage::next_rep_event not implemented yet");
 }

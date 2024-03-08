@@ -7,6 +7,7 @@
 
 #include "repconfig.hh"
 #include "../capstorage.hh"
+#include "repstorage.hh"
 #include <vector>
 #include <unordered_map>
 #include <filesystem>
@@ -47,9 +48,9 @@ public:
 
     /**
      * @brief  rep_event_storage
-     * @return Storage to where RepEvents are written
+     * @return RepStorage to where RepEvents are written
      */
-    Storage& rep_event_storage();
+    RepStorage& rep_event_storage();
 
     /**
      * @brief finalize to be called after replay has finished (save rep events)
@@ -80,13 +81,13 @@ private:
     void transform_events(const fs::path& path);
     void dump_event(const QueryEvent& qevent, std::ostream& out);
 
-    const RepConfig&         m_config;
-    std::unique_ptr<Storage> m_player_storage;
-    std::unique_ptr<Storage> m_rep_event_storage;
-    Transactions             m_trxs;
-    TrxnMapping              m_trx_start_mapping;
-    TrxnMapping              m_trx_end_mapping;
-    int                      m_max_parallel_sessions;
+    const RepConfig&            m_config;
+    std::unique_ptr<Storage>    m_player_storage;
+    std::unique_ptr<RepStorage> m_rep_event_storage;
+    Transactions                m_trxs;
+    TrxnMapping                 m_trx_start_mapping;
+    TrxnMapping                 m_trx_end_mapping;
+    int                         m_max_parallel_sessions;
 };
 
 inline Storage& RepTransform::player_storage()
@@ -94,7 +95,7 @@ inline Storage& RepTransform::player_storage()
     return *m_player_storage;
 }
 
-inline Storage& RepTransform::rep_event_storage()
+inline RepStorage& RepTransform::rep_event_storage()
 {
     return *m_rep_event_storage;
 }

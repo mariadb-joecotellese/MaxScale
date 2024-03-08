@@ -30,14 +30,6 @@ struct QueryEvent
     }
 };
 
-struct RepEvent
-{
-    int64_t        event_id;
-    mxb::TimePoint start_time;
-    mxb::TimePoint end_time;
-    int32_t        num_rows;
-};
-
 /** Abstract Storage for QueryEvents.
  *
  *  The Storage class is also a container with input iterators. As the iterators
@@ -52,56 +44,29 @@ class Storage
 {
 public:
     // Acts like a constant input iterator. The difference_type is meaningless.
-    template<class T>
     class Iterator
     {
     public:
         using iterator_category = std::input_iterator_tag;
         using difference_type = std::ptrdiff_t;
-        using value_type = T;
-        using pointer = T*;
-        using reference = T&;
+        using value_type = QueryEvent;
+        using pointer = QueryEvent*;
+        using reference = QueryEvent&;
 
-        // non-const. The returned value can be moved by the client
-        T& operator*();
-        T* operator->();
+        // non-const. The returned QueryEvent can be moved by the client
+        QueryEvent& operator*();
+        QueryEvent* operator->();
 
-        Iterator<T>& operator++();
+        Iterator& operator++();
 
-        template<class V>
-        friend bool operator==(const Iterator<V>& lhs, const Iterator<V>& rhs);
+        friend bool operator==(const Iterator& lhs, const Iterator& rhs);
+        friend bool operator!=(const Iterator& lhs, const Iterator& rhs);
 
-        template<class V>
-        friend bool operator!=(const Iterator<V>& lhs, const Iterator<V>& rhs);
-
-        Iterator(Storage* pStorage, T&& event);
+        Iterator(Storage* pStorage, QueryEvent&& event);
 
     private:
-        Storage* m_pStorage;
-        T        m_event;
-    };
-
-    // Adapter class for iterating over the RepEvents of the storage with a range-for loop.
-    class RepEventAdapter
-    {
-    public:
-        RepEventAdapter(Storage* pStorage)
-            : m_pStorage(pStorage)
-        {
-        }
-
-        Iterator<RepEvent> begin()
-        {
-            return m_pStorage->rep_begin();
-        }
-
-        Iterator<RepEvent> end()
-        {
-            return m_pStorage->rep_end();
-        }
-
-    private:
-        Storage* m_pStorage;
+        Storage*   m_pStorage;
+        QueryEvent m_event;
     };
 
     Storage() = default;
@@ -110,29 +75,13 @@ public:
 
     virtual void add_query_event(QueryEvent&& qevent) = 0;
     virtual void add_query_event(std::vector<QueryEvent>& qevents) = 0;
-    virtual void add_rep_event(RepEvent&& revent) = 0;
-    virtual void add_rep_event(std::vector<RepEvent>& revents) = 0;
 
-    virtual Iterator<QueryEvent> begin() = 0;
-    virtual Iterator<QueryEvent> end() const = 0;
-
-    virtual Iterator<RepEvent> rep_begin() = 0;
-    virtual Iterator<RepEvent> rep_end() const = 0;
-
-    /**
-     * Adapter for the begin() and end() functions that uses rep_begin() and rep_end()
-     *
-     * Intended to be used with a range-based for loop.
-     */
-    RepEventAdapter rep_events()
-    {
-        return RepEventAdapter(this);
-    }
+    virtual Iterator begin() = 0;
+    virtual Iterator end() const = 0;
 
 protected:
     int64_t            next_can_id();
     virtual QueryEvent next_event() = 0;
-    virtual RepEvent   next_rep_event() = 0;
 
 private:
     int64_t m_can_id_generator{0};
@@ -167,52 +116,34 @@ inline int64_t Storage::next_can_id()
     return ++m_can_id_generator;
 }
 
-template<class T>
-inline Storage::Iterator<T>::Iterator(Storage* pStorage, T&& event)
+inline Storage::Iterator::Iterator(Storage* pStorage, QueryEvent&& event)
     : m_pStorage(pStorage)
     , m_event(std::move(event))
 {
 }
 
-template<class T>
-inline T& Storage::Iterator<T>::operator*()
+inline QueryEvent& Storage::Iterator::operator*()
 {
     return m_event;
 }
 
-template<class T>
-inline T* Storage::Iterator<T>::operator->()
+inline QueryEvent* Storage::Iterator::operator->()
 {
     return &m_event;
 }
 
-template<class T>
-inline Storage::Iterator<T>& Storage::Iterator<T>::operator++()
+inline Storage::Iterator& Storage::Iterator::operator++()
 {
-    if constexpr (std::is_same_v<T, QueryEvent> )
-    {
-        m_event = m_pStorage->next_event();
-    }
-    else if constexpr (std::is_same_v<T, RepEvent> )
-    {
-        m_event = m_pStorage->next_rep_event();
-    }
-    else
-    {
-        static_assert(!true, "Unknown type");
-    }
-
+    m_event = m_pStorage->next_event();
     return *this;
 }
 
-template<class V>
-inline bool operator==(const Storage::Iterator<V>& lhs, const Storage::Iterator<V>& rhs)
+inline bool operator==(const Storage::Iterator& lhs, const Storage::Iterator& rhs)
 {
     return lhs.m_event.event_id == rhs.m_event.event_id;
 }
 
-template<class V>
-inline bool operator!=(const Storage::Iterator<V>& lhs, const Storage::Iterator<V>& rhs)
+inline bool operator!=(const Storage::Iterator& lhs, const Storage::Iterator& rhs)
 {
     return !(lhs == rhs);
 }

@@ -8,7 +8,14 @@
 #include <maxbase/ccdefs.hh>
 #include <maxbase/stopwatch.hh>
 #include <vector>
-#include "../capstorage.hh"
+
+struct RepEvent
+{
+    int64_t        event_id {0};
+    mxb::TimePoint start_time {0s};
+    mxb::TimePoint end_time {0s};
+    int32_t        num_rows {0};
+};
 
 class RepStorage
 {

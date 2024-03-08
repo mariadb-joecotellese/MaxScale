@@ -61,14 +61,9 @@ public:
 
     void add_query_event(QueryEvent&& qevent) override;
     void add_query_event(std::vector<QueryEvent>& qevents) override;
-    void add_rep_event(RepEvent&& revent) override;
-    void add_rep_event(std::vector<RepEvent>& revents) override;
 
-    Iterator<QueryEvent> begin() override;
-    Iterator<QueryEvent> end() const override;
-
-    Iterator<RepEvent> rep_begin() override;
-    Iterator<RepEvent> rep_end() const override;
+    Iterator begin() override;
+    Iterator end() const override;
 
     struct SortReport
     {
@@ -92,7 +87,6 @@ public:
 
 private:
     QueryEvent next_event() override;
-    RepEvent   next_rep_event() override;
     // Save a canonical to m_canonical_path
     void save_canonical(int64_t can_id, const std::string& canonical);
     // Save an event to m_canonical_path
@@ -125,7 +119,6 @@ private:
     fs::path  m_base_path;
     fs::path  m_canonical_path;
     fs::path  m_query_event_path;
-    fs::path  m_rep_event_path;
     ReadWrite m_access;
 
     std::unique_ptr<BoostOFile> m_sCanonical_out;
@@ -133,7 +126,4 @@ private:
 
     std::unique_ptr<BoostOFile> m_sQuery_event_out;
     std::unique_ptr<BoostIFile> m_sQuery_event_in;
-
-    std::unique_ptr<BoostOFile> m_sRep_event_out;
-    std::unique_ptr<BoostIFile> m_sRep_event_in;
 };
