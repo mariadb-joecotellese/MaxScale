@@ -48,6 +48,7 @@ std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_pref
     m_sStorage = std::make_unique<CapBoostStorage>(base_path, ReadWrite::WRITE_ONLY);
 
     m_capture_stop_triggered = false;
+    m_start_time = mxb::Clock::now(mxb::NowType::EPollTick);
 
     return std::make_shared<CapRecorder>(std::make_unique<RecorderContext>(m_sStorage.get()));
 }
@@ -56,14 +57,18 @@ bool CapFilter::supervise()
 {
     if (m_sRecorder && !m_capture_stop_triggered)
     {
-        m_capture_stop_triggered = m_capture_size != 0
+        auto sz_limit = m_capture_size != 0
             && m_sRecorder->context().bytes_processed() >= m_capture_size;
+
+        m_capture_stop_triggered = sz_limit || (m_capture_duration.count() != 0
+            && mxb::Clock::now(mxb::NowType::EPollTick) - m_start_time > m_capture_duration);
 
         if (m_capture_stop_triggered)
         {
             stop_capture();
         }
     }
+
     return true;
 }
 

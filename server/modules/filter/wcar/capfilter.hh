@@ -70,6 +70,7 @@ private:
 
     mxb::Worker::DCId m_dc_supervisor  {mxb::Worker::NO_CALL};
     bool              m_capture_stop_triggered = false;
+    mxb::TimePoint    m_start_time;
 
     std::vector<std::weak_ptr<CapFilterSession>> m_sessions;
     std::mutex                                   m_sessions_mutex;
