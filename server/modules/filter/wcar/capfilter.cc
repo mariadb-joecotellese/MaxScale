@@ -7,6 +7,7 @@
 #include "capfilter.hh"
 #include "capbooststorage.hh"
 #include "capconfig.hh"
+#include <maxscale/mainworker.hh>
 #include <maxbase/stopwatch.hh>
 #include <string>
 #include <memory>
@@ -14,6 +15,7 @@
 
 namespace fs = std::filesystem;
 using namespace std::string_literals;
+using namespace std::chrono_literals;
 
 namespace
 {
@@ -31,10 +33,12 @@ std::string generate_file_base_name(const std::string file_prefix)
 }
 
 CapFilter::CapFilter(const std::string& name)
-    : m_config(name, [this]{
+    : mxb::Worker::Callable(mxs::MainWorker::get())
+    , m_config(name, [this]{
     return post_configure();
 })
-{}
+{
+}
 
 std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_prefix)
 {
@@ -43,9 +47,25 @@ std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_pref
 
     m_sStorage = std::make_unique<CapBoostStorage>(base_path, ReadWrite::WRITE_ONLY);
 
+    m_capture_stop_triggered = false;
+
     return std::make_shared<CapRecorder>(std::make_unique<RecorderContext>(m_sStorage.get()));
 }
 
+bool CapFilter::supervise()
+{
+    if (m_sRecorder && !m_capture_stop_triggered)
+    {
+        m_capture_stop_triggered = m_capture_size != 0
+            && m_sRecorder->context().bytes_processed() >= m_capture_size;
+
+        if (m_capture_stop_triggered)
+        {
+            stop_capture();
+        }
+    }
+    return true;
+}
 
 bool CapFilter::post_configure()
 {
@@ -54,6 +74,13 @@ bool CapFilter::post_configure()
         m_sRecorder = make_storage(DEFAULT_FILE_PREFIX);
         m_sRecorder->start();
     }
+
+    m_dc_supervisor = dcall(1s, [this]() {
+        return supervise();
+    });
+
+    m_capture_duration = m_config.capture_duration;
+    m_capture_size = m_config.capture_size;
 
     return true;
 }

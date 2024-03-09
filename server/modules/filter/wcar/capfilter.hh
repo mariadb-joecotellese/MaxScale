@@ -17,6 +17,7 @@
 class CapFilterSession;
 
 class CapFilter : public mxs::Filter
+                , private mxb::Worker::Callable
 {
 public:
     // TODO: This probably needs tuning.
@@ -57,9 +58,18 @@ private:
 
 private:
     std::shared_ptr<CapRecorder> make_storage(const std::string file_prefix);
-    CapConfig                    m_config;
+
+    bool supervise();
+
+    CapConfig     m_config;
+    mxb::Duration m_capture_duration;
+    int64_t       m_capture_size;
+
     std::unique_ptr<Storage>     m_sStorage;
     std::shared_ptr<CapRecorder> m_sRecorder;
+
+    mxb::Worker::DCId m_dc_supervisor  {mxb::Worker::NO_CALL};
+    bool              m_capture_stop_triggered = false;
 
     std::vector<std::weak_ptr<CapFilterSession>> m_sessions;
     std::mutex                                   m_sessions_mutex;
