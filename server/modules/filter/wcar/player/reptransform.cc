@@ -30,6 +30,12 @@ RepTransform::RepTransform(const RepConfig* pConfig)
     {
         // Open for writing. Only rep events will be written.
         path.replace_extension("rx");
+
+        if (fs::exists(path))
+        {
+            MXB_THROW(WcarError, "The replay file already exists, will not overwrite replay: " << path);
+        }
+
         m_rep_event_storage = std::make_unique<RepBoostStorage>(path, RepBoostStorage::WRITE_ONLY);
     }
 
