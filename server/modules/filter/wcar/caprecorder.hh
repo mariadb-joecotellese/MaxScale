@@ -11,18 +11,35 @@
 #include <maxbase/collector.hh>
 #include <maxsimd/canonical.hh>
 
+
+class CapRecorder;
+
 /**
  * @brief RecordContext is the data stored in Collector, so will be
  *        garbage collected when Collector is destroyed. It is not
  *        changed or copied in updates-only mode.
  */
-struct RecorderContext
+class RecorderContext
 {
-    Storage* pStorage;
+public:
     RecorderContext(Storage* pStorage)
         : pStorage(pStorage)
     {
     }
+    Storage* pStorage;
+
+    int64_t bytes_processed() const
+    {
+        return m_bytes_processed.load(std::memory_order_relaxed);
+    }
+
+private:
+    friend CapRecorder;
+    void update_bytes_processed()
+    {
+        m_bytes_processed.store(pStorage->size(), std::memory_order_relaxed);
+    }
+    std::atomic<int64_t> m_bytes_processed = 0;
 };
 
 using SharedUpdate = maxbase::SharedData<RecorderContext, QueryEvent>;
@@ -33,6 +50,9 @@ class CapRecorder final : public mxb::Collector<SharedUpdate, mxb::CollectorMode
 {
 public:
     CapRecorder(std::unique_ptr<RecorderContext>&& context);
+
+    const RecorderContext& context();
+
 private:
     void init_for(maxscale::RoutingWorker* pWorker) override;
     void finish_for(maxscale::RoutingWorker* pWorker) override;

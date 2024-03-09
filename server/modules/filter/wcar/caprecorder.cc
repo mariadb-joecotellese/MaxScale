@@ -18,6 +18,11 @@ CapRecorder::CapRecorder(std::unique_ptr<RecorderContext>&& context)
     Data::initialize_workers();
 }
 
+const RecorderContext& CapRecorder::context()
+{
+    return *get_pLatest();      // TODO add to Collector. Valid for CollectorMode::UPDATES_ONLY
+}
+
 void CapRecorder::init_for(maxscale::RoutingWorker* pWorker)
 {
     increase_client_count(pWorker->index());
@@ -34,6 +39,8 @@ void CapRecorder::make_updates(RecorderContext* pContext,
     try
     {
         pContext->pStorage->add_query_event(queue);
+
+        pContext->update_bytes_processed();
     }
     catch (std::exception& ex)
     {
