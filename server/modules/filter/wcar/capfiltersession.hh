@@ -58,8 +58,6 @@ private:
     std::atomic<CapState>        m_state {CapState::DISABLED};
     std::mutex                   m_state_mutex;
 
-
-    // TODO take into account a streaming client (writes without waits)
     bool       m_capture = false;
     QueryEvent m_query_event;
 

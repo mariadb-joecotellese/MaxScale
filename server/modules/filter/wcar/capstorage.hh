@@ -9,6 +9,24 @@
 #include <maxbase/stopwatch.hh>
 #include <maxsimd/canonical.hh>
 #include <memory>
+#include <iostream>
+
+struct Gtid
+{
+    uint32_t domain_id = 0;
+    uint32_t server_id = 0;
+    uint64_t sequence_nr = 0;
+    bool is_valid() const
+    {
+        return server_id != 0;
+    }
+};
+
+inline std::ostream& operator<<(std::ostream& os, const Gtid& gtid)
+{
+    os << gtid.domain_id << '-' << gtid.server_id << '-' << gtid.sequence_nr;
+    return os;
+}
 
 struct QueryEvent
 {
@@ -23,6 +41,7 @@ struct QueryEvent
     uint64_t                     flags;
     mxb::TimePoint               start_time;
     mxb::TimePoint               end_time;
+    Gtid                         gtid;
     int64_t                      event_id;
 
     bool is_session_close() const

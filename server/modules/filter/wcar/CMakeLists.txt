@@ -1,4 +1,4 @@
-#include(${CMAKE_SOURCE_DIR}/cmake/BuildBoost.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/BuildBoost.cmake)
 
 add_library(wcar-core
   capbooststorage.cc
