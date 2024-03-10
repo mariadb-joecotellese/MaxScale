@@ -79,6 +79,11 @@ public:
     virtual Iterator begin() = 0;
     virtual Iterator end() const = 0;
 
+    // Return a meaningful size for a Storage. Currently there only
+    // is boost storage, but it is not impossible that in-memory
+    // storage is revived.
+    virtual int64_t size() = 0;
+
 protected:
     int64_t            next_can_id();
     virtual QueryEvent next_event() = 0;

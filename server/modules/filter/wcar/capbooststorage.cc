@@ -73,6 +73,28 @@ bool BoostFile<BoostArchive>::at_end_of_stream()
 }
 
 template<typename BoostArchive>
+int64_t BoostFile<BoostArchive>::tell()
+{
+    if (!m_sArchive)
+    {
+        return 0;
+    }
+
+    if constexpr (std::is_same_v<BoostOArchive, BoostArchive> )
+    {
+        return m_fs.tellg();
+    }
+    else if constexpr (std::is_same_v<BoostIArchive, BoostArchive> )
+    {
+        return m_fs.tellp();
+    }
+    else
+    {
+        static_assert(false, "Unknown type");
+    }
+}
+
+template<typename BoostArchive>
 void BoostFile<BoostArchive>::rewind()
 {
     m_fs.seekg(0);
@@ -138,6 +160,18 @@ Storage::Iterator CapBoostStorage::begin()
 Storage::Iterator CapBoostStorage::end() const
 {
     return Storage::Iterator(nullptr, QueryEvent {});
+}
+
+int64_t CapBoostStorage::size()
+{
+    if (m_access == ReadWrite::WRITE_ONLY)
+    {
+        return m_sCanonical_out->tell() + m_sQuery_event_out->tell();
+    }
+    else
+    {
+        return m_sCanonical_in->tell() + m_sQuery_event_in->tell();
+    }
 }
 
 QueryEvent CapBoostStorage::next_event()

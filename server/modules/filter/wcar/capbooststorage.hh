@@ -42,6 +42,8 @@ public:
     bool          at_end_of_stream();
     // Rewind to read and (over) write from the beginning of the file.
     void rewind();
+    // Return read pos for input and write pos for output
+    int64_t tell();
 private:
     void open();
     // Could be ifstream or ofstream based on a template arg, but an
@@ -64,6 +66,8 @@ public:
 
     Iterator begin() override;
     Iterator end() const override;
+    // Return file size
+    int64_t size() override;
 
     struct SortReport
     {
