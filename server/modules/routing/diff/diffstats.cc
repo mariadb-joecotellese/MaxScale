@@ -5,6 +5,7 @@
  */
 
 #include "diffstats.hh"
+#include <cmath>
 #include <maxscale/service.hh>
 #include "diffconfig.hh"
 #include "diffresult.hh"
@@ -165,14 +166,18 @@ json_t* DiffOtherStats::to_json() const
 
     auto create_result_array = [](const auto& result) {
         json_t* pResult = json_array();
-        for (auto it = result.rbegin(); it != result.rend(); ++it)
+        for (auto it = result.begin(); it != result.end(); ++it)
         {
             auto& kv = *it;
-            auto percent = (double)kv.first / 10;
+            auto percent = std::round((double)kv.first / 10);
             auto& sOther_result = kv.second;
 
             json_t* pEntry = json_object();
-            json_object_set_new(pEntry, "percent", json_real(percent));
+            json_object_set_new(pEntry, "duration",
+                                json_integer(sOther_result->duration().count()));
+            json_object_set_new(pEntry, "duration_main",
+                                json_integer(sOther_result->main_result().duration().count()));
+            json_object_set_new(pEntry, "percent", json_integer(percent));
             std::string_view sql = sOther_result->sql();
             json_object_set_new(pEntry, "sql", json_stringn(sql.data(), sql.length()));
             json_object_set_new(pEntry, "id", json_integer(sOther_result->id()));
