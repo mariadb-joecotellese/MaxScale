@@ -146,6 +146,48 @@ DiffOtherBackend::DiffOtherBackend(mxs::Endpoint* pEndpoint,
 {
 }
 
+DiffOtherBackend::~DiffOtherBackend()
+{
+    int nStill_registered = 0;
+
+    for (auto& sResult : m_results)
+    {
+        DiffOtherResult* pResult = static_cast<DiffOtherResult*>(sResult.get());
+
+        if (pResult->registered_at_main())
+        {
+            pResult->deregister_from_main();
+            ++nStill_registered;
+        }
+    }
+
+    if (nStill_registered != 0)
+    {
+        MXB_WARNING("Att session close, there was %d 'other' result(s) that "
+                    "still waited for the 'main' result.", nStill_registered);
+    }
+
+    nStill_registered = 0;
+
+    for (auto& sExplain_result : m_pending_explains)
+    {
+        DiffExplainOtherResult* pExplain_result = static_cast<DiffExplainOtherResult*>(sExplain_result.get());
+
+        if (pExplain_result->registered_at_main())
+        {
+            pExplain_result->deregister_from_main();
+            ++nStill_registered;
+        }
+    }
+
+    if (nStill_registered != 0)
+    {
+        MXB_WARNING("Att session close, there was %d 'other' EXPLAIN result(s) that "
+                    "still waited for the 'main' EXPLAIN result.", nStill_registered);
+    }
+
+}
+
 void DiffOtherBackend::prepare(const DiffMainBackend::SResult& sMain_result)
 {
     // std::make_shared can't be used, because the private COtherResult::Handler base is inaccessible.

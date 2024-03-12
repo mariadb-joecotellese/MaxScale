@@ -88,7 +88,7 @@ protected:
     const mxs::Parser::Helper*                m_pParser_helper { nullptr };
     std::deque<SResult>                       m_results;
 
-private:
+protected:
     bool execute(const SDiffExplainResult& sExplain_result);
 
     DiffRouterSession*             m_pRouter_session { nullptr };
@@ -236,6 +236,7 @@ public:
     DiffOtherBackend(mxs::Endpoint* pEndpoint,
                      const DiffConfig* pConfig,
                      std::shared_ptr<DiffExporter> sExporter);
+    ~DiffOtherBackend();
 
     void bump_requests_skipped()
     {

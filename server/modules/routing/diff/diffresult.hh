@@ -193,9 +193,23 @@ public:
 
     ~DiffOtherResult();
 
+    bool registered_at_main() const
+    {
+        return m_registered_at_main;
+    }
+
     void register_at_main()
     {
+        mxb_assert(!m_registered_at_main);
         m_sMain_result->add_dependent(shared_from_this());
+        m_registered_at_main = true;
+    }
+
+    void deregister_from_main()
+    {
+        mxb_assert(m_registered_at_main);
+        m_sMain_result->remove_dependent(shared_from_this());
+        m_registered_at_main = false;
     }
 
     DiffMainResult& main_result() const
@@ -244,6 +258,7 @@ private:
 private:
     Handler&                        m_handler;
     std::shared_ptr<DiffMainResult> m_sMain_result;
+    bool                            m_registered_at_main { false };
 };
 
 
@@ -334,12 +349,27 @@ public:
                            std::shared_ptr<DiffExplainMainResult> sExplain_main_result);
     ~DiffExplainOtherResult();
 
+    bool registered_at_main() const
+    {
+        return m_registered_at_main;
+    }
+
     void register_at_main()
     {
+        mxb_assert(!m_registered_at_main);
+
         if (m_sExplain_main_result)
         {
             m_sExplain_main_result->add_dependent(shared_from_this());
+            m_registered_at_main = true;
         }
+    }
+
+    void deregister_from_main()
+    {
+        mxb_assert(m_registered_at_main);
+        m_sExplain_main_result->remove_dependent(shared_from_this());
+        m_registered_at_main = false;
     }
 
     std::string_view sql() const override
@@ -368,4 +398,5 @@ private:
     Handler&                               m_handler;
     std::shared_ptr<const DiffOtherResult> m_sOther_result;
     std::shared_ptr<DiffExplainMainResult> m_sExplain_main_result;
+    bool                                   m_registered_at_main { false };
 };

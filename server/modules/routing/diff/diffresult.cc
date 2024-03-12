@@ -144,7 +144,7 @@ std::chrono::nanoseconds DiffOtherResult::close(const mxs::Reply& reply)
     if (m_sMain_result->closed())
     {
         m_handler.ready(*this);
-        m_sMain_result->remove_dependent(shared_from_this());
+        deregister_from_main();
     }
 
     return rv;
@@ -155,7 +155,7 @@ void DiffOtherResult::main_was_closed()
     if (closed())
     {
         m_handler.ready(*this);
-        m_sMain_result->remove_dependent(shared_from_this());
+        deregister_from_main();
     }
 }
 
@@ -243,7 +243,7 @@ std::chrono::nanoseconds DiffExplainOtherResult::close(const mxs::Reply& reply)
 
         if (m_sExplain_main_result)
         {
-            m_sExplain_main_result->remove_dependent(shared_from_this());
+            deregister_from_main();
         }
     }
 
@@ -255,6 +255,6 @@ void DiffExplainOtherResult::main_was_closed()
     if (closed())
     {
         m_handler.ready(*this);
-        m_sExplain_main_result->remove_dependent(shared_from_this());
+        deregister_from_main();
     }
 }
