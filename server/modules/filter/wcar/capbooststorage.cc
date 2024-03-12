@@ -137,11 +137,11 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
     }
     else
     {
-        save_canonical(can_id, *qevent.sCanonical);
+        save_canonical(*m_sCanonical_out, can_id, *qevent.sCanonical);
         m_canonicals.emplace(hash, CanonicalEntry {can_id, qevent.sCanonical});
     }
 
-    save_query_event(can_id, qevent);
+    save_query_event(*m_sQuery_event_out, can_id, qevent);
 }
 
 void CapBoostStorage::add_query_event(std::vector<QueryEvent>& qevents)
@@ -193,31 +193,31 @@ QueryEvent CapBoostStorage::next_event()
     }
 }
 
-void CapBoostStorage::save_canonical(int64_t can_id, const std::string& canonical)
+void CapBoostStorage::save_canonical(BoostOFile& bof, int64_t can_id, const std::string& canonical)
 {
-    (**m_sCanonical_out) & can_id;
-    (**m_sCanonical_out) & canonical;
+    *bof & can_id;
+    *bof & canonical;
 }
 
-void CapBoostStorage::save_query_event(int64_t can_id, const QueryEvent& qevent)
+void CapBoostStorage::save_query_event(BoostOFile& bof, int64_t can_id, const QueryEvent& qevent)
 {
-    (**m_sQuery_event_out) & can_id;
-    (**m_sQuery_event_out) & qevent.event_id;
-    (**m_sQuery_event_out) & qevent.session_id;
-    (**m_sQuery_event_out) & qevent.flags;
+    *bof & can_id;
+    *bof & qevent.event_id;
+    *bof & qevent.session_id;
+    *bof & qevent.flags;
 
     int nargs = qevent.canonical_args.size();
-    (**m_sQuery_event_out) & nargs;
+    *bof & nargs;
     for (const auto& a : qevent.canonical_args)
     {
-        (**m_sQuery_event_out) & a.pos;
-        (**m_sQuery_event_out) & a.value;
+        *bof & a.pos;
+        *bof & a.value;
     }
 
     mxb::Duration start_time_dur = qevent.start_time.time_since_epoch();
     mxb::Duration end_time_dur = qevent.end_time.time_since_epoch();
-    (**m_sQuery_event_out) & *reinterpret_cast<const int64_t*>(&start_time_dur);
-    (**m_sQuery_event_out) & *reinterpret_cast<const int64_t*>(&end_time_dur);
+    *bof & *reinterpret_cast<const int64_t*>(&start_time_dur);
+    *bof & *reinterpret_cast<const int64_t*>(&end_time_dur);
 }
 
 void CapBoostStorage::read_canonicals()

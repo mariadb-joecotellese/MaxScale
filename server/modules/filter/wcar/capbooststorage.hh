@@ -89,12 +89,15 @@ public:
      */
     SortReport sort_query_event_file();
 
+    // Save an event to m_canonical_path
+    void save_query_event(BoostOFile& bof, int64_t can_id, const QueryEvent& qevent);
+
 private:
     QueryEvent next_event() override;
     // Save a canonical to m_canonical_path
-    void save_canonical(int64_t can_id, const std::string& canonical);
-    // Save an event to m_canonical_path
-    void save_query_event(int64_t can_id, const QueryEvent& qevent);
+    void save_canonical(BoostOFile& bof, int64_t can_id, const std::string& canonical);
+    // Save gtid event, along with identifiers
+    void save_gtid_event(BoostOFile& bof, const QueryEvent& qevent);
     // Read all canonicals into memory
     void read_canonicals();
     // Preload QueryEvents.
