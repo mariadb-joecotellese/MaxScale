@@ -94,16 +94,16 @@ public:
     }
 
 protected:
-    DiffResult(DiffBackend* pBackend)
-        : m_backend(*pBackend)
-        , m_start(Clock::now())
-        , m_end(Clock::time_point::max())
+    DiffResult(DiffBackend* pBackend);
+
+    const mxs::Parser& parser() const
     {
-        mxb_assert(pBackend);
+        return m_parser;
     }
 
 private:
     DiffBackend&          m_backend;
+    const mxs::Parser&    m_parser;
     Clock::time_point     m_start;
     Clock::time_point     m_end;
     mxb::CRC32            m_checksum;

@@ -22,6 +22,15 @@ struct ThisUnit
 /**
  * DiffResult
  */
+DiffResult::DiffResult(DiffBackend* pBackend)
+    : m_backend(*pBackend)
+    , m_parser(pBackend->parser())
+    , m_start(Clock::now())
+    , m_end(Clock::time_point::max())
+{
+    mxb_assert(pBackend);
+}
+
 DiffResult::~DiffResult()
 {
 }
@@ -60,7 +69,7 @@ std::string_view DiffMainResult::sql() const
 {
     if (m_sql.empty())
     {
-        m_sql = backend().phelper().get_sql(m_packet);
+        m_sql = parser().helper().get_sql(m_packet);
     }
 
     return m_sql;
@@ -70,7 +79,7 @@ uint8_t DiffMainResult::command() const
 {
     if (m_command == 0)
     {
-        m_command = backend().phelper().get_command(m_packet);
+        m_command = parser().helper().get_command(m_packet);
     }
 
     return m_command;
@@ -80,7 +89,7 @@ std::string_view DiffMainResult::canonical() const
 {
     if (m_canonical.empty())
     {
-        m_canonical = backend().parser().get_canonical(m_packet);
+        m_canonical = parser().get_canonical(m_packet);
     }
 
     return m_canonical;
