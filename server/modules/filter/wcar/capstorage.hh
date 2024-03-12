@@ -18,6 +18,7 @@ struct QueryEvent
      */
     std::shared_ptr<std::string> sCanonical;
     maxsimd::CanonicalArgs       canonical_args;
+    int64_t                      can_id;
     int64_t                      session_id;
     uint64_t                     flags;
     mxb::TimePoint               start_time;

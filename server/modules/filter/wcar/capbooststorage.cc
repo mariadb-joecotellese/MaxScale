@@ -128,20 +128,20 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
 {
     int64_t hash{static_cast<int64_t>(std::hash<std::string> {}(*qevent.sCanonical))};
     auto canon_ite = m_canonicals.find(hash);
-    auto can_id = next_can_id();
 
     if (canon_ite != std::end(m_canonicals))
     {
-        can_id = canon_ite->second.can_id;
+        qevent.can_id = canon_ite->second.can_id;
         qevent.sCanonical = canon_ite->second.sCanonical;
     }
     else
     {
-        save_canonical(*m_sCanonical_out, can_id, *qevent.sCanonical);
-        m_canonicals.emplace(hash, CanonicalEntry {can_id, qevent.sCanonical});
+        qevent.can_id = next_can_id();
+        save_canonical(*m_sCanonical_out, qevent.can_id, *qevent.sCanonical);
+        m_canonicals.emplace(hash, CanonicalEntry {qevent.can_id, qevent.sCanonical});
     }
 
-    save_query_event(*m_sQuery_event_out, can_id, qevent);
+    save_query_event(*m_sQuery_event_out, qevent);
 }
 
 void CapBoostStorage::add_query_event(std::vector<QueryEvent>& qevents)
@@ -199,9 +199,9 @@ void CapBoostStorage::save_canonical(BoostOFile& bof, int64_t can_id, const std:
     *bof & canonical;
 }
 
-void CapBoostStorage::save_query_event(BoostOFile& bof, int64_t can_id, const QueryEvent& qevent)
+void CapBoostStorage::save_query_event(BoostOFile& bof, const QueryEvent& qevent)
 {
-    *bof & can_id;
+    *bof & qevent.can_id;
     *bof & qevent.event_id;
     *bof & qevent.session_id;
     *bof & qevent.flags;
@@ -239,10 +239,9 @@ void CapBoostStorage::preload_query_events(int64_t max_in_container)
     int64_t nfetch = max_in_container - m_query_events.size();
     while (!m_sQuery_event_in->at_end_of_stream() && nfetch--)
     {
-        int64_t can_id;
         QueryEvent qevent;
 
-        (**m_sQuery_event_in) & can_id;
+        (**m_sQuery_event_in) & qevent.can_id;
         (**m_sQuery_event_in) & qevent.event_id;
         (**m_sQuery_event_in) & qevent.session_id;
         (**m_sQuery_event_in) & qevent.flags;
@@ -265,7 +264,7 @@ void CapBoostStorage::preload_query_events(int64_t max_in_container)
         qevent.start_time = mxb::TimePoint(mxb::Duration(start_time_int));
         qevent.end_time = mxb::TimePoint(mxb::Duration(end_time_int));
 
-        qevent.sCanonical = find_canonical(can_id);
+        qevent.sCanonical = find_canonical(qevent.can_id);
 
         m_query_events.push_back(std::move(qevent));
     }
