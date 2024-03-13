@@ -66,6 +66,23 @@ export function useMxsObjActions(type) {
   }
 }
 
+export function useFetchModuleIds() {
+  const { tryAsync, uuidv1 } = useHelpers()
+  const http = useHttp()
+  const typy = useTypy()
+  let items = ref([])
+  return {
+    items,
+    fetch: async () => {
+      // use an uid to ensure the result includes only ids
+      const [, res] = await tryAsync(
+        http.get(`/maxscale/modules?load=all&fields[modules]=${uuidv1()}`)
+      )
+      items.value = typy(res, 'data.data').safeArray.map((item) => item.id)
+    },
+  }
+}
+
 /**
  * Populate data for RelationshipTable
  */
@@ -108,7 +125,7 @@ export function useFetchObjData() {
   return async ({ id, type, fields = ['state'] }) => {
     let path = `/${type}`
     if (id) path += `/${id}`
-    path += `?fields[${type}]=${fields.join(',')}`
+    if (fields.length) path += `?fields[${type}]=${fields.join(',')}`
     const [, res] = await tryAsync(http.get(path))
     if (id) return typy(res, 'data.data').safeObjectOrEmpty
     return typy(res, 'data.data').safeArray
@@ -117,12 +134,16 @@ export function useFetchObjData() {
 
 export function useFetchAllObjIds() {
   const fetch = useFetchObjData()
-  return async () => {
-    const types = Object.values(MXS_OBJ_TYPES)
-    const promises = types.map(async (type) => {
-      const data = await fetch({ type, fields: ['id'] })
-      return data.map((item) => item.id)
-    })
-    return await Promise.all(promises)
+  let items = ref([])
+  return {
+    items,
+    fetch: async () => {
+      const types = Object.values(MXS_OBJ_TYPES)
+      const promises = types.map(async (type) => {
+        const data = await fetch({ type, fields: ['id'] })
+        return data.map((item) => item.id)
+      })
+      items.value = (await Promise.all(promises)).flat()
+    },
   }
 }
