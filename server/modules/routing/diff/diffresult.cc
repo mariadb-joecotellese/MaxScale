@@ -95,14 +95,14 @@ std::string_view DiffMainResult::canonical() const
     return m_canonical;
 }
 
-DiffResult::Hash DiffMainResult::hash() const
+DiffResult::Hash DiffMainResult::canonical_hash() const
 {
-    if (m_hash == 0)
+    if (m_canonical_hash == 0)
     {
-        m_hash = DiffRegistry::hash_for(canonical());
+        m_canonical_hash = DiffRegistry::hash_for(canonical());
     }
 
-    return m_hash;
+    return m_canonical_hash;
 }
 
 std::chrono::nanoseconds DiffMainResult::close(const mxs::Reply& reply)

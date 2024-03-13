@@ -182,11 +182,11 @@ Explain DiffRouterSession::ready(DiffOtherResult& other_result)
     if (should_report(other_result))
     {
         auto now = m_pSession->worker()->epoll_tick_now();
-        auto hash = other_result.hash();
+        auto canonical_hash = other_result.canonical_hash();
         auto id = other_result.id();
         DiffRegistry::Entries explainers;
 
-        bool is_explained = m_router.registry().is_explained(now, hash, id, &explainers);
+        bool is_explained = m_router.registry().is_explained(now, canonical_hash, id, &explainers);
         other_result.set_explainers(explainers);
 
         if (m_router.config().entries == 0)

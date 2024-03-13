@@ -139,7 +139,7 @@ public:
 
     std::string_view canonical() const;
 
-    Hash hash() const;
+    Hash canonical_hash() const;
 
     bool is_explainable() const
     {
@@ -172,7 +172,7 @@ private:
     mutable std::string_view                   m_sql;
     mutable uint32_t                           m_command {0};
     mutable std::string_view                   m_canonical;
-    mutable Hash                               m_hash {0};
+    mutable Hash                               m_canonical_hash {0};
     std::set<std::shared_ptr<DiffOtherResult>> m_dependents;
 };
 
@@ -238,9 +238,9 @@ public:
         return m_sMain_result->canonical();
     }
 
-    Hash hash() const
+    Hash canonical_hash() const
     {
-        return m_sMain_result->hash();
+        return m_sMain_result->canonical_hash();
     }
 
     bool is_explainable() const
