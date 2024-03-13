@@ -131,14 +131,14 @@ DiffBackendWithStats<Stats>::DiffBackendWithStats(mxs::Endpoint* pEndpoint)
 template<class Stats>
 void DiffBackendWithStats<Stats>::book_explain()
 {
-    ++m_stats.nExplain_requests;
+    m_stats.inc_explain_requests();
 
     // Tune general counters, since those related to the extra
     // EXPLAIN requests should be exluded.
-    --m_stats.nRequest_packets;
-    --m_stats.nRequests;
-    --m_stats.nRequests_explainable;
-    --m_stats.nRequests_responding;
+    m_stats.dec_request_packets();
+    m_stats.dec_requests();
+    m_stats.dec_requests_explainable();
+    m_stats.dec_requests_responding();
 }
 
 template<class Stats>
@@ -147,21 +147,21 @@ bool DiffBackendWithStats<Stats>::write(GWBUF&& buffer, response_type type)
     mxb_assert(m_sQc);
     m_sQc->update_and_commit_route_info(buffer);
 
-    ++m_stats.nRequest_packets;
+    m_stats.inc_request_packets();
 
     if (!extraordinary_in_process())
     {
-        ++m_stats.nRequests;
+        m_stats.inc_requests();
 
         if (type != NO_RESPONSE)
         {
-            ++m_stats.nRequests_responding;
+            m_stats.inc_requests_responding();
 
             auto sql = phelper().get_sql(buffer);
 
             if (!sql.empty())
             {
-                ++m_stats.nRequests_explainable;
+                m_stats.inc_requests_explainable();
             }
         }
     }
@@ -180,8 +180,9 @@ DiffBackend::Routing DiffBackendWithStats<Stats>::finish_result(const mxs::Reply
 
     auto kind = sResult->kind();
 
-    ++m_stats.nResponses;
-    m_stats.total_duration += sResult->close(reply);
+    m_stats.inc_responses();
+
+    m_stats.add_total_duration(sResult->close(reply));
 
     return kind == DiffResult::Kind::EXTERNAL ? Routing::CONTINUE : Routing::STOP;
 }
@@ -238,9 +239,9 @@ public:
                      std::shared_ptr<DiffExporter> sExporter);
     ~DiffOtherBackend();
 
-    void bump_requests_skipped()
+    void inc_requests_skipped()
     {
-        ++m_stats.nRequests_skipped;
+        m_stats.inc_requests_skipped();
     }
 
     void set_result_handler(Handler* pHandler)

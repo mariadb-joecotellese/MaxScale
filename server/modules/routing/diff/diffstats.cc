@@ -19,21 +19,41 @@ void DiffStats::fill_json(json_t* pJson) const
 {
     std::chrono::milliseconds ms;
 
-    ms = duration_cast<std::chrono::milliseconds>(this->total_duration);
+    ms = duration_cast<std::chrono::milliseconds>(m_total_duration);
     json_object_set_new(pJson, "total_duration", json_integer(ms.count()));
-    json_object_set_new(pJson, "request_packets", json_integer(this->nRequest_packets));
-    json_object_set_new(pJson, "requests", json_integer(this->nRequests));
-    json_object_set_new(pJson, "requests_explainable", json_integer(this->nRequests_explainable));
-    json_object_set_new(pJson, "requests_responding", json_integer(this->nRequests_responding));
-    json_object_set_new(pJson, "responses", json_integer(this->nResponses));
+    json_object_set_new(pJson, "request_packets", json_integer(m_nRequest_packets));
+    json_object_set_new(pJson, "requests", json_integer(m_nRequests));
+    json_object_set_new(pJson, "requests_explainable", json_integer(m_nRequests_explainable));
+    json_object_set_new(pJson, "requests_responding", json_integer(m_nRequests_responding));
+    json_object_set_new(pJson, "responses", json_integer(m_nResponses));
 
     json_t* pExplain = json_object();
-    ms = duration_cast<std::chrono::milliseconds>(this->explain_duration);
+    ms = duration_cast<std::chrono::milliseconds>(m_explain_duration);
     json_object_set_new(pExplain, "duration", json_integer(ms.count()));
-    json_object_set_new(pExplain, "requests", json_integer(this->nExplain_requests));
-    json_object_set_new(pExplain, "responses", json_integer(this->nExplain_responses));
+    json_object_set_new(pExplain, "requests", json_integer(m_nExplain_requests));
+    json_object_set_new(pExplain, "responses", json_integer(m_nExplain_responses));
 
     json_object_set_new(pJson, "explain", pExplain);
+
+    json_t* pHistogram = json_array();
+
+    for (const auto& element : m_response_distribution.get())
+    {
+        using std::chrono::duration_cast;
+        using std::chrono::milliseconds;
+
+        auto limit = std::chrono::duration_cast<std::chrono::microseconds>(element.limit).count();
+        auto total = std::chrono::duration_cast<std::chrono::microseconds>(element.total).count();
+
+        json_t* pElement = json_object();
+        json_object_set_new(pElement, "limit", json_integer(limit));
+        json_object_set_new(pElement, "count", json_integer(element.count));
+        json_object_set_new(pElement, "total", json_integer(total));
+
+        json_array_append_new(pHistogram, pElement);
+    }
+
+    json_object_set_new(pJson, "histogram", pHistogram);
 }
 
 
@@ -115,7 +135,7 @@ void DiffOtherStats::add(const DiffOtherStats& rhs, const DiffConfig& config)
 {
     DiffStats::add(rhs);
 
-    this->nRequests_skipped += rhs.nRequests_skipped;
+    m_nRequests_skipped += rhs.m_nRequests_skipped;
 
     m_nFaster += rhs.m_nFaster;
     m_nSlower += rhs.m_nSlower;
@@ -158,11 +178,11 @@ json_t* DiffOtherStats::to_json() const
 
     json_t* pData = json_object();
     fill_json(pData);
-    json_object_set_new(pData, "requests_skipped", json_integer(this->nRequests_skipped));
+    json_object_set_new(pData, "requests_skipped", json_integer(m_nRequests_skipped));
 
     json_t* pVerdict = json_object();
-    json_object_set_new(pVerdict, "faster", json_integer(this->nFaster()));
-    json_object_set_new(pVerdict, "slower", json_integer(this->nSlower()));
+    json_object_set_new(pVerdict, "faster", json_integer(m_nFaster));
+    json_object_set_new(pVerdict, "slower", json_integer(m_nSlower));
 
     auto create_result_array = [](const auto& result) {
         json_t* pResult = json_array();

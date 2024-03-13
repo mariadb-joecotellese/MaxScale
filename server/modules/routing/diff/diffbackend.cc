@@ -122,13 +122,13 @@ DiffMainBackend::SResult DiffMainBackend::prepare(const GWBUF& packet)
 
 void DiffMainBackend::ready(const DiffExplainMainResult& explain_result)
 {
-    ++m_stats.nExplain_responses;
+    m_stats.inc_explain_responses();
 
     // Tune counters as the extra EXPLAIN requests/responses should be
     // excluded from the general book-keeping.
-    --m_stats.nResponses;
+    m_stats.dec_responses();
 
-    m_stats.explain_duration += explain_result.duration();
+    m_stats.add_explain_duration(explain_result.duration());
 
     execute_pending_explains();
 }
@@ -251,13 +251,13 @@ void DiffOtherBackend::ready(const DiffExplainOtherResult& explain_result)
 {
     mxb_assert(m_pHandler);
 
-    ++m_stats.nExplain_responses;
+    m_stats.inc_explain_responses();
 
     // Tune counters as the extra EXPLAIN requests/responses should be
     // excluded from the general book-keeping.
-    --m_stats.nResponses;
+    m_stats.dec_responses();
 
-    m_stats.explain_duration += explain_result.duration();
+    m_stats.add_explain_duration(explain_result.duration());
 
     m_pHandler->ready(explain_result);
 
