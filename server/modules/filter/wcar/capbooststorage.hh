@@ -134,3 +134,95 @@ private:
     std::unique_ptr<BoostOFile> m_sQuery_event_out;
     std::unique_ptr<BoostIFile> m_sQuery_event_in;
 };
+
+// Inline definitions
+
+template<typename BoostArchive>
+BoostFile<BoostArchive>::BoostFile(const fs::path& path)
+try
+    : m_path(path)
+    , m_fs(path.string())
+{
+    if (!m_fs.is_open())
+    {
+        m_fs.open(path, std::ios_base::out);
+    }
+}
+catch (std::exception& ex)
+{
+    MXB_THROW(WcarError, "Could not open file " << path << ' ' << mxb_strerror(errno));
+}
+
+template<typename BoostArchive>
+void BoostFile<BoostArchive>::open()
+{
+    if (m_sArchive)
+    {
+        return;
+    }
+
+    try
+    {
+        m_sArchive = std::make_unique<BoostArchive>(m_fs);
+    }
+    catch (std::exception& ex)
+    {
+        MXB_THROW(WcarError, "Could open boost archive " << m_path << ' ' << mxb_strerror(errno));
+    }
+}
+
+template<typename BoostArchive>
+BoostArchive& BoostFile<BoostArchive>::operator*()
+{
+    open();
+
+    return *m_sArchive;
+}
+
+template<typename BoostArchive>
+bool BoostFile<BoostArchive>::at_end_of_stream()
+{
+    open();
+
+    if constexpr (std::is_same_v<boost::archive::binary_iarchive, BoostArchive> )
+    {
+        return m_fs.peek() == EOF;
+    }
+    else if constexpr (std::is_same_v<boost::archive::text_iarchive, BoostArchive> )
+    {
+        return m_fs.peek() == '\n';
+    }
+    else
+    {
+        static_assert(false, "at_end_of_stream() only for input");
+    }
+}
+
+template<typename BoostArchive>
+int64_t BoostFile<BoostArchive>::tell()
+{
+    if (!m_sArchive)
+    {
+        return 0;
+    }
+
+    if constexpr (std::is_same_v<BoostOArchive, BoostArchive> )
+    {
+        return m_fs.tellg();
+    }
+    else if constexpr (std::is_same_v<BoostIArchive, BoostArchive> )
+    {
+        return m_fs.tellp();
+    }
+    else
+    {
+        static_assert(false, "Unknown type");
+    }
+}
+
+template<typename BoostArchive>
+void BoostFile<BoostArchive>::rewind()
+{
+    m_fs.seekg(0);
+    m_fs.seekp(0);
+}
