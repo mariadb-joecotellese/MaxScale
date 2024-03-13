@@ -21,6 +21,7 @@ bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent, RepRecorder* pRecorder
     auto sql = maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args);
 
     RepEvent revent;
+    revent.can_id = qevent.can_id;
     revent.event_id = qevent.event_id;
     revent.start_time = mxb::Clock::now();
     revent.num_rows = 0;

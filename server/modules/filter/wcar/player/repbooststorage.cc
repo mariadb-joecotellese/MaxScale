@@ -26,6 +26,7 @@ void RepBoostStorage::add_rep_event(RepEvent&& revent)
     (**m_sRep_event_out) & revent.event_id;
     (**m_sRep_event_out) & start_time_dur;
     (**m_sRep_event_out) & end_time_dur;
+    (**m_sRep_event_out) & revent.can_id;
     (**m_sRep_event_out) & revent.num_rows;
 }
 
@@ -57,17 +58,20 @@ RepEvent RepBoostStorage::next_rep_event()
     int64_t event_id;
     int64_t start_time;
     int64_t end_time;
+    int64_t can_id;
     int32_t num_rows;
 
     (**m_sRep_event_in) & event_id;
     (**m_sRep_event_in) & start_time;
     (**m_sRep_event_in) & end_time;
+    (**m_sRep_event_in) & can_id;
     (**m_sRep_event_in) & num_rows;
 
     RepEvent ev;
     ev.event_id = event_id;
     ev.start_time = mxb::TimePoint{mxb::Duration{start_time}};
     ev.end_time = mxb::TimePoint{mxb::Duration{end_time}};
+    ev.can_id = can_id;
     ev.num_rows = num_rows;
     return ev;
 }
