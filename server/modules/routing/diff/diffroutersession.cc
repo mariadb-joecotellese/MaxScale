@@ -53,7 +53,7 @@ DiffRouterSession::~DiffRouterSession()
 
     for (auto& sOther : m_others)
     {
-        stats.other_stats.insert(std::make_pair(sOther->target(), sOther->stats()));
+        stats.add_other(sOther->target(), sOther->stats());
     }
 
     m_router.collect(stats);

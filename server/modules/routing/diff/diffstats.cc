@@ -12,6 +12,34 @@
 
 using std::chrono::duration_cast;
 
+namespace
+{
+
+json_t* create_histogram(const mxs::ResponseDistribution& response_distribution)
+{
+    json_t* pHistogram = json_array();
+
+    for (const auto& element : response_distribution.get())
+    {
+        using std::chrono::duration_cast;
+        using std::chrono::milliseconds;
+
+        auto limit = std::chrono::duration_cast<std::chrono::microseconds>(element.limit).count();
+        auto total = std::chrono::duration_cast<std::chrono::microseconds>(element.total).count();
+
+        json_t* pElement = json_object();
+        json_object_set_new(pElement, "limit", json_integer(limit));
+        json_object_set_new(pElement, "count", json_integer(element.count));
+        json_object_set_new(pElement, "total", json_integer(total));
+
+        json_array_append_new(pHistogram, pElement);
+    }
+
+    return pHistogram;
+}
+
+}
+
 /**
  * DiffStats
  */
@@ -35,25 +63,22 @@ void DiffStats::fill_json(json_t* pJson) const
 
     json_object_set_new(pJson, "explain", pExplain);
 
-    json_t* pHistogram = json_array();
+    json_t* pHistograms = json_array();
 
-    for (const auto& element : m_response_distribution.get())
+    for (const auto& kv : m_response_distributions)
     {
-        using std::chrono::duration_cast;
-        using std::chrono::milliseconds;
+        auto& canonical = kv.first;
+        auto& response_distribution = kv.second;
 
-        auto limit = std::chrono::duration_cast<std::chrono::microseconds>(element.limit).count();
-        auto total = std::chrono::duration_cast<std::chrono::microseconds>(element.total).count();
+        json_t* pHistogram_entry = json_object();
+        json_object_set_new(pHistogram_entry, "canonical", json_string(canonical.c_str()));
+        json_object_set_new(pHistogram_entry, "histogram", create_histogram(response_distribution));
 
-        json_t* pElement = json_object();
-        json_object_set_new(pElement, "limit", json_integer(limit));
-        json_object_set_new(pElement, "count", json_integer(element.count));
-        json_object_set_new(pElement, "total", json_integer(total));
-
-        json_array_append_new(pHistogram, pElement);
+        json_array_append_new(pHistograms, pHistogram_entry);
     }
 
-    json_object_set_new(pJson, "histogram", pHistogram);
+    json_object_set_new(pJson, "histogram", create_histogram(m_response_distribution));
+    json_object_set_new(pJson, "histograms", pHistograms);
 }
 
 
@@ -230,16 +255,38 @@ json_t* DiffOtherStats::to_json() const
 /**
  * DiffRouterSessionStats
  */
+DiffRouterSessionStats::DiffRouterSessionStats(mxs::Target* pMain, const DiffMainStats& main_stats)
+    : m_pMain(pMain)
+    , m_main_stats(main_stats)
+{
+    for (auto& kv : main_stats.response_distributions())
+    {
+        m_response_distribution += kv.second;
+    }
+}
+
+void DiffRouterSessionStats::add_other(mxs::Target* pOther, const DiffOtherStats& other_stats)
+{
+    mxb_assert(m_other_stats.find(pOther) == m_other_stats.end());
+
+    m_other_stats.insert(std::make_pair(pOther, other_stats));
+
+    for (auto& kv : other_stats.response_distributions())
+    {
+        m_response_distribution += kv.second;
+    }
+}
+
 json_t* DiffRouterSessionStats::to_json() const
 {
     json_t* pJson = json_object();
 
     json_t* pMain = json_object();
-    const char* zKey = this->pMain ? this->pMain->name() : "unknown";
-    json_object_set_new(pMain, zKey, this->main_stats.to_json());
+    const char* zKey = m_pMain ? m_pMain->name() : "unknown";
+    json_object_set_new(pMain, zKey, m_main_stats.to_json());
 
     json_t* pOthers = json_object();
-    for (const auto& kv : this->other_stats)
+    for (const auto& kv : m_other_stats)
     {
         json_t* pOther = kv.second.to_json();
 
@@ -257,9 +304,9 @@ json_t* DiffRouterSessionStats::to_json() const
  */
 void DiffRouterStats::post_configure(const DiffConfig& config)
 {
-    mxb_assert(!m_router_session_stats.pMain);
+    mxb_assert(!m_router_session_stats.main());
 
-    m_router_session_stats.pMain = config.pMain;
+    m_router_session_stats.set_main(config.pMain);
 }
 
 json_t* DiffRouterStats::to_json() const

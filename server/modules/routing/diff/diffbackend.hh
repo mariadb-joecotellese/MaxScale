@@ -182,7 +182,10 @@ DiffBackend::Routing DiffBackendWithStats<Stats>::finish_result(const mxs::Reply
 
     m_stats.inc_responses();
 
-    m_stats.add_total_duration(sResult->close(reply));
+    auto canonical = sResult->canonical();
+    auto duration = sResult->close(reply);
+
+    m_stats.add_canonical_result(canonical, duration);
 
     return kind == DiffResult::Kind::EXTERNAL ? Routing::CONTINUE : Routing::STOP;
 }

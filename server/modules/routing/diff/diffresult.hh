@@ -65,6 +65,8 @@ public:
         return m_backend;
     }
 
+    virtual std::string_view canonical() const = 0;
+
     const mxb::CRC32& checksum() const
     {
         mxb_assert(closed());
@@ -137,7 +139,7 @@ public:
 
     uint8_t command() const;
 
-    std::string_view canonical() const;
+    std::string_view canonical() const override;
 
     Hash canonical_hash() const;
 
@@ -233,7 +235,7 @@ public:
         return m_sMain_result->command();
     }
 
-    std::string_view canonical() const
+    std::string_view canonical() const override
     {
         return m_sMain_result->canonical();
     }
@@ -301,6 +303,11 @@ public:
     DiffExplainMainResult(DiffMainBackend* pBackend, std::shared_ptr<DiffMainResult> sMain_result);
 
     ~DiffExplainMainResult();
+
+    std::string_view canonical() const override
+    {
+        return m_sMain_result->canonical();
+    }
 
     std::string_view sql() const override
     {
@@ -370,6 +377,11 @@ public:
         mxb_assert(m_registered_at_main);
         m_sExplain_main_result->remove_dependent(shared_from_this());
         m_registered_at_main = false;
+    }
+
+    std::string_view canonical() const override
+    {
+        return m_sOther_result->canonical();
     }
 
     std::string_view sql() const override

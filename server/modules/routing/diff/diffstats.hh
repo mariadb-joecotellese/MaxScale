@@ -15,17 +15,22 @@ class SERVICE;
 class DiffConfig;
 class DiffOtherResult;
 
-struct DiffStats
+class DiffStats
 {
+public:
+    using ResponseDistributions = std::map<std::string, mxs::ResponseDistribution>;
+
     std::chrono::nanoseconds total_duration() const
     {
         return m_total_duration;
     }
 
-    void add_total_duration(const std::chrono::nanoseconds& duration)
+    void add_canonical_result(std::string_view canonical, const std::chrono::nanoseconds& duration)
     {
         m_total_duration += duration;
+
         m_response_distribution.add(duration);
+        m_response_distributions[std::string(canonical)].add(duration);
     }
 
     int64_t nRequest_packets() const
@@ -133,9 +138,9 @@ struct DiffStats
         ++m_nExplain_responses;
     }
 
-    const mxs::ResponseDistribution& response_distribution() const
+    const ResponseDistributions& response_distributions() const
     {
-        return m_response_distribution;
+        return m_response_distributions;
     }
 
     void add(const DiffStats& rhs)
@@ -149,8 +154,12 @@ struct DiffStats
         m_explain_duration += rhs.m_explain_duration;
         m_nExplain_requests += rhs.m_nExplain_requests;
         m_nExplain_responses += rhs.m_nExplain_responses;
-
         m_response_distribution += rhs.m_response_distribution;
+
+        for (const auto& kv : rhs.m_response_distributions)
+        {
+            m_response_distributions[kv.first] += kv.second;
+        }
     }
 
     void fill_json(json_t* pJson) const;
@@ -165,14 +174,13 @@ protected:
     std::chrono::nanoseconds  m_explain_duration { 0 };
     int64_t                   m_nExplain_requests { 0 };
     int64_t                   m_nExplain_responses { 0 };
-
     mxs::ResponseDistribution m_response_distribution;
+    ResponseDistributions     m_response_distributions;
 };
 
-struct DiffMainStats final : DiffStats
+class DiffMainStats final : public DiffStats
 {
-    // TODO: Placeholder.
-
+public:
     void add(const DiffMainStats& rhs)
     {
         DiffStats::add(rhs);
@@ -181,8 +189,9 @@ struct DiffMainStats final : DiffStats
     json_t* to_json() const;
 };
 
-struct DiffOtherStats final : DiffStats
+class DiffOtherStats final : public DiffStats
 {
+public:
     int64_t requests_skipped() const
     {
         return m_nRequests_skipped;
@@ -229,35 +238,54 @@ private:
     ResultsByPermille m_slower_requests;
 };
 
-struct DiffRouterSessionStats
+class DiffRouterSessionStats
 {
-    mxs::Target*                           pMain { nullptr };
-    DiffMainStats                          main_stats;
-    std::map<mxs::Target*, DiffOtherStats> other_stats;
-    mxs::ResponseDistribution              response_distribution;
+public:
+    DiffRouterSessionStats() = default;
+    DiffRouterSessionStats(mxs::Target* pMain, const DiffMainStats& main_stats);
+
+    mxs::Target* main() const
+    {
+        return m_pMain;
+    }
+
+    void set_main(mxs::Target* pMain)
+    {
+        mxb_assert(!m_pMain);
+
+        m_pMain = pMain;
+    }
+
+    void add_other(mxs::Target* pOther, const DiffOtherStats& other_stats);
 
     void add(const DiffRouterSessionStats& rhs, const DiffConfig& config)
     {
-        this->main_stats.add(rhs.main_stats);
+        m_main_stats.add(rhs.m_main_stats);
 
-        for (const auto& kv : rhs.other_stats)
+        for (const auto& kv : rhs.m_other_stats)
         {
-            auto it = this->other_stats.find(kv.first);
+            auto it = m_other_stats.find(kv.first);
 
-            if (it != this->other_stats.end())
+            if (it != m_other_stats.end())
             {
                 it->second.add(kv.second, config);
             }
             else
             {
-                other_stats.insert(kv);
+                m_other_stats.insert(kv);
             }
         }
 
-        this->response_distribution += rhs.response_distribution;
+        m_response_distribution += rhs.m_response_distribution;
     }
 
     json_t* to_json() const;
+
+private:
+    mxs::Target*                           m_pMain { nullptr };
+    DiffMainStats                          m_main_stats;
+    std::map<mxs::Target*, DiffOtherStats> m_other_stats;
+    mxs::ResponseDistribution              m_response_distribution;
 };
 
 class DiffRouterStats
@@ -270,7 +298,7 @@ public:
 
     void add(const DiffRouterSessionStats& rhs, const DiffConfig& config)
     {
-        mxb_assert(m_router_session_stats.pMain == rhs.pMain);
+        mxb_assert(m_router_session_stats.main() == rhs.main());
 
         m_router_session_stats.add(rhs, config);
     }
