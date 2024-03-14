@@ -42,7 +42,10 @@ bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent, RepRecorder* pRecorder
 
     revent.end_time = mxb::Clock::now();
 
-    pRecorder->get_shared_data_by_index(ThisUnit::thread_idx)->send_update(std::move(revent));
+    if (is_real_event(qevent))
+    {
+        pRecorder->get_shared_data_by_index(ThisUnit::thread_idx)->send_update(std::move(revent));
+    }
 
     return true;
 }

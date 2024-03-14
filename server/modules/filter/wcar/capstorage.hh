@@ -30,6 +30,7 @@ inline std::ostream& operator<<(std::ostream& os, const Gtid& gtid)
 
 // Flags used by capture. Upper 32 bits of QueryEvent::flags.
 constexpr uint64_t CAP_SESSION_CLOSE = 1ul << 32;
+constexpr uint64_t CAP_ARTIFICIAL = 1ul << 33;
 
 struct QueryEvent
 {
@@ -51,6 +52,11 @@ struct QueryEvent
 inline bool is_session_close(const QueryEvent& qevent)
 {
     return qevent.flags & CAP_SESSION_CLOSE;
+}
+
+inline bool is_real_event(const QueryEvent& qevent)
+{
+    return (qevent.flags & (CAP_ARTIFICIAL | CAP_SESSION_CLOSE)) == 0;
 }
 
 /** Abstract Storage for QueryEvents.

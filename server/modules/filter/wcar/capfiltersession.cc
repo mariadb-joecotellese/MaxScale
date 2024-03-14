@@ -193,6 +193,7 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(mxb::TimePoint sta
     // The "- 1ns" is there to avoid having to take the flag into account in later sorting
     opening_event.start_time = start_time - 1ns;
     opening_event.end_time = start_time;
+    opening_event.flags = CAP_ARTIFICIAL;
 
     if (!maria_ses.current_db.empty())
     {
