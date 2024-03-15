@@ -11,6 +11,59 @@
 
 constexpr int64_t MAX_QUERY_EVENTS = 10'000;
 
+class QuerySort
+{
+public:
+    QuerySort(CapBoostStorage& storage,
+              BoostOFile& qevent_out);
+
+    void add_query_event(std::deque<QueryEvent>& qevents);
+    void finalize();
+
+    int64_t       num_events();
+    mxb::Duration capture_duration();
+
+private:
+    using GtidEvents = std::deque<CapBoostStorage::GtidEvent>;
+    CapBoostStorage&        m_storage;
+    BoostOFile&             m_qevent_out;
+    std::vector<QueryEvent> m_qevents;
+    int64_t                 m_num_events = 0;
+    mxb::Duration           m_capture_duration;
+};
+
+QuerySort::QuerySort(CapBoostStorage& storage, BoostOFile& qevent_out)
+    : m_storage(storage)
+    , m_qevent_out(qevent_out)
+{
+}
+
+void QuerySort::add_query_event(std::deque<QueryEvent>& qevents)
+{
+    m_num_events += qevents.size();
+    std::move(qevents.begin(), qevents.end(), std::back_inserter(m_qevents));
+}
+
+void QuerySort::finalize()
+{
+    std::sort(std::execution::par, m_qevents.begin(), m_qevents.end(),
+              [](const auto& lhs, const auto& rhs){
+        return lhs.start_time < rhs.start_time;
+    });
+
+    m_capture_duration = m_qevents.back().end_time - m_qevents.front().start_time;
+}
+
+int64_t QuerySort::num_events()
+{
+    return m_num_events;
+}
+
+mxb::Duration QuerySort::capture_duration()
+{
+    return m_capture_duration;
+}
+
 CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
     , m_canonical_path(base_path)
@@ -230,51 +283,37 @@ void CapBoostStorage::preload_query_events(int64_t max_in_container)
 
 CapBoostStorage::SortReport CapBoostStorage::sort_query_event_file()
 {
-    mxb::StopWatch sw;
-    // First version - read the entire file into memory, sort and write back.
-    preload_query_events(std::numeric_limits<int64_t>::max());
-    m_sQuery_event_in.reset();
-
     SortReport report;
-    report.read = sw.lap();
+    mxb::StopWatch sw;
+    mxb::IntervalTimer read_interval;   /// the first preload_query_events() not counted
 
-    std::sort(std::execution::par, m_query_events.begin(), m_query_events.end(),
-              [](const auto& lhs, const auto& rhs){
-        return lhs.start_time < rhs.start_time;
-    });
+    auto qevent_out = std::make_unique<BoostOFile>(m_query_event_path);
+    QuerySort sorter(*this, *qevent_out);
 
-    auto final_event = std::max_element(std::execution::par, m_query_events.begin(), m_query_events.end(),
-                                        [](const auto& lhs, const auto& rhs){
-        return lhs.end_time < rhs.end_time;
-    });
-
-    report.sort = sw.lap();
-    report.events = m_query_events.size();
-
-    if (report.events)
+    while (!m_query_events.empty())
     {
-        report.capture_duration = final_event->end_time - m_query_events.front().start_time;
+        sorter.add_query_event(m_query_events);
+        m_query_events.clear();
+
+        read_interval.start_interval();
+        preload_query_events(MAX_QUERY_EVENTS);
+        read_interval.end_interval();
     }
 
-    auto new_path = m_query_event_path;
-    new_path.replace_extension("ex");
-    fs::rename(m_query_event_path, new_path);
-    m_query_event_path = new_path;
+    sorter.finalize();
 
-    m_sQuery_event_out = std::make_unique<BoostOFile>(m_query_event_path);
+    // TODO: read, sort and write are now interleaved.
 
-    for (auto&& qevent : m_query_events)
-    {
-        add_query_event(std::move(qevent));
-    }
+    report.read = read_interval.total();
+    report.sort = sw.lap() - report.read;
+    report.events = sorter.num_events();
+    report.capture_duration = sorter.capture_duration();
+    report.write = sw.lap();
+    report.total = sw.split();
 
     m_sQuery_event_out.reset();
     m_query_events.clear();
-
     m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
-
-    report.write = sw.lap();
-    report.total = sw.split();
 
     return report;
 }

@@ -90,6 +90,8 @@ public:
     SortReport sort_query_event_file();
 
 private:
+    friend class QuerySort;
+
     struct GtidEvent
     {
         int64_t        event_id;
