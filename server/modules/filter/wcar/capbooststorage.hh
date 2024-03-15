@@ -178,6 +178,14 @@ void BoostFile<BoostArchive>::open()
         return;
     }
 
+    if constexpr (std::is_same_v<BoostIArchive, BoostArchive> )
+    {
+        if (m_fs.peek() == EOF)
+        {   // The input file file is empty. boost would throw an exception
+            return;
+        }
+    }
+
     try
     {
         m_sArchive = std::make_unique<BoostArchive>(m_fs);

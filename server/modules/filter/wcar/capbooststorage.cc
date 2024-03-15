@@ -15,7 +15,8 @@ class QuerySort
 {
 public:
     QuerySort(CapBoostStorage& storage,
-              BoostOFile& qevent_out);
+              BoostOFile& qevent_out,
+              BoostOFile& gevent_out);
 
     void add_query_event(std::deque<QueryEvent>& qevents);
     void finalize();
@@ -27,15 +28,51 @@ private:
     using GtidEvents = std::deque<CapBoostStorage::GtidEvent>;
     CapBoostStorage&        m_storage;
     BoostOFile&             m_qevent_out;
+    BoostOFile&             m_gevent_out;
     std::vector<QueryEvent> m_qevents;
     int64_t                 m_num_events = 0;
     mxb::Duration           m_capture_duration;
+
+    std::unordered_map<int64_t, mxb::TimePoint> m_adjusted_end_time;
 };
 
-QuerySort::QuerySort(CapBoostStorage& storage, BoostOFile& qevent_out)
+QuerySort::QuerySort(CapBoostStorage& storage, BoostOFile& qevent_out, BoostOFile& gevent_out)
     : m_storage(storage)
     , m_qevent_out(qevent_out)
+    , m_gevent_out(gevent_out)
 {
+    std::vector<CapBoostStorage::GtidEvent> qevents = m_storage.load_gtid_events();
+
+    // Sort by gtid, which can lead to out of order end_time. The number of
+    // gtids is small relative to query events and fit in memory (TODO document).
+    std::sort(std::execution::par, qevents.begin(), qevents.end(), []
+              (const auto& lhs, const auto& rhs){
+        if (lhs.gtid.domain_id == lhs.gtid.domain_id)
+        {
+            return lhs.gtid.sequence_nr < rhs.gtid.sequence_nr;
+        }
+        else
+        {
+            return lhs.end_time < rhs.end_time;
+        }
+    });
+
+    // Make a note of gtids that are out of order by end_time.
+    if (qevents.size() > 1)
+    {
+        auto prev = qevents.begin();
+        m_storage.save_gtid_event(m_gevent_out, *prev);
+        for (auto next = prev + 1; next != qevents.end(); prev = next, ++next)
+        {
+            if (prev->gtid.domain_id == next->gtid.domain_id
+                && prev->end_time > next->end_time)
+            {
+                m_adjusted_end_time.insert(std::make_pair(next->event_id, prev->end_time));
+            }
+
+            m_storage.save_gtid_event(m_gevent_out, *next);
+        }
+    }
 }
 
 void QuerySort::add_query_event(std::deque<QueryEvent>& qevents)
@@ -52,6 +89,16 @@ void QuerySort::finalize()
     });
 
     m_capture_duration = m_qevents.back().end_time - m_qevents.front().start_time;
+
+    for (auto&& qevent : m_qevents)
+    {
+        auto adjusted = m_adjusted_end_time.find(qevent.event_id);
+        if (adjusted != m_adjusted_end_time.end())
+        {
+            qevent.end_time = adjusted->second;
+        }
+        m_storage.save_query_event(m_qevent_out, qevent);
+    }
 }
 
 int64_t QuerySort::num_events()
@@ -288,7 +335,8 @@ CapBoostStorage::SortReport CapBoostStorage::sort_query_event_file()
     mxb::IntervalTimer read_interval;   /// the first preload_query_events() not counted
 
     auto qevent_out = std::make_unique<BoostOFile>(m_query_event_path);
-    QuerySort sorter(*this, *qevent_out);
+    auto gevent_out = std::make_unique<BoostOFile>(m_gtid_path);
+    QuerySort sorter(*this, *qevent_out, *gevent_out);
 
     while (!m_query_events.empty())
     {
