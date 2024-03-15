@@ -4,7 +4,9 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 
+#include "../capdefs.hh"
 #include "repplayer.hh"
+#include "repconverter.hh"
 #include <iostream>
 #include <maxbase/maxbase.hh>
 
@@ -15,18 +17,22 @@ try
 
     RepConfig config(argc, argv);
 
-    if (config.mode == RepConfig::Mode::REPLAY)
+    if (config.command == cmd::REPLAY)
     {
         RepPlayer player(&config);
         player.replay();
     }
-    else if (config.mode == RepConfig::Mode::TRANSFORM)
+    else if (config.command == cmd::TRANSFORM)
     {
-        RepTransform transform(&config);
+        RepTransform transform(&config, RepTransform::TRANSFORM);
+    }
+    else if (config.command == cmd::CONVERT)
+    {
+        RepConverter converter(config);
     }
     else
     {
-        // The code should never end up here: RepConfig::RepConfig exits on invalid options
+        // The code should never end up here: RepConfig::RepConfig exits on invalid options and commands
         mxb_assert(!true);
     }
 

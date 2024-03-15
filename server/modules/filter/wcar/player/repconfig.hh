@@ -8,16 +8,19 @@
 #include <maxbase/host.hh>
 #include <mysql.h>
 #include <string>
+#include <memory>
+
+class RepStorage;
+
+namespace cmd
+{
+static const char* REPLAY = "replay";
+static const char* TRANSFORM = "transform";
+static const char* CONVERT = "convert";
+}
 
 struct RepConfig
 {
-    enum class Mode
-    {
-        UNKNOWN,
-        REPLAY,     // Replay events and transform if necessary
-        TRANSFORM,  // Only transform events
-    };
-
     enum class CsvType
     {
         NONE,
@@ -35,7 +38,9 @@ struct RepConfig
 
     std::string capture_dir = "/home/mariadb/maxscale/var/lib/maxscale/capture";
     std::string file_name;      // full path, not necessarily in capture_dir
-    Mode        mode {Mode::REPLAY};
+    std::string command = "replay";
 
     void show_help();
+
+    std::unique_ptr<RepStorage> build_rep_storage() const;
 };

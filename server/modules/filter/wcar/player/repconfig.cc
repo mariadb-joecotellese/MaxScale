@@ -6,6 +6,9 @@
 
 #include "repconfig.hh"
 #include "reptransform.hh"
+#include "../capbooststorage.hh"
+#include "repbooststorage.hh"
+#include "repcsvstorage.hh"
 #include <getopt.h>
 #include <algorithm>
 #include <iostream>
@@ -15,26 +18,11 @@
 namespace
 {
 
-const char* MODE_HELP = "Mode of operation: replay (default), transform";
-
-std::map<std::string_view, RepConfig::Mode> s_mode_values{
-    {"replay", RepConfig::Mode::REPLAY},
-    {"transform", RepConfig::Mode::TRANSFORM},
+std::map<std::string, std::string> s_commands{
+    {cmd::REPLAY, "Replay the capture."},
+    {cmd::TRANSFORM, "Only transform the capture to make it ready for replay."},
+    {cmd::CONVERT, "Converts the input file (either .cx or .rx) to a replay file (.rx or .csv)."},
 };
-
-RepConfig::Mode mode_from_string(std::string_view str)
-{
-    auto it = s_mode_values.find(str);
-    return it != s_mode_values.end() ? it->second : RepConfig::Mode::UNKNOWN;
-}
-
-std::string mode_to_string(RepConfig::Mode mode)
-{
-    auto it = std::find_if(s_mode_values.begin(), s_mode_values.end(), [&](const auto& kv){
-        return kv.second == mode;
-    });
-    return std::string(it != s_mode_values.end() ? it->first : "unknown");
-}
 }
 
 const struct option long_opts[] =
@@ -50,7 +38,7 @@ const struct option long_opts[] =
 };
 
 // This is not seprately checked, keep in sync with long_opts.
-const char* short_opts = "hvu:p:H:m:c::";
+const char* short_opts = "hvu:p:H:c::";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -61,7 +49,7 @@ auto operator<<(std::ostream& os, const M& m) -> decltype(m(os))
     return m(os);
 }
 
-constexpr int INDENT = 12;
+constexpr int INDENT = 16;
 
 // Output manipulator for help text.
 template<typename H>
@@ -93,17 +81,31 @@ auto OPT(int optval, H help)
     };
 }
 
+std::string list_commands()
+{
+    std::ostringstream msg;
+
+    for (const auto& [cmd, desc] : s_commands)
+    {
+        msg << std::setw(INDENT) << std::left << cmd << desc << "\n";
+    }
+
+    return msg.str();
+}
+
 void RepConfig::show_help()
 {
-    std::cout << "Usage: player [OPTION]... FILE"
+    std::cout << "Usage: player [OPTION]... [COMMAND] FILE"
               << OPT('h', "this help text (with current option values)")
-              << OPT('m', MODE_HELP)
               << OPT('c', "Save replay as CSV (options: none, minimal, full)")
               << OPT('u', user)
               << OPT('p', password)
               << OPT('H', host)
               << OPT('v', verbosity)
-              << "\nInput file: " << file_name
+              << "\nInput file: " << file_name << "\n"
+              << "\n"
+              << "Commands:\n"
+              << list_commands() << "\n"
               << std::endl;
 }
 
@@ -134,15 +136,6 @@ RepConfig::RepConfig(int argc, char** argv)
             if (!host.is_valid())
             {
                 std::cerr << "Host string is invalid: " << optarg << std::endl;
-                help = true;
-                error = true;
-            }
-            break;
-
-        case 'm':
-            if ((mode = mode_from_string(optarg)) == Mode::UNKNOWN)
-            {
-                std::cerr << "Invalid mode value: " << optarg << std::endl;
                 help = true;
                 error = true;
             }
@@ -180,8 +173,29 @@ RepConfig::RepConfig(int argc, char** argv)
             error = true;
         }
     }
+    else if (argc - optind > 2)
+    {
+        if (!help)
+        {
+            std::cerr << "error: Too many arguments" << std::endl;
+            help = true;
+            error = true;
+        }
+    }
     else
     {
+        if (argc - optind > 1)
+        {
+            command = argv[optind++];
+
+            if (s_commands.find(command) == s_commands.end())
+            {
+                std::cerr << "error: Unknown command " << command << std::endl;
+                help = true;
+                error = true;
+            }
+        }
+
         file_name = argv[optind];
         if (file_name[0] != '/')
         {
@@ -193,5 +207,32 @@ RepConfig::RepConfig(int argc, char** argv)
     {
         show_help();
         exit(error ? EXIT_FAILURE : EXIT_SUCCESS);
+    }
+}
+
+std::unique_ptr<RepStorage> RepConfig::build_rep_storage() const
+{
+    fs::path path = file_name;
+
+    if (path.extension() != ".cx")
+    {
+        MXB_THROW(WcarError, "The replay file must be binary, extension 'cx', got " << path);
+    }
+
+    path.replace_extension(csv != RepConfig::CsvType::NONE ? "csv" : "rx");
+
+    if (fs::exists(path))
+    {
+        MXB_THROW(WcarError, "The replay file already exists, will not overwrite replay: " << path);
+    }
+
+    if (csv != RepConfig::CsvType::NONE)
+    {
+        CapBoostStorage boost(path, ReadWrite::READ_ONLY);
+        return std::make_unique<RepCsvStorage>(path, boost.canonicals(), csv);
+    }
+    else
+    {
+        return std::make_unique<RepBoostStorage>(path, RepBoostStorage::WRITE_ONLY);
     }
 }

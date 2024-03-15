@@ -39,7 +39,9 @@ namespace fs = std::filesystem;
 class RepTransform
 {
 public:
-    RepTransform(const RepConfig* pConfig);
+    enum Action {REPLAY, TRANSFORM};
+
+    RepTransform(const RepConfig* pConfig, Action action = REPLAY);
     /**
      * @brief  player_storage
      * @return Storage where the events are sorted by start_time
@@ -78,7 +80,7 @@ public:
         return m_max_parallel_sessions;
     }
 private:
-    void transform_events(const fs::path& path);
+    void transform_events(const fs::path& path, Action action);
     void dump_event(const QueryEvent& qevent, std::ostream& out);
 
     const RepConfig&            m_config;

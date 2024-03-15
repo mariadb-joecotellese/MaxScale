@@ -7,7 +7,7 @@
 #include <maxscale/parser.hh>
 #include <execution>
 
-RepTransform::RepTransform(const RepConfig* pConfig)
+RepTransform::RepTransform(const RepConfig* pConfig, Action action)
     : m_config(*pConfig)
 {
     std::cout << "Transform data for replay." << std::endl;
@@ -22,33 +22,17 @@ RepTransform::RepTransform(const RepConfig* pConfig)
     }
 
     // Transform
-    transform_events(path);
+    transform_events(path, action);
 
     // Open files for reading.
-    auto boost_storage = std::make_unique<CapBoostStorage>(path, ReadWrite::READ_ONLY);
+    m_player_storage = std::make_unique<CapBoostStorage>(path, ReadWrite::READ_ONLY);
 
-    if (m_config.mode == RepConfig::Mode::REPLAY)
+    if (action == Action::REPLAY)
     {
         // Open for writing. Only rep events will be written.
-        path.replace_extension(m_config.csv != RepConfig::CsvType::NONE ? "csv" : "rx");
-
-        if (fs::exists(path))
-        {
-            MXB_THROW(WcarError, "The replay file already exists, will not overwrite replay: " << path);
-        }
-
-        if (m_config.csv != RepConfig::CsvType::NONE)
-        {
-            m_rep_event_storage = std::make_unique<RepCsvStorage>(
-                path, boost_storage->canonicals(), m_config.csv);
-        }
-        else
-        {
-            m_rep_event_storage = std::make_unique<RepBoostStorage>(path, RepBoostStorage::WRITE_ONLY);
-        }
+        m_rep_event_storage = m_config.build_rep_storage();
     }
 
-    m_player_storage = std::move(boost_storage);
     std::cout << "Transform: " << mxb::to_string(sw.split()) << std::endl;
 }
 
@@ -168,7 +152,7 @@ private:
 };
 }
 
-void RepTransform::transform_events(const fs::path& path)
+void RepTransform::transform_events(const fs::path& path, Action action)
 {
     auto tx_path = path;
     tx_path.replace_extension("tx");
