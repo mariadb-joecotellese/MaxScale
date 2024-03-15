@@ -15,15 +15,18 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
     , m_canonical_path(base_path)
     , m_query_event_path(base_path)
+    , m_gtid_path(base_path)
     , m_access(access)
 {
     m_canonical_path.replace_extension("cx");
     m_query_event_path.replace_extension("ex");
+    m_gtid_path.replace_extension("gx");
 
     if (m_access == ReadWrite::READ_ONLY)
     {
         m_sCanonical_in = std::make_unique<BoostIFile>(m_canonical_path);
         m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
+        m_sGtid_in = std::make_unique<BoostIFile>(m_gtid_path);
         read_canonicals();
         preload_query_events(MAX_QUERY_EVENTS);
     }
@@ -31,6 +34,7 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     {
         m_sCanonical_out = std::make_unique<BoostOFile>(m_canonical_path);
         m_sQuery_event_out = std::make_unique<BoostOFile>(m_query_event_path);
+        m_sGtid_out = std::make_unique<BoostOFile>(m_gtid_path);
     }
 }
 
@@ -52,6 +56,11 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
     }
 
     save_query_event(*m_sQuery_event_out, qevent);
+    if (qevent.gtid.is_valid())
+    {
+        GtidEvent gevent{qevent.event_id, qevent.end_time, qevent.gtid};
+        save_gtid_event(*m_sGtid_out, gevent);
+    }
 }
 
 void CapBoostStorage::add_query_event(std::vector<QueryEvent>& qevents)
@@ -130,6 +139,34 @@ void CapBoostStorage::save_query_event(BoostOFile& bof, const QueryEvent& qevent
     *bof & *reinterpret_cast<const int64_t*>(&end_time_dur);
 }
 
+void CapBoostStorage::save_gtid_event(BoostOFile& bof, const GtidEvent& qevent)
+{
+    Gtid gtid;
+    int64_t end_time_cnt = qevent.end_time.time_since_epoch().count();
+
+    *bof & qevent.event_id;
+    *bof & end_time_cnt;
+    *bof & qevent.gtid.domain_id;
+    *bof & qevent.gtid.server_id;
+    *bof & qevent.gtid.sequence_nr;
+}
+
+CapBoostStorage::GtidEvent CapBoostStorage::load_gtid_event()
+{
+    GtidEvent gevent;
+    int64_t end_time_cnt;
+
+    (**m_sGtid_in) & gevent.event_id;
+    (**m_sGtid_in) & end_time_cnt;
+    (**m_sGtid_in) & gevent.gtid.domain_id;
+    (**m_sGtid_in) & gevent.gtid.server_id;
+    (**m_sGtid_in) & gevent.gtid.sequence_nr;
+
+    gevent.end_time = mxb::TimePoint(mxb::Duration(end_time_cnt));
+
+    return gevent;
+}
+
 void CapBoostStorage::read_canonicals()
 {
     int64_t can_id;
@@ -142,6 +179,17 @@ void CapBoostStorage::read_canonicals()
         auto shared = std::make_shared<std::string>(canonical);
         m_canonicals.emplace(hash, CanonicalEntry {can_id, shared});
     }
+}
+
+std::vector<CapBoostStorage::GtidEvent> CapBoostStorage::load_gtid_events()
+{
+    std::vector<GtidEvent> gevents;
+    while (!m_sGtid_in->at_end_of_stream())
+    {
+        gevents.push_back(load_gtid_event());
+    }
+
+    return gevents;
 }
 
 void CapBoostStorage::preload_query_events(int64_t max_in_container)

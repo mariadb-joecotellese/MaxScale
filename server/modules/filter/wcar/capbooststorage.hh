@@ -89,17 +89,28 @@ public:
      */
     SortReport sort_query_event_file();
 
+private:
+    struct GtidEvent
+    {
+        int64_t        event_id;
+        mxb::TimePoint end_time;    // because it is the end_time of the corresponding query event
+        Gtid           gtid;
+    };
+
+    QueryEvent next_event() override;
     // Save an event to m_canonical_path
     void save_query_event(BoostOFile& bof, const QueryEvent& qevent);
-
-private:
-    QueryEvent next_event() override;
     // Save a canonical to m_canonical_path
     void save_canonical(BoostOFile& bof, int64_t can_id, const std::string& canonical);
     // Save gtid event, along with identifiers
-    void save_gtid_event(BoostOFile& bof, const QueryEvent& qevent);
+    void save_gtid_event(BoostOFile& bof, const GtidEvent& qevent);
     // Read all canonicals into memory
     void read_canonicals();
+    // Load and return all gtid events.
+    GtidEvent load_gtid_event();
+    // Read all gtid events to memory. Unlike canonicals,
+    // these should always fit in memory.
+    std::vector<GtidEvent> load_gtid_events();
     // Preload QueryEvents.
     void preload_query_events(int64_t max_loaded);
 
@@ -126,6 +137,7 @@ private:
     fs::path  m_base_path;
     fs::path  m_canonical_path;
     fs::path  m_query_event_path;
+    fs::path  m_gtid_path;
     ReadWrite m_access;
 
     std::unique_ptr<BoostOFile> m_sCanonical_out;
@@ -133,6 +145,9 @@ private:
 
     std::unique_ptr<BoostOFile> m_sQuery_event_out;
     std::unique_ptr<BoostIFile> m_sQuery_event_in;
+
+    std::unique_ptr<BoostOFile> m_sGtid_out;
+    std::unique_ptr<BoostIFile> m_sGtid_in;
 };
 
 // Inline definitions
