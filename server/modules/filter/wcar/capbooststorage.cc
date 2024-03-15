@@ -383,3 +383,15 @@ std::shared_ptr<std::string> CapBoostStorage::find_canonical(int64_t can_id)
 
     return ite->second.sCanonical;
 }
+
+std::map<int64_t, std::shared_ptr<std::string>>  CapBoostStorage::canonicals() const
+{
+    std::map<int64_t, std::shared_ptr<std::string>> canonicals_by_id;
+
+    for (const auto& [k, v] : m_canonicals)
+    {
+        canonicals_by_id.emplace(v.can_id, v.sCanonical);
+    }
+
+    return canonicals_by_id;
+}

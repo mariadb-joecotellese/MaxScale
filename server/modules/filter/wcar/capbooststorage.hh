@@ -89,6 +89,13 @@ public:
      */
     SortReport sort_query_event_file();
 
+    /**
+     * Get all of the canonicals mapped to their IDs
+     *
+     * @return The canonical form of the query strings mapped to their IDs
+     */
+    std::map<int64_t, std::shared_ptr<std::string>> canonicals() const;
+
 private:
     friend class QuerySort;
 
