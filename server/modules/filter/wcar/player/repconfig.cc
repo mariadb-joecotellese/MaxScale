@@ -33,12 +33,13 @@ const struct option long_opts[] =
     {"host",     required_argument, 0, 'H'},
     {"mode",     required_argument, 0, 'm'},
     {"csv",      optional_argument, 0, 'c'},
+    {"output",   required_argument, 0, 'o'},
     {"verbose",  no_argument,       0, 'v'},
     {0,          0,                 0, 0  }
 };
 
 // This is not seprately checked, keep in sync with long_opts.
-const char* short_opts = "hvu:p:H:c::";
+const char* short_opts = "hvu:p:H:c::o:";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -98,6 +99,7 @@ void RepConfig::show_help()
     std::cout << "Usage: player [OPTION]... [COMMAND] FILE"
               << OPT('h', "this help text (with current option values)")
               << OPT('c', "Save replay as CSV (options: none, minimal, full)")
+              << OPT('o', output_file)
               << OPT('u', user)
               << OPT('p', password)
               << OPT('H', host)
@@ -161,6 +163,10 @@ RepConfig::RepConfig(int argc, char** argv)
         case 'v':
             verbosity++;
             break;
+
+        case 'o':
+            output_file = optarg;
+            break;
         }
     }
 
@@ -201,6 +207,19 @@ RepConfig::RepConfig(int argc, char** argv)
         {
             file_name = capture_dir + '/' + file_name;
         }
+
+        if (!fs::exists(file_name))
+        {
+            std::cerr << "File " << file_name << " does not exist" << std::endl;
+            help = true;
+            error = true;
+        }
+
+        if (output_file.empty())
+        {
+            // The RepStorage will rename it with the appropriate file extension.
+            output_file = file_name;
+        }
     }
 
     if (help)
@@ -212,13 +231,7 @@ RepConfig::RepConfig(int argc, char** argv)
 
 std::unique_ptr<RepStorage> RepConfig::build_rep_storage() const
 {
-    fs::path path = file_name;
-
-    if (path.extension() != ".cx")
-    {
-        MXB_THROW(WcarError, "The replay file must be binary, extension 'cx', got " << path);
-    }
-
+    fs::path path = output_file;
     path.replace_extension(csv != RepConfig::CsvType::NONE ? "csv" : "rx");
 
     if (fs::exists(path))
@@ -228,7 +241,7 @@ std::unique_ptr<RepStorage> RepConfig::build_rep_storage() const
 
     if (csv != RepConfig::CsvType::NONE)
     {
-        CapBoostStorage boost(path, ReadWrite::READ_ONLY);
+        CapBoostStorage boost(file_name, ReadWrite::READ_ONLY);
         return std::make_unique<RepCsvStorage>(path, boost.canonicals(), csv);
     }
     else

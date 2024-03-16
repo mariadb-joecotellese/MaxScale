@@ -38,6 +38,7 @@ struct RepConfig
 
     std::string capture_dir = "/home/mariadb/maxscale/var/lib/maxscale/capture";
     std::string file_name;      // full path, not necessarily in capture_dir
+    std::string output_file;    // Output file, defaults to file_name
     std::string command = "replay";
 
     void show_help();
