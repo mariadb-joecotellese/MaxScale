@@ -31,7 +31,7 @@ class RepSession
 {
 public:
     RepSession(const RepConfig* pConfig, RepPlayer* pPlayer, int64_t session_id,
-               int32_t thread_id, RepRecorder* pRecorder, mxb::ThreadPool& tpool);
+               RepRecorder* pRecorder, mxb::ThreadPool& tpool);
     ~RepSession();
     RepSession(RepSession&&) = delete;
 
@@ -57,7 +57,6 @@ private:
     RepPlayer&              m_player;
     int64_t                 m_session_id;
     MYSQL*                  m_pConn;
-    int32_t                 m_thread_id;
     RepRecorder*            m_pRecorder;
     std::future<void>       m_future;
     std::atomic<bool>       m_running = true;

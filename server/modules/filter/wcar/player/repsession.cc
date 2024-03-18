@@ -7,7 +7,16 @@
 #include <iostream>
 #include <thread>
 
-bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent, int32_t thread_id, RepRecorder* pRecorder)
+namespace
+{
+namespace ThisUnit
+{
+std::atomic<int> next_thread_idx = 0;
+thread_local int thread_idx = -1;
+}
+}
+
+bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent, RepRecorder* pRecorder)
 {
     auto sql = maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args);
 
@@ -32,7 +41,7 @@ bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent, int32_t thread_id, Rep
 
     revent.end_time = mxb::Clock::now();
 
-    pRecorder->get_shared_data_by_index(thread_id)->send_update(std::move(revent));
+    pRecorder->get_shared_data_by_index(ThisUnit::thread_idx)->send_update(std::move(revent));
 
     return true;
 }
@@ -40,13 +49,11 @@ bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent, int32_t thread_id, Rep
 RepSession::RepSession(const RepConfig* pConfig,
                        RepPlayer* pPlayer,
                        int64_t session_id,
-                       int32_t thread_id,
                        RepRecorder* pRecorder,
-                       maxbase::ThreadPool &tpool)
+                       maxbase::ThreadPool& tpool)
     : m_config(*pConfig)
     , m_player(*pPlayer)
     , m_session_id(session_id)
-    , m_thread_id(thread_id)
     , m_pRecorder(pRecorder)
 {
     auto name = "rep-" + std::to_string(session_id);
@@ -81,6 +88,11 @@ void RepSession::queue_query(QueryEvent&& qevent, int64_t commit_event_id)
 
 void RepSession::run()
 {
+    if (ThisUnit::thread_idx == -1)
+    {
+        ThisUnit::thread_idx = ThisUnit::next_thread_idx.fetch_add(1, std::memory_order_relaxed);
+    }
+
     m_pConn = mysql_init(nullptr);
     if (m_pConn == nullptr)
     {
@@ -115,7 +127,7 @@ void RepSession::run()
         }
         else
         {
-            execute_stmt(m_pConn, qevent, m_thread_id, m_pRecorder);
+            execute_stmt(m_pConn, qevent, m_pRecorder);
             if (qevent.event_id == m_commit_event_id)
             {
                 auto rep = m_commit_event_id;

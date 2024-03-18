@@ -5,9 +5,9 @@
  */
 #include "reprecorder.hh"
 
-RepRecorder::RepRecorder(std::unique_ptr<RecorderContext>&& context)
+RepRecorder::RepRecorder(std::unique_ptr<RecorderContext>&& context, int num_threads)
     : Collector{std::move(context),
-                0,      // Support dynamic thread count
+                num_threads,
                 10000,  // Queue length.
                 0}      // Rep, not used in updates_only mode
 {

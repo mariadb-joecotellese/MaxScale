@@ -23,7 +23,7 @@ using SharedUpdate = maxbase::SharedData<RecorderContext, RepEvent>;
 class RepRecorder final : public mxb::Collector<SharedUpdate, mxb::CollectorMode::UPDATES_ONLY>
 {
 public:
-    RepRecorder(std::unique_ptr<RecorderContext>&& context);
+    RepRecorder(std::unique_ptr<RecorderContext>&& context, int num_threads);
 private:
 
     void make_updates(RecorderContext* pContext,

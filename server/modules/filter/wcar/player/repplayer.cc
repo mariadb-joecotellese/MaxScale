@@ -9,7 +9,8 @@ RepPlayer::RepPlayer(const RepConfig* pConfig)
     : m_config(*pConfig)
     , m_transform(&m_config)
     , m_front_trxn(begin(m_transform.transactions()))
-    , m_recorder(std::make_unique<RecorderContext>(&m_transform.rep_event_storage()))
+    , m_recorder(std::make_unique<RecorderContext>(&m_transform.rep_event_storage()),
+                 m_transform.max_parallel_sessions())
     , m_threadpool(m_transform.max_parallel_sessions())
 {
     m_recorder.start();
@@ -41,13 +42,9 @@ void RepPlayer::replay()
 
         if (session_ite == end(m_sessions))
         {
-            static int32_t thread_id = 0;   // TODO temporary, dynamic handling in a future commit
-
-            m_recorder.increase_client_count(thread_id++);
             auto ins = m_sessions.emplace(qevent.session_id,
                                           std::make_unique<RepSession>(&m_config, this,
                                                                        qevent.session_id,
-                                                                       thread_id - 1,
                                                                        &m_recorder,
                                                                        m_threadpool));
             session_ite = ins.first;
