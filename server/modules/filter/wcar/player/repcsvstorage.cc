@@ -11,6 +11,14 @@ namespace
 std::string quote(std::string str)
 {
     mxb_assert(str.find_first_of("\"'") == std::string::npos);
+    size_t pos = str.find('\n');
+
+    while (pos != std::string::npos)
+    {
+        str[pos] = ' ';
+        pos = str.find('\n', pos + 1);
+    }
+
     return "\"" + str + "\"";
 }
 }
