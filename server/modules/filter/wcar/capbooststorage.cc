@@ -145,6 +145,12 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
 
     if (canon_ite != std::end(m_canonicals))
     {
+        if (*qevent.sCanonical != *canon_ite->second.sCanonical)
+        {
+            MXB_WARNING("Hash collision found. Queries '%s' and '%s' hash to the same value.",
+                        qevent.sCanonical->c_str(), canon_ite->second.sCanonical->c_str());
+        }
+
         qevent.can_id = canon_ite->second.can_id;
         qevent.sCanonical = canon_ite->second.sCanonical;
     }
