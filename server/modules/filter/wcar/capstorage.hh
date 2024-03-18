@@ -105,11 +105,7 @@ public:
     virtual int64_t size() = 0;
 
 protected:
-    int64_t            next_can_id();
     virtual QueryEvent next_event() = 0;
-
-private:
-    int64_t m_can_id_generator{0};
 };
 
 inline void Storage::move_values_from(Storage& other)
@@ -134,11 +130,6 @@ inline void Storage::move_values_from(Storage& other)
     {
         add_query_event(buffer);
     }
-}
-
-inline int64_t Storage::next_can_id()
-{
-    return ++m_can_id_generator;
 }
 
 inline Storage::Iterator::Iterator(Storage* pStorage, QueryEvent&& event)

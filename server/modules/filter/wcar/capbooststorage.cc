@@ -150,7 +150,7 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
     }
     else
     {
-        qevent.can_id = next_can_id();
+        qevent.can_id = hash;
         save_canonical(*m_sCanonical_out, qevent.can_id, *qevent.sCanonical);
         m_canonicals.emplace(hash, CanonicalEntry {qevent.can_id, qevent.sCanonical});
     }
