@@ -28,6 +28,9 @@ inline std::ostream& operator<<(std::ostream& os, const Gtid& gtid)
     return os;
 }
 
+// Flags used by capture. Upper 32 bits of QueryEvent::flags.
+constexpr uint64_t CAP_SESSION_CLOSE = 1ul << 32;
+
 struct QueryEvent
 {
     /* shared_ptr at this level because every kind of storage benefits
@@ -43,12 +46,12 @@ struct QueryEvent
     mxb::TimePoint               end_time;
     Gtid                         gtid;
     int64_t                      event_id;
-
-    bool is_session_close() const
-    {
-        return start_time == end_time;
-    }
 };
+
+inline bool is_session_close(const QueryEvent& qevent)
+{
+    return qevent.flags & CAP_SESSION_CLOSE;
+}
 
 /** Abstract Storage for QueryEvents.
  *

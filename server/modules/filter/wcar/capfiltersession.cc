@@ -189,12 +189,8 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(mxb::TimePoint sta
     QueryEvent opening_event;
     opening_event.session_id = m_pSession->id();
     opening_event.flags = 0;
-    // start_time==end_time means closing-event, an artificial
-    // event needed in replay. This "real" event needs to
-    // have differing start and end times. TODO: might have to
-    // do something special since it certainly isn't going to take
-    // 1ns when this is actually executed in replay.
     auto now = mxb::Clock::now();
+    // The "- 1ns" is there to avoid having to take the flag into account in later sorting
     opening_event.start_time = start_time - 1ns;
     opening_event.end_time = start_time;
 
@@ -225,8 +221,8 @@ QueryEvent CapFilterSession::make_closing_event()
     // Non empty canonical to avoid checking, with a message for debug.
     closing_event.sCanonical = std::make_shared<std::string>("Close session");
     closing_event.session_id = m_pSession->id();
-    closing_event.flags = 0;
-    closing_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
+    closing_event.flags = CAP_SESSION_CLOSE;
+    closing_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick) + 1ns;
     closing_event.end_time = closing_event.start_time;
     closing_event.event_id = m_filter.get_next_event_id();
 

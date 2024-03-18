@@ -120,7 +120,7 @@ void RepSession::run()
         m_queue.pop_front();
         lock.unlock();
 
-        if (qevent.is_session_close())
+        if (is_session_close(qevent))
         {
             m_player.session_finished(*this);
             break;

@@ -95,7 +95,7 @@ public:
     {
         Transaction txn;
 
-        if (qevent.is_session_close())
+        if (is_session_close(qevent))
         {
             if (m_in_trx)
             {
@@ -195,7 +195,7 @@ void RepTransform::transform_events(const fs::path& path)
             auto ins = sessions.emplace(qevent.session_id, SessionState {qevent.session_id});
             session_ite = ins.first;
         }
-        else if (qevent.is_session_close())
+        else if (is_session_close(qevent))
         {
             sessions.erase(qevent.session_id);
             --num_active_session;
@@ -252,7 +252,7 @@ void RepTransform::transform_events(const fs::path& path)
 
 void RepTransform::dump_event(const QueryEvent& qevent, std::ostream& out)
 {
-    if (qevent.is_session_close())
+    if (is_session_close(qevent))
     {
         out << "/** Session: " << qevent.session_id << " quit */;\n";
     }
