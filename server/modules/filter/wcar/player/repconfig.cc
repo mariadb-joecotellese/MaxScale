@@ -22,6 +22,7 @@ std::map<std::string, std::string> s_commands{
     {cmd::REPLAY, "Replay the capture."},
     {cmd::TRANSFORM, "Only transform the capture to make it ready for replay."},
     {cmd::CONVERT, "Converts the input file (either .cx or .rx) to a replay file (.rx or .csv)."},
+    {cmd::LIST_QUERIES, "List the canonical forms of the captured SQL as CSV."},
 };
 }
 

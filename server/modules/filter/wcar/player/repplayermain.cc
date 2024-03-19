@@ -9,6 +9,8 @@
 #include "repconverter.hh"
 #include <iostream>
 #include <maxbase/maxbase.hh>
+#include "../capbooststorage.hh"
+#include "repcsvstorage.hh"
 
 int main(int argc, char** argv)
 try
@@ -40,6 +42,11 @@ try
     else if (config.command == cmd::CONVERT)
     {
         RepConverter converter(config);
+    }
+    else if (config.command == cmd::LIST_QUERIES)
+    {
+        auto canonicals = CapBoostStorage(config.file_name, ReadWrite::READ_ONLY).canonicals();
+        RepCsvStorage::dump_canonicals(canonicals, std::cout);
     }
     else
     {

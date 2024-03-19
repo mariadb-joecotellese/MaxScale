@@ -26,6 +26,14 @@ public:
      */
     RepCsvStorage(std::filesystem::path path, Canonicals canonicals, RepConfig::CsvType type);
 
+    /**
+     * Dump the canonicals as CSV
+     *
+     * @param canonicals The canonicals to dump
+     * @param out        The stream where the dump is written
+     */
+    static void dump_canonicals(Canonicals canonicals, std::ostream& out);
+
     void add_rep_event(RepEvent&& qevent) override;
     void add_rep_event(std::vector<RepEvent>& qevents) override;
 

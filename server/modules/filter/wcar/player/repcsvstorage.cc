@@ -23,6 +23,17 @@ std::string quote(std::string str)
 }
 }
 
+// static
+void RepCsvStorage::dump_canonicals(Canonicals canonicals, std::ostream& out)
+{
+    out << "canonical,canonical_sql\n";
+
+    for (const auto& [id, can] : canonicals)
+    {
+        out << id << "," << quote(*can) << "\n";
+    }
+}
+
 RepCsvStorage::RepCsvStorage(std::filesystem::path path, Canonicals canonicals, RepConfig::CsvType type)
     : m_type(type)
 {
@@ -49,12 +60,7 @@ RepCsvStorage::RepCsvStorage(std::filesystem::path path, Canonicals canonicals, 
             MXB_THROW(WcarError, "Could not open file " << path << ": " << mxb_strerror(errno));
         }
 
-        canonical_file << "canonical,canonical_sql\n";
-
-        for (const auto& [id, can] : canonicals)
-        {
-            canonical_file << id << "," << quote(*can) << "\n";
-        }
+        dump_canonicals(canonicals, canonical_file);
     }
 
     m_file << "event_id,canonical,duration,start_time,result_rows,rows_read,error\n";

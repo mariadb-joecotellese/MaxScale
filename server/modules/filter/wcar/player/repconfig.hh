@@ -19,6 +19,7 @@ namespace cmd
 static const char* REPLAY = "replay";
 static const char* TRANSFORM = "transform";
 static const char* CONVERT = "convert";
+static const char* LIST_QUERIES = "list-queries";
 }
 
 struct RepConfig
