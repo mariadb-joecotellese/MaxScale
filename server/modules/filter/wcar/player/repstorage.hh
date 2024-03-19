@@ -16,6 +16,7 @@ struct RepEvent
     mxb::TimePoint end_time {0s};
     int64_t        can_id {0};
     int32_t        num_rows {0};
+    uint16_t       error {0};
 };
 
 class RepStorage

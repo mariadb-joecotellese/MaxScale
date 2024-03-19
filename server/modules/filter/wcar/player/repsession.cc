@@ -25,13 +25,15 @@ bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent, RepRecorder* pRecorder
     revent.event_id = qevent.event_id;
     revent.start_time = mxb::Clock::now();
     revent.num_rows = 0;
+    revent.error = 0;
 
     if (mysql_query(pConn, sql.c_str()))
     {
+        int error_number = mysql_errno(m_pConn);
         std::cerr << "MariaDB: Error S " << qevent.session_id << " E " << qevent.event_id
                   << " SQL " << mxb::show_some(sql)
-                  << " Error code " << mysql_error(pConn) << std::endl;
-        return false;
+                  << " Error code " << error_number << ": " << mysql_error(m_pConn) << std::endl;
+        revent.error = error_number;
     }
 
     while (MYSQL_RES* result = mysql_store_result(pConn))
