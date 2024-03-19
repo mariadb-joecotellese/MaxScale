@@ -37,6 +37,7 @@ struct RepConfig
     maxbase::Host host{"127.1.1.0", 3306};
     int           verbosity = 0;
     CsvType       csv = CsvType::NONE;
+    bool          row_counts = true;
 
     std::string capture_dir = "/home/mariadb/maxscale/var/lib/maxscale/capture";
     std::string file_name;      // full path, not necessarily in capture_dir

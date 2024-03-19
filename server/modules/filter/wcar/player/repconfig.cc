@@ -27,19 +27,20 @@ std::map<std::string, std::string> s_commands{
 
 const struct option long_opts[] =
 {
-    {"help",     no_argument,       0, 'h'},
-    {"user",     required_argument, 0, 'u'},
-    {"password", required_argument, 0, 'p'},
-    {"host",     required_argument, 0, 'H'},
-    {"mode",     required_argument, 0, 'm'},
-    {"csv",      optional_argument, 0, 'c'},
-    {"output",   required_argument, 0, 'o'},
-    {"verbose",  no_argument,       0, 'v'},
-    {0,          0,                 0, 0  }
+    {"help",          no_argument,       0, 'h'},
+    {"user",          required_argument, 0, 'u'},
+    {"password",      required_argument, 0, 'p'},
+    {"host",          required_argument, 0, 'H'},
+    {"mode",          required_argument, 0, 'm'},
+    {"csv",           optional_argument, 0, 'c'},
+    {"output",        required_argument, 0, 'o'},
+    {"verbose",       no_argument,       0, 'v'},
+    {"no-row-counts", no_argument,       0, 'R'},
+    {0,               0,                 0, 0  }
 };
 
 // This is not seprately checked, keep in sync with long_opts.
-const char* short_opts = "hvu:p:H:c::o:";
+const char* short_opts = "hvRu:p:H:c::o:";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -104,6 +105,7 @@ void RepConfig::show_help()
               << OPT('p', password)
               << OPT('H', host)
               << OPT('v', verbosity)
+              << OPT('R', row_counts)
               << "\nInput file: " << file_name << "\n"
               << "\n"
               << "Commands:\n"
@@ -166,6 +168,10 @@ RepConfig::RepConfig(int argc, char** argv)
 
         case 'o':
             output_file = optarg;
+            break;
+
+        case 'R':
+            row_counts = false;
             break;
         }
     }

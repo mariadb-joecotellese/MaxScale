@@ -57,7 +57,7 @@ RepCsvStorage::RepCsvStorage(std::filesystem::path path, Canonicals canonicals, 
         }
     }
 
-    m_file << "event_id,canonical,duration,start_time,error\n";
+    m_file << "event_id,canonical,duration,start_time,result_rows,rows_read,error\n";
 }
 
 void RepCsvStorage::add_rep_event(RepEvent&& ev)
@@ -75,6 +75,8 @@ void RepCsvStorage::add_rep_event(RepEvent&& ev)
 
     m_file << mxb::to_secs(ev.end_time - ev.start_time) << ","
            << mxb::to_secs(ev.start_time.time_since_epoch()) << ","
+           << ev.num_rows << ","
+           << ev.rows_read << ","
            << ev.error << "\n";
 }
 

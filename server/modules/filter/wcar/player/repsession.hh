@@ -54,6 +54,7 @@ public:
 
 private:
     void run();
+    bool execute_stmt(const QueryEvent& qevent);
 
     const RepConfig&        m_config;
     RepPlayer&              m_player;
@@ -65,6 +66,7 @@ private:
     std::mutex              m_mutex;
     std::condition_variable m_condition;
     std::deque<QueryEvent>  m_queue;
+    int64_t                 m_rows_read = 0;
 
     // These are only used by the Player thread, so no synch needed.
     int64_t                m_commit_event_id = -1;

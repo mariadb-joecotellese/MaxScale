@@ -50,6 +50,7 @@ private:
         re.end_time = qe.end_time;
         re.event_id = qe.event_id;
         re.num_rows = 0;
+        re.rows_read = 0;
         re.error = 0;
         return re;
     }
