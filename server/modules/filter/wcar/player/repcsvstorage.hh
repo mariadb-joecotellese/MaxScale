@@ -11,7 +11,6 @@
 #include <fstream>
 #include <filesystem>
 #include <map>
-#include "repconfig.hh"
 
 class RepCsvStorage final : public RepStorage
 {
@@ -21,10 +20,10 @@ public:
     /**
      * Construct a RepCsvStorage
      *
-     * @param path Path to the input/output file
-     * @param type CSV type, must be either FULL or MINIMAL
+     * @param path       Path to the input/output file
+     * @param canonicals The mapping of canonical IDs to their SQL. If empty, the numeric IDs are used.
      */
-    RepCsvStorage(std::filesystem::path path, Canonicals canonicals, RepConfig::CsvType type);
+    RepCsvStorage(std::filesystem::path path, Canonicals canonicals = {});
 
     /**
      * Dump the canonicals as CSV
@@ -44,7 +43,6 @@ protected:
     RepEvent next_rep_event() override;
 
 private:
-    std::ofstream      m_file;
-    Canonicals         m_canonicals;
-    RepConfig::CsvType m_type;
+    std::ofstream m_file;
+    Canonicals    m_canonicals;
 };

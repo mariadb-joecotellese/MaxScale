@@ -264,13 +264,18 @@ std::unique_ptr<RepStorage> RepConfig::build_rep_storage() const
         MXB_THROW(WcarError, "The replay file already exists, will not overwrite replay: " << path);
     }
 
-    if (csv != RepConfig::CsvType::NONE)
+    if (csv == RepConfig::CsvType::MINIMAL)
+    {
+        return std::make_unique<RepCsvStorage>(path);
+    }
+    else if (csv == RepConfig::CsvType::FULL)
     {
         CapBoostStorage boost(file_name, ReadWrite::READ_ONLY);
-        return std::make_unique<RepCsvStorage>(path, boost.canonicals(), csv);
+        return std::make_unique<RepCsvStorage>(path, boost.canonicals());
     }
     else
     {
+        mxb_assert(csv == RepConfig::CsvType::NONE);
         return std::make_unique<RepBoostStorage>(path, RepBoostStorage::WRITE_ONLY);
     }
 }

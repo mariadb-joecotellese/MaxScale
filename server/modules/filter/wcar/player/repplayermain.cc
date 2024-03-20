@@ -46,7 +46,16 @@ try
     else if (config.command == cmd::LIST_QUERIES)
     {
         auto canonicals = CapBoostStorage(config.file_name, ReadWrite::READ_ONLY).canonicals();
-        RepCsvStorage::dump_canonicals(canonicals, std::cout);
+
+        if (config.output_file == config.file_name)
+        {
+            RepCsvStorage::dump_canonicals(canonicals, std::cout);
+        }
+        else
+        {
+            std::ofstream output(config.output_file);
+            RepCsvStorage::dump_canonicals(canonicals, output);
+        }
     }
     else if (config.command == cmd::DUMP_DATA)
     {

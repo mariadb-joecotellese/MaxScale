@@ -34,33 +34,14 @@ void RepCsvStorage::dump_canonicals(Canonicals canonicals, std::ostream& out)
     }
 }
 
-RepCsvStorage::RepCsvStorage(std::filesystem::path path, Canonicals canonicals, RepConfig::CsvType type)
-    : m_type(type)
+RepCsvStorage::RepCsvStorage(std::filesystem::path path, Canonicals canonicals)
+    : m_canonicals(std::move(canonicals))
 {
     m_file.open(path.replace_extension("csv"));
 
     if (!m_file)
     {
         MXB_THROW(WcarError, "Could not open file " << path << ": " << mxb_strerror(errno));
-    }
-
-    if (m_type == RepConfig::CsvType::FULL)
-    {
-        // Store the canonicals for later, we need them to convert the numeric IDs to strings
-        m_canonicals = std::move(canonicals);
-    }
-    else
-    {
-        // Dump the canonicals with the IDs into a separate file. This mapping will be needed to identify
-        // the canonicals from their IDs.
-        std::ofstream canonical_file(path.replace_extension("canonicals.csv"));
-
-        if (!canonical_file)
-        {
-            MXB_THROW(WcarError, "Could not open file " << path << ": " << mxb_strerror(errno));
-        }
-
-        dump_canonicals(canonicals, canonical_file);
     }
 
     m_file << "event_id,canonical,duration,start_time,result_rows,rows_read,error\n";
@@ -70,7 +51,7 @@ void RepCsvStorage::add_rep_event(RepEvent&& ev)
 {
     m_file << ev.event_id << ",";
 
-    if (m_type == RepConfig::CsvType::FULL)
+    if (!m_canonicals.empty())
     {
         m_file << quote(*m_canonicals[ev.can_id]) << ",";
     }
