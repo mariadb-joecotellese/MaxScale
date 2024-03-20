@@ -20,6 +20,7 @@ static const char* REPLAY = "replay";
 static const char* TRANSFORM = "transform";
 static const char* CONVERT = "convert";
 static const char* LIST_QUERIES = "list-queries";
+static const char* DUMP_DATA = "dump-data";
 }
 
 struct RepConfig

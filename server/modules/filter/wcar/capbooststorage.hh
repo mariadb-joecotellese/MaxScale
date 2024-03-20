@@ -96,6 +96,13 @@ public:
      */
     std::map<int64_t, std::shared_ptr<std::string>> canonicals() const;
 
+    /**
+     * Convert the events to SQL and write them into a file
+     *
+     * @param path The path to the file where the output is written
+     */
+    void events_to_sql(fs::path path);
+
 private:
     friend class QuerySort;
 

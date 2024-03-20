@@ -48,6 +48,10 @@ try
         auto canonicals = CapBoostStorage(config.file_name, ReadWrite::READ_ONLY).canonicals();
         RepCsvStorage::dump_canonicals(canonicals, std::cout);
     }
+    else if (config.command == cmd::DUMP_DATA)
+    {
+        CapBoostStorage(config.file_name, ReadWrite::READ_ONLY).events_to_sql(config.output_file);
+    }
     else
     {
         // The code should never end up here: RepConfig::RepConfig exits on invalid options and commands

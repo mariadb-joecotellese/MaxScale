@@ -175,11 +175,6 @@ void RepTransform::transform_events(const fs::path& path, Action action)
     std::unordered_map<int64_t, SessionState> sessions;
     for (auto&& qevent : boost)
     {
-        if (mxb_log_is_priority_enabled(LOG_INFO))
-        {
-            dump_event(qevent);
-        }
-
         auto session_ite = sessions.find(qevent.session_id);
         if (session_ite == end(sessions))
         {
@@ -253,22 +248,4 @@ void RepTransform::transform_events(const fs::path& path, Action action)
     MXB_SNOTICE("Transactions: " << tx_js.at("capture/transactions").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Sessions: " << tx_js.at("capture/sessions").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Expected runtime: " << tx_js.at("capture/duration").get_real() << "s");
-}
-
-void RepTransform::dump_event(const QueryEvent& qevent)
-{
-    if (is_session_close(qevent))
-    {
-        MXB_SINFO("/** Session: " << qevent.session_id << " quit */;");
-    }
-    else
-    {
-        MXB_SINFO("/**"
-                  << " Session: " << qevent.session_id
-                  << " Event: " << qevent.event_id
-                  << " Duration: " << mxb::to_string(qevent.end_time - qevent.start_time)
-                  << " */ "
-                  << maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args)
-                  << ";");
-    }
 }
