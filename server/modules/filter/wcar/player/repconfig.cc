@@ -17,8 +17,9 @@
 
 namespace
 {
+using Command = std::pair<std::string, std::string>;
 
-std::map<std::string, std::string> s_commands{
+std::vector<Command> s_commands{
     {cmd::REPLAY, "Replay the capture."},
     {cmd::TRANSFORM, "Only transform the capture to make it ready for replay."},
     {cmd::CONVERT, "Converts the input file (either .cx or .rx) to a replay file (.rx or .csv)."},
@@ -53,12 +54,17 @@ auto operator<<(std::ostream& os, const M& m) -> decltype(m(os))
     return m(os);
 }
 
-constexpr int INDENT = 16;
-
 // Output manipulator for help text.
 template<typename H>
 auto OPT(int optval, H help)
 {
+    size_t indent = 0;
+
+    for (int i = 0; long_opts[i].val; ++i)
+    {
+        indent = std::max(strlen(long_opts[i].name), indent);
+    }
+
     int64_t idx;
     for (idx = 0; long_opts[idx].val; ++idx)
     {
@@ -76,7 +82,7 @@ auto OPT(int optval, H help)
     else
     {
         msg << "\n-" << char(long_opts[idx].val) << " --"
-            << std::setw(INDENT) << std::left << long_opts[idx].name
+            << std::setw(indent + 1) << std::left << long_opts[idx].name
             << std::boolalpha << help;
     }
 
@@ -87,11 +93,18 @@ auto OPT(int optval, H help)
 
 std::string list_commands()
 {
+    size_t indent = 0;
+
+    for (const auto& [cmd, _] : s_commands)
+    {
+        indent = std::max(cmd.size(), indent);
+    }
+
     std::ostringstream msg;
 
     for (const auto& [cmd, desc] : s_commands)
     {
-        msg << std::setw(INDENT) << std::left << cmd << desc << "\n";
+        msg << std::setw(indent + 1) << std::left << cmd << desc << "\n";
     }
 
     return msg.str();
@@ -102,16 +115,16 @@ void RepConfig::show_help()
     std::cout << "Usage: player [OPTION]... [COMMAND] FILE"
               << OPT('h', "this help text (with current option values)")
               << OPT('c', "Save replay as CSV (options: none, minimal, full)")
-              << OPT('o', output_file)
+              << OPT('o', "Output file (" + output_file + ")")
               << OPT('u', user)
               << OPT('p', password)
               << OPT('H', host)
               << OPT('v', verbosity)
               << OPT('R', row_counts)
-              << "\nInput file: " << file_name << "\n"
+              << "\n\nInput file: " << file_name << "\n"
               << "\n"
               << "Commands:\n"
-              << list_commands() << "\n"
+              << list_commands()
               << std::endl;
 }
 
@@ -202,7 +215,11 @@ RepConfig::RepConfig(int argc, char** argv)
         {
             command = argv[optind++];
 
-            if (s_commands.find(command) == s_commands.end())
+            auto it = std::find_if(s_commands.begin(), s_commands.end(), [&](const auto& kv){
+                return kv.first == command;
+            });
+
+            if (it == s_commands.end())
             {
                 std::cerr << "error: Unknown command " << command << std::endl;
                 help = true;
