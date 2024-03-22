@@ -25,7 +25,6 @@ public:
     mxb::Duration capture_duration();
 
 private:
-    using GtidEvents = std::deque<CapBoostStorage::TrxEvent>;
     CapBoostStorage&        m_storage;
     BoostOFile&             m_qevent_out;
     BoostOFile&             m_gevent_out;
@@ -41,7 +40,7 @@ QuerySort::QuerySort(CapBoostStorage& storage, BoostOFile& qevent_out, BoostOFil
     , m_qevent_out(qevent_out)
     , m_gevent_out(gevent_out)
 {
-    std::vector<CapBoostStorage::TrxEvent> qevents = m_storage.load_gtid_events();
+    std::vector<TrxEvent> qevents = m_storage.load_gtid_events();
 
     // Sort by gtid, which can lead to out of order end_time. The number of
     // gtids is small relative to query events and fit in memory (TODO document).
@@ -67,7 +66,7 @@ QuerySort::QuerySort(CapBoostStorage& storage, BoostOFile& qevent_out, BoostOFil
             if (prev->gtid.domain_id == next->gtid.domain_id
                 && prev->end_time > next->end_time)
             {
-                m_adjusted_end_time.insert(std::make_pair(next->event_id, prev->end_time));
+                m_adjusted_end_time.insert(std::make_pair(next->end_event_id, prev->end_time));
             }
 
             m_storage.save_gtid_event(m_gevent_out, *next);
@@ -164,7 +163,11 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
     save_query_event(*m_sQuery_event_out, qevent);
     if (qevent.sTrx)
     {
-        TrxEvent gevent{qevent.event_id, qevent.end_time, qevent.sTrx->gtid};
+        TrxEvent gevent{qevent.session_id,
+                        qevent.sTrx->start_event_id,
+                        qevent.event_id,
+                        qevent.end_time,
+                        qevent.sTrx->gtid};
         save_gtid_event(*m_sGtid_out, gevent);
     }
 }
@@ -245,32 +248,35 @@ void CapBoostStorage::save_query_event(BoostOFile& bof, const QueryEvent& qevent
     *bof & *reinterpret_cast<const int64_t*>(&end_time_dur);
 }
 
-void CapBoostStorage::save_gtid_event(BoostOFile& bof, const TrxEvent& qevent)
+void CapBoostStorage::save_gtid_event(BoostOFile& bof, const TrxEvent& tevent)
 {
-    Gtid gtid;
-    int64_t end_time_cnt = qevent.end_time.time_since_epoch().count();
+    int64_t end_time_cnt = tevent.end_time.time_since_epoch().count();
 
-    *bof & qevent.event_id;
+    *bof & tevent.session_id;
+    *bof & tevent.start_event_id;
+    *bof & tevent.end_event_id;
     *bof & end_time_cnt;
-    *bof & qevent.gtid.domain_id;
-    *bof & qevent.gtid.server_id;
-    *bof & qevent.gtid.sequence_nr;
+    *bof & tevent.gtid.domain_id;
+    *bof & tevent.gtid.server_id;
+    *bof & tevent.gtid.sequence_nr;
 }
 
-CapBoostStorage::TrxEvent CapBoostStorage::load_gtid_event()
+TrxEvent CapBoostStorage::load_gtid_event()
 {
-    TrxEvent gevent;
+    TrxEvent tevent;
     int64_t end_time_cnt;
 
-    (**m_sGtid_in) & gevent.event_id;
+    (**m_sGtid_in) & tevent.session_id;
+    (**m_sGtid_in) & tevent.start_event_id;
+    (**m_sGtid_in) & tevent.end_event_id;
     (**m_sGtid_in) & end_time_cnt;
-    (**m_sGtid_in) & gevent.gtid.domain_id;
-    (**m_sGtid_in) & gevent.gtid.server_id;
-    (**m_sGtid_in) & gevent.gtid.sequence_nr;
+    (**m_sGtid_in) & tevent.gtid.domain_id;
+    (**m_sGtid_in) & tevent.gtid.server_id;
+    (**m_sGtid_in) & tevent.gtid.sequence_nr;
 
-    gevent.end_time = mxb::TimePoint(mxb::Duration(end_time_cnt));
+    tevent.end_time = mxb::TimePoint(mxb::Duration(end_time_cnt));
 
-    return gevent;
+    return tevent;
 }
 
 void CapBoostStorage::read_canonicals()
@@ -287,7 +293,7 @@ void CapBoostStorage::read_canonicals()
     }
 }
 
-std::vector<CapBoostStorage::TrxEvent> CapBoostStorage::load_gtid_events()
+std::vector<TrxEvent> CapBoostStorage::load_gtid_events()
 {
     std::vector<TrxEvent> gevents;
     while (!m_sGtid_in->at_end_of_stream())

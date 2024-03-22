@@ -27,6 +27,16 @@ enum class ReadWrite
     WRITE_ONLY
 };
 
+struct TrxEvent
+{
+    int64_t        session_id;
+    int64_t        start_event_id;
+    int64_t        end_event_id;
+    mxb::TimePoint end_time;
+    Gtid           gtid;
+    bool           completed = false;
+};
+
 template<typename BoostArchive>
 class BoostFile
 {
@@ -105,13 +115,6 @@ public:
 
 private:
     friend class QuerySort;
-
-    struct TrxEvent
-    {
-        int64_t        event_id;
-        mxb::TimePoint end_time;    // because it is the end_time of the corresponding query event
-        Gtid           gtid;
-    };
 
     QueryEvent next_event() override;
     // Save an event to m_canonical_path
