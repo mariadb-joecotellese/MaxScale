@@ -127,15 +127,15 @@ private:
     void save_query_event(BoostOFile& bof, const QueryEvent& qevent);
     // Save a canonical to m_canonical_path
     void save_canonical(BoostOFile& bof, int64_t can_id, const std::string& canonical);
-    // Save gtid event, along with identifiers
-    void save_gtid_event(BoostOFile& bof, const TrxEvent& qevent);
+    // Save trx event, along with identifiers
+    void save_trx_event(BoostOFile& bof, const TrxEvent& qevent);
     // Read all canonicals into memory
     void read_canonicals();
-    // Load and return all gtid events.
-    TrxEvent load_gtid_event();
-    // Read all gtid events to memory. Unlike canonicals,
+    // Load and return all trx events.
+    TrxEvent load_trx_event();
+    // Read all trx events to memory. Unlike canonicals,
     // these should always fit in memory.
-    void load_gtid_events();
+    void load_gtrx_events();
     // Preload QueryEvents.
     void preload_query_events(int64_t max_loaded);
 
@@ -165,7 +165,7 @@ private:
     fs::path  m_base_path;
     fs::path  m_canonical_path;
     fs::path  m_query_event_path;
-    fs::path  m_gtid_path;
+    fs::path  m_trx_path;
     ReadWrite m_access;
 
     std::unique_ptr<BoostOFile> m_sCanonical_out;

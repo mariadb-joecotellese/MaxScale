@@ -16,7 +16,7 @@ class QuerySort
 public:
     QuerySort(CapBoostStorage& storage,
               BoostOFile& qevent_out,
-              BoostOFile& gevent_out,
+              BoostOFile& tevent_out,
               CapBoostStorage::SortCallback sort_cb);
 
     void add_query_event(std::deque<QueryEvent>& qevents);
@@ -28,7 +28,6 @@ public:
 private:
     CapBoostStorage&              m_storage;
     BoostOFile&                   m_qevent_out;
-    BoostOFile&                   m_gevent_out;
     CapBoostStorage::SortCallback m_sort_cb;
     std::vector<QueryEvent>       m_qevents;
     int64_t                       m_num_events = 0;
@@ -37,11 +36,10 @@ private:
 
 QuerySort::QuerySort(CapBoostStorage& storage,
                      BoostOFile& qevent_out,
-                     BoostOFile& gevent_out,
+                     BoostOFile& tevent_out,
                      CapBoostStorage::SortCallback sort_cb)
     : m_storage(storage)
     , m_qevent_out(qevent_out)
-    , m_gevent_out(gevent_out)
     , m_sort_cb(sort_cb)
 {
     // Sort by gtid, which can lead to out of order end_time. The number of
@@ -60,7 +58,7 @@ QuerySort::QuerySort(CapBoostStorage& storage,
 
     for (auto&& e : storage.m_tevents)
     {
-        m_storage.save_gtid_event(m_gevent_out, e);
+        m_storage.save_trx_event(tevent_out, e);
     }
 }
 
@@ -100,27 +98,27 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
     , m_canonical_path(base_path)
     , m_query_event_path(base_path)
-    , m_gtid_path(base_path)
+    , m_trx_path(base_path)
     , m_access(access)
 {
     m_canonical_path.replace_extension("cx");
     m_query_event_path.replace_extension("ex");
-    m_gtid_path.replace_extension("gx");
+    m_trx_path.replace_extension("gx");
 
     if (m_access == ReadWrite::READ_ONLY)
     {
         m_sCanonical_in = std::make_unique<BoostIFile>(m_canonical_path);
         m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
-        m_sGtid_in = std::make_unique<BoostIFile>(m_gtid_path);
+        m_sGtid_in = std::make_unique<BoostIFile>(m_trx_path);
         read_canonicals();
-        load_gtid_events();
+        load_gtrx_events();
         preload_query_events(MAX_QUERY_EVENTS);
     }
     else
     {
         m_sCanonical_out = std::make_unique<BoostOFile>(m_canonical_path);
         m_sQuery_event_out = std::make_unique<BoostOFile>(m_query_event_path);
-        m_sGtid_out = std::make_unique<BoostOFile>(m_gtid_path);
+        m_sGtid_out = std::make_unique<BoostOFile>(m_trx_path);
     }
 }
 
@@ -155,7 +153,7 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
                         qevent.event_id,
                         qevent.end_time,
                         qevent.sTrx->gtid};
-        save_gtid_event(*m_sGtid_out, gevent);
+        save_trx_event(*m_sGtid_out, gevent);
     }
 }
 
@@ -235,7 +233,7 @@ void CapBoostStorage::save_query_event(BoostOFile& bof, const QueryEvent& qevent
     *bof & *reinterpret_cast<const int64_t*>(&end_time_dur);
 }
 
-void CapBoostStorage::save_gtid_event(BoostOFile& bof, const TrxEvent& tevent)
+void CapBoostStorage::save_trx_event(BoostOFile& bof, const TrxEvent& tevent)
 {
     int64_t end_time_cnt = tevent.end_time.time_since_epoch().count();
 
@@ -248,7 +246,7 @@ void CapBoostStorage::save_gtid_event(BoostOFile& bof, const TrxEvent& tevent)
     *bof & tevent.gtid.sequence_nr;
 }
 
-TrxEvent CapBoostStorage::load_gtid_event()
+TrxEvent CapBoostStorage::load_trx_event()
 {
     TrxEvent tevent;
     int64_t end_time_cnt;
@@ -280,12 +278,12 @@ void CapBoostStorage::read_canonicals()
     }
 }
 
-void CapBoostStorage::load_gtid_events()
+void CapBoostStorage::load_gtrx_events()
 {
     m_tevents.clear();
     while (!m_sGtid_in->at_end_of_stream())
     {
-        m_tevents.push_back(load_gtid_event());
+        m_tevents.push_back(load_trx_event());
     }
 }
 
@@ -332,8 +330,8 @@ CapBoostStorage::SortReport CapBoostStorage::sort_query_event_file(const SortCal
     mxb::IntervalTimer read_interval;   /// the first preload_query_events() not counted
 
     auto qevent_out = std::make_unique<BoostOFile>(m_query_event_path);
-    auto gevent_out = std::make_unique<BoostOFile>(m_gtid_path);
-    QuerySort sorter(*this, *qevent_out, *gevent_out, sort_cb);
+    auto tevent_out = std::make_unique<BoostOFile>(m_trx_path);
+    QuerySort sorter(*this, *qevent_out, *tevent_out, sort_cb);
 
     while (!m_query_events.empty())
     {
