@@ -10,39 +10,6 @@
 #include <maxsimd/canonical.hh>
 #include <maxscale/protocol/mariadb/mysql.hh>
 #include <maxscale/protocol/mariadb/protocol_classes.hh>
-#include <maxscale/boost_spirit_utils.hh>
-
-namespace
-{
-inline Gtid gtid_from_string(std::string_view gtid_str)
-{
-    if (gtid_str.empty())
-    {
-        return Gtid{0, 0, 0};
-    }
-
-    namespace x3 = boost::spirit::x3;
-
-    const auto gtid_parser = x3::uint32 >> '-' >> x3::uint32 >> '-' >> x3::uint64;
-
-    std::tuple<uint32_t, uint32_t, uint64_t> result;    // intermediary to avoid boost-fusionizing Gtid.
-
-    auto first = begin(gtid_str);
-    auto success = parse(first, end(gtid_str), gtid_parser, result);
-
-
-    if (success && first == end(gtid_str))
-    {
-
-        return Gtid{std::get<0>(result), std::get<1>(result), std::get<2>(result)};
-    }
-    else
-    {
-        MXB_SERROR("Invalid gtid string: '" << gtid_str);
-        return Gtid();
-    }
-}
-}
 
 // static
 CapFilterSession* CapFilterSession::create(MXS_SESSION* pSession, SERVICE* pService,
@@ -283,15 +250,14 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
 
     if (m_capture)
     {
-        auto gtid = gtid_from_string(reply.get_variable(MXS_LAST_GTID));
-        if (gtid.is_valid())
-        {
-            int dummy_not_used_yet = 42;
-            m_query_event.sTrx = std::make_unique<Trx>(dummy_not_used_yet, gtid);
-        }
         m_query_event.end_time = mxb::Clock::now(mxb::NowType::EPollTick);
         m_query_event.event_id = m_filter.get_next_event_id();
+        m_query_event.sTrx = m_session_state.update(m_query_event.event_id, reply);
         handle_cap_state(CapSignal::QEVENT);
+    }
+    else
+    {
+        m_session_state.update(-1, reply);      // maintain state
     }
 
     return mxs::FilterSession::clientReply(std::move(buffer), down, reply);

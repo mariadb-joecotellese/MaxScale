@@ -7,7 +7,9 @@
 
 #include "capdefs.hh"
 #include "caprecorder.hh"
+#include "capsessionstate.hh"
 #include "capstorage.hh"
+#include "capsessionstate.hh"
 #include <maxscale/filter.hh>
 #include <maxscale/protocol/mariadb/trackers.hh>
 
@@ -58,8 +60,9 @@ private:
     std::atomic<CapState>        m_state {CapState::DISABLED};
     std::mutex                   m_state_mutex;
 
-    bool       m_capture = false;
-    QueryEvent m_query_event;
+    CapSessionState m_session_state;
+    bool            m_capture = false;
+    QueryEvent      m_query_event;
 
     mariadb::PsTracker m_ps_tracker;
 };
