@@ -9,6 +9,7 @@ add_library(wcar SHARED
   capconfig.cc
   capfilter.cc
   capfiltersession.cc
+  capsessionstate.cc
   caprecorder.cc
 )
 
