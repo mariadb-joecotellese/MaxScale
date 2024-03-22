@@ -199,7 +199,7 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(mxb::TimePoint sta
     {
         opening_event.sCanonical = std::make_shared<std::string>("use " + maria_ses.current_db);
         opening_event.event_id = m_filter.get_next_event_id();
-        events.push_back(opening_event);
+        events.push_back(std::move(opening_event));
     }
 
     const auto& collations = m_pSession->connection_metadata().collations;
@@ -210,7 +210,7 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(mxb::TimePoint sta
             + "collate '" + it->second.collation + "'";
         opening_event.sCanonical = std::make_shared<std::string>(std::move(sql));
         opening_event.event_id = m_filter.get_next_event_id();
-        events.push_back(opening_event);
+        events.push_back(std::move(opening_event));
     }
 
     return events;
@@ -283,8 +283,12 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
 
     if (m_capture)
     {
-        auto gtid_str = reply.get_variable(MXS_LAST_GTID);
-        m_query_event.gtid = gtid_from_string(gtid_str);
+        auto gtid = gtid_from_string(reply.get_variable(MXS_LAST_GTID));
+        if (gtid.is_valid())
+        {
+            int dummy_not_used_yet = 42;
+            m_query_event.sTrx = std::make_unique<Trx>(dummy_not_used_yet, gtid);
+        }
         m_query_event.end_time = mxb::Clock::now(mxb::NowType::EPollTick);
         m_query_event.event_id = m_filter.get_next_event_id();
         handle_cap_state(CapSignal::QEVENT);

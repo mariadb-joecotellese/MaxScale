@@ -106,7 +106,7 @@ public:
 private:
     friend class QuerySort;
 
-    struct GtidEvent
+    struct TrxEvent
     {
         int64_t        event_id;
         mxb::TimePoint end_time;    // because it is the end_time of the corresponding query event
@@ -119,14 +119,14 @@ private:
     // Save a canonical to m_canonical_path
     void save_canonical(BoostOFile& bof, int64_t can_id, const std::string& canonical);
     // Save gtid event, along with identifiers
-    void save_gtid_event(BoostOFile& bof, const GtidEvent& qevent);
+    void save_gtid_event(BoostOFile& bof, const TrxEvent& qevent);
     // Read all canonicals into memory
     void read_canonicals();
     // Load and return all gtid events.
-    GtidEvent load_gtid_event();
+    TrxEvent load_gtid_event();
     // Read all gtid events to memory. Unlike canonicals,
     // these should always fit in memory.
-    std::vector<GtidEvent> load_gtid_events();
+    std::vector<TrxEvent> load_gtid_events();
     // Preload QueryEvents.
     void preload_query_events(int64_t max_loaded);
 

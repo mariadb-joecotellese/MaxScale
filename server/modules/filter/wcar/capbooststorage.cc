@@ -25,7 +25,7 @@ public:
     mxb::Duration capture_duration();
 
 private:
-    using GtidEvents = std::deque<CapBoostStorage::GtidEvent>;
+    using GtidEvents = std::deque<CapBoostStorage::TrxEvent>;
     CapBoostStorage&        m_storage;
     BoostOFile&             m_qevent_out;
     BoostOFile&             m_gevent_out;
@@ -41,7 +41,7 @@ QuerySort::QuerySort(CapBoostStorage& storage, BoostOFile& qevent_out, BoostOFil
     , m_qevent_out(qevent_out)
     , m_gevent_out(gevent_out)
 {
-    std::vector<CapBoostStorage::GtidEvent> qevents = m_storage.load_gtid_events();
+    std::vector<CapBoostStorage::TrxEvent> qevents = m_storage.load_gtid_events();
 
     // Sort by gtid, which can lead to out of order end_time. The number of
     // gtids is small relative to query events and fit in memory (TODO document).
@@ -162,9 +162,9 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
     }
 
     save_query_event(*m_sQuery_event_out, qevent);
-    if (qevent.gtid.is_valid())
+    if (qevent.sTrx)
     {
-        GtidEvent gevent{qevent.event_id, qevent.end_time, qevent.gtid};
+        TrxEvent gevent{qevent.event_id, qevent.end_time, qevent.sTrx->gtid};
         save_gtid_event(*m_sGtid_out, gevent);
     }
 }
@@ -245,7 +245,7 @@ void CapBoostStorage::save_query_event(BoostOFile& bof, const QueryEvent& qevent
     *bof & *reinterpret_cast<const int64_t*>(&end_time_dur);
 }
 
-void CapBoostStorage::save_gtid_event(BoostOFile& bof, const GtidEvent& qevent)
+void CapBoostStorage::save_gtid_event(BoostOFile& bof, const TrxEvent& qevent)
 {
     Gtid gtid;
     int64_t end_time_cnt = qevent.end_time.time_since_epoch().count();
@@ -257,9 +257,9 @@ void CapBoostStorage::save_gtid_event(BoostOFile& bof, const GtidEvent& qevent)
     *bof & qevent.gtid.sequence_nr;
 }
 
-CapBoostStorage::GtidEvent CapBoostStorage::load_gtid_event()
+CapBoostStorage::TrxEvent CapBoostStorage::load_gtid_event()
 {
-    GtidEvent gevent;
+    TrxEvent gevent;
     int64_t end_time_cnt;
 
     (**m_sGtid_in) & gevent.event_id;
@@ -287,9 +287,9 @@ void CapBoostStorage::read_canonicals()
     }
 }
 
-std::vector<CapBoostStorage::GtidEvent> CapBoostStorage::load_gtid_events()
+std::vector<CapBoostStorage::TrxEvent> CapBoostStorage::load_gtid_events()
 {
-    std::vector<GtidEvent> gevents;
+    std::vector<TrxEvent> gevents;
     while (!m_sGtid_in->at_end_of_stream())
     {
         gevents.push_back(load_gtid_event());

@@ -27,7 +27,7 @@ public:
         }
         else if (path.extension() == ".cx" || path.extension() == ".ex")
         {
-            for (auto ev : CapBoostStorage(config.file_name, ReadWrite::READ_ONLY))
+            for (const auto& ev : CapBoostStorage(config.file_name, ReadWrite::READ_ONLY))
             {
                 if (is_real_event(ev))
                 {

@@ -22,6 +22,18 @@ struct Gtid
     }
 };
 
+struct Trx
+{
+    int64_t start_event_id;
+    Gtid    gtid;
+
+    Trx(int64_t id, const Gtid& gtid)
+        : start_event_id{id}
+        , gtid{gtid}
+    {
+    }
+};
+
 inline std::ostream& operator<<(std::ostream& os, const Gtid& gtid)
 {
     os << gtid.domain_id << '-' << gtid.server_id << '-' << gtid.sequence_nr;
@@ -45,8 +57,8 @@ struct QueryEvent
     uint64_t                     flags;
     mxb::TimePoint               start_time;
     mxb::TimePoint               end_time;
-    Gtid                         gtid;
     int64_t                      event_id;
+    std::unique_ptr<Trx>         sTrx;  // not populated when created from storage
 };
 
 inline bool is_session_close(const QueryEvent& qevent)
