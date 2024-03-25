@@ -33,8 +33,6 @@ private:
     std::vector<QueryEvent>       m_qevents;
     int64_t                       m_num_events = 0;
     mxb::Duration                 m_capture_duration;
-
-    std::unordered_map<int64_t, mxb::TimePoint> m_adjusted_end_time;
 };
 
 QuerySort::QuerySort(CapBoostStorage& storage,
@@ -46,11 +44,9 @@ QuerySort::QuerySort(CapBoostStorage& storage,
     , m_gevent_out(gevent_out)
     , m_sort_cb(sort_cb)
 {
-    std::vector<TrxEvent> qevents = m_storage.load_gtid_events();
-
     // Sort by gtid, which can lead to out of order end_time. The number of
     // gtids is small relative to query events and fit in memory (TODO document).
-    std::sort(std::execution::par, qevents.begin(), qevents.end(), []
+    std::sort(std::execution::par, storage.m_tevents.begin(), storage.m_tevents.end(), []
               (const auto& lhs, const auto& rhs){
         if (lhs.gtid.domain_id == lhs.gtid.domain_id)
         {
@@ -62,21 +58,9 @@ QuerySort::QuerySort(CapBoostStorage& storage,
         }
     });
 
-    // Make a note of gtids that are out of order by end_time.
-    if (qevents.size() > 1)
+    for (auto&& e : storage.m_tevents)
     {
-        auto prev = qevents.begin();
-        m_storage.save_gtid_event(m_gevent_out, *prev);
-        for (auto next = prev + 1; next != qevents.end(); prev = next, ++next)
-        {
-            if (prev->gtid.domain_id == next->gtid.domain_id
-                && prev->end_time > next->end_time)
-            {
-                m_adjusted_end_time.insert(std::make_pair(next->end_event_id, prev->end_time));
-            }
-
-            m_storage.save_gtid_event(m_gevent_out, *next);
-        }
+        m_storage.save_gtid_event(m_gevent_out, e);
     }
 }
 
@@ -97,11 +81,6 @@ void QuerySort::finalize()
 
     for (auto&& qevent : m_qevents)
     {
-        auto adjusted = m_adjusted_end_time.find(qevent.event_id);
-        if (adjusted != m_adjusted_end_time.end())
-        {
-            qevent.end_time = adjusted->second;
-        }
         m_sort_cb(qevent);
         m_storage.save_query_event(m_qevent_out, qevent);
     }
@@ -134,6 +113,7 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
         m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
         m_sGtid_in = std::make_unique<BoostIFile>(m_gtid_path);
         read_canonicals();
+        load_gtid_events();
         preload_query_events(MAX_QUERY_EVENTS);
     }
     else
@@ -300,15 +280,13 @@ void CapBoostStorage::read_canonicals()
     }
 }
 
-std::vector<TrxEvent> CapBoostStorage::load_gtid_events()
+void CapBoostStorage::load_gtid_events()
 {
-    std::vector<TrxEvent> gevents;
+    m_tevents.clear();
     while (!m_sGtid_in->at_end_of_stream())
     {
-        gevents.push_back(load_gtid_event());
+        m_tevents.push_back(load_gtid_event());
     }
-
-    return gevents;
 }
 
 void CapBoostStorage::preload_query_events(int64_t max_in_container)

@@ -6,27 +6,14 @@
 #pragma once
 
 #include "../capdefs.hh"
-
+#include "../capbooststorage.hh"
 #include "repconfig.hh"
-#include "../capstorage.hh"
 #include "repstorage.hh"
 #include <vector>
 #include <unordered_map>
 #include <filesystem>
 
-struct Transaction
-{
-    int64_t        session_id = -1;
-    int64_t        start_event_id;
-    int64_t        end_event_id;
-    mxb::TimePoint end_time;
-    bool           completed = false;
-
-    bool is_valid()
-    {
-        return session_id != -1;
-    }
-};
+using Transaction = TrxEvent;
 
 using Transactions = std::vector<Transaction>;
 // Keyed by event_id
@@ -92,7 +79,7 @@ private:
     TrxnMapping                 m_trx_start_mapping;
     TrxnMapping                 m_trx_end_mapping;
     int                         m_num_sessions;
-    int                         m_max_parallel_sessions;
+    int                         m_max_parallel_sessions = -1;
 };
 
 inline Storage& RepTransform::player_storage()

@@ -114,6 +114,11 @@ public:
      */
     void events_to_sql(fs::path path);
 
+    std::vector<TrxEvent> release_trx_events()
+    {
+        return std::move(m_tevents);
+    }
+
 private:
     friend class QuerySort;
 
@@ -130,7 +135,7 @@ private:
     TrxEvent load_gtid_event();
     // Read all gtid events to memory. Unlike canonicals,
     // these should always fit in memory.
-    std::vector<TrxEvent> load_gtid_events();
+    void load_gtid_events();
     // Preload QueryEvents.
     void preload_query_events(int64_t max_loaded);
 
@@ -153,6 +158,9 @@ private:
 
     using QueryEvents = std::deque<QueryEvent>;
     QueryEvents m_query_events;
+
+    using TrxEvents = std::vector<TrxEvent>;
+    TrxEvents m_tevents;
 
     fs::path  m_base_path;
     fs::path  m_canonical_path;
