@@ -91,6 +91,7 @@ private:
     Transactions                m_trxs;
     TrxnMapping                 m_trx_start_mapping;
     TrxnMapping                 m_trx_end_mapping;
+    int                         m_num_sessions;
     int                         m_max_parallel_sessions;
 };
 

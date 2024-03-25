@@ -94,10 +94,11 @@ public:
 
     /**
      * Sort query event file, write back and re-open.
-     *
+     * Call sort_cb() for each event in sorted order.
      * @return A report on the sorting and capture statistics
      */
-    SortReport sort_query_event_file();
+    using SortCallback = std::function<void (const QueryEvent&)>;
+    SortReport sort_query_event_file(const SortCallback& sort_cb);
 
     /**
      * Get all of the canonicals mapped to their IDs

@@ -161,20 +161,14 @@ void RepTransform::transform_events(const fs::path& path, Action action)
     CapBoostStorage boost{path, ReadWrite::READ_ONLY};
     CapBoostStorage::SortReport report;
 
-    if (needs_sorting)
-    {
-        report = boost.sort_query_event_file();
-    }
-
     mxb::StopWatch sw;
     int num_active_session = 0;
     m_max_parallel_sessions = 0;
-    int64_t num_sessions = 0;
+    int num_sessions = 0;
 
     // Keyed by session_id.
     std::unordered_map<int64_t, SessionState> sessions;
-    for (auto&& qevent : boost)
-    {
+    auto sort_cb = [&](const QueryEvent& qevent) {
         auto session_ite = sessions.find(qevent.session_id);
         if (session_ite == end(sessions))
         {
@@ -199,6 +193,11 @@ void RepTransform::transform_events(const fs::path& path, Action action)
                 m_trxs.push_back(trx);
             }
         }
+    };
+
+    if (needs_sorting)
+    {
+        report = boost.sort_query_event_file(sort_cb);
     }
 
     std::sort(std::execution::par, begin(m_trxs), end(m_trxs),

@@ -16,7 +16,8 @@ class QuerySort
 public:
     QuerySort(CapBoostStorage& storage,
               BoostOFile& qevent_out,
-              BoostOFile& gevent_out);
+              BoostOFile& gevent_out,
+              CapBoostStorage::SortCallback sort_cb);
 
     void add_query_event(std::deque<QueryEvent>& qevents);
     void finalize();
@@ -25,20 +26,25 @@ public:
     mxb::Duration capture_duration();
 
 private:
-    CapBoostStorage&        m_storage;
-    BoostOFile&             m_qevent_out;
-    BoostOFile&             m_gevent_out;
-    std::vector<QueryEvent> m_qevents;
-    int64_t                 m_num_events = 0;
-    mxb::Duration           m_capture_duration;
+    CapBoostStorage&              m_storage;
+    BoostOFile&                   m_qevent_out;
+    BoostOFile&                   m_gevent_out;
+    CapBoostStorage::SortCallback m_sort_cb;
+    std::vector<QueryEvent>       m_qevents;
+    int64_t                       m_num_events = 0;
+    mxb::Duration                 m_capture_duration;
 
     std::unordered_map<int64_t, mxb::TimePoint> m_adjusted_end_time;
 };
 
-QuerySort::QuerySort(CapBoostStorage& storage, BoostOFile& qevent_out, BoostOFile& gevent_out)
+QuerySort::QuerySort(CapBoostStorage& storage,
+                     BoostOFile& qevent_out,
+                     BoostOFile& gevent_out,
+                     CapBoostStorage::SortCallback sort_cb)
     : m_storage(storage)
     , m_qevent_out(qevent_out)
     , m_gevent_out(gevent_out)
+    , m_sort_cb(sort_cb)
 {
     std::vector<TrxEvent> qevents = m_storage.load_gtid_events();
 
@@ -96,6 +102,7 @@ void QuerySort::finalize()
         {
             qevent.end_time = adjusted->second;
         }
+        m_sort_cb(qevent);
         m_storage.save_query_event(m_qevent_out, qevent);
     }
 }
@@ -340,7 +347,7 @@ void CapBoostStorage::preload_query_events(int64_t max_in_container)
     }
 }
 
-CapBoostStorage::SortReport CapBoostStorage::sort_query_event_file()
+CapBoostStorage::SortReport CapBoostStorage::sort_query_event_file(const SortCallback& sort_cb)
 {
     SortReport report;
     mxb::StopWatch sw;
@@ -348,7 +355,7 @@ CapBoostStorage::SortReport CapBoostStorage::sort_query_event_file()
 
     auto qevent_out = std::make_unique<BoostOFile>(m_query_event_path);
     auto gevent_out = std::make_unique<BoostOFile>(m_gtid_path);
-    QuerySort sorter(*this, *qevent_out, *gevent_out);
+    QuerySort sorter(*this, *qevent_out, *gevent_out, sort_cb);
 
     while (!m_query_events.empty())
     {
