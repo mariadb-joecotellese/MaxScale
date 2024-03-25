@@ -5,6 +5,8 @@
  */
 #pragma once
 
+#include "../capdefs.hh"
+
 #include "repconfig.hh"
 #include "repsession.hh"
 #include "reptransform.hh"

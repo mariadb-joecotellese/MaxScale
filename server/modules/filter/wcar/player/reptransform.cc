@@ -10,7 +10,7 @@
 RepTransform::RepTransform(const RepConfig* pConfig, Action action)
     : m_config(*pConfig)
 {
-    std::cout << "Transform data for replay." << std::endl;
+    MXB_SNOTICE("Transform data for replay.");
 
     maxbase::StopWatch sw;
     fs::path path{m_config.file_name};
@@ -33,7 +33,7 @@ RepTransform::RepTransform(const RepConfig* pConfig, Action action)
         m_rep_event_storage = m_config.build_rep_storage();
     }
 
-    std::cout << "Transform: " << mxb::to_string(sw.split()) << std::endl;
+    MXB_SNOTICE("Transform: " << mxb::to_string(sw.split()));
 }
 
 void RepTransform::finalize()
@@ -175,9 +175,9 @@ void RepTransform::transform_events(const fs::path& path, Action action)
     std::unordered_map<int64_t, SessionState> sessions;
     for (auto&& qevent : boost)
     {
-        if (m_config.verbosity > 1)
+        if (mxb_log_is_priority_enabled(LOG_INFO))
         {
-            dump_event(qevent, std::cout);
+            dump_event(qevent);
         }
 
         auto session_ite = sessions.find(qevent.session_id);
@@ -218,6 +218,8 @@ void RepTransform::transform_events(const fs::path& path, Action action)
         m_trx_end_mapping.emplace(ite->end_event_id, ite);
     }
 
+    mxb::Json tx_js;
+
     if (needs_sorting)
     {
         mxb::Json capture(mxb::Json::Type::OBJECT);
@@ -239,26 +241,34 @@ void RepTransform::transform_events(const fs::path& path, Action action)
 
         std::ofstream tx_file(tx_path);
         tx_file << js.to_string(mxb::Json::Format::PRETTY) << std::endl;
-    }
-
-    std::cout << std::ifstream(tx_path).rdbuf() << std::endl;
-}
-
-void RepTransform::dump_event(const QueryEvent& qevent, std::ostream& out)
-{
-    if (is_session_close(qevent))
-    {
-        out << "/** Session: " << qevent.session_id << " quit */;\n";
+        tx_js = std::move(js);
     }
     else
     {
-        out
-            << "/**"
-            << " Session: " << qevent.session_id
-            << " Event: " << qevent.event_id
-            << " Duration: " << mxb::to_string(qevent.end_time - qevent.start_time)
-            << " */ "
-            << maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args)
-            << ";\n";
+        tx_js.load(tx_path.string());
+    }
+
+    MXB_SNOTICE("Original sort time: " << tx_js.at("duration").get_real() << "s");
+    MXB_SNOTICE("Events: " << tx_js.at("capture/events").to_string(mxb::Json::Format::COMPACT));
+    MXB_SNOTICE("Transactions: " << tx_js.at("capture/transactions").to_string(mxb::Json::Format::COMPACT));
+    MXB_SNOTICE("Sessions: " << tx_js.at("capture/sessions").to_string(mxb::Json::Format::COMPACT));
+    MXB_SNOTICE("Expected runtime: " << tx_js.at("capture/duration").get_real() << "s");
+}
+
+void RepTransform::dump_event(const QueryEvent& qevent)
+{
+    if (is_session_close(qevent))
+    {
+        MXB_SINFO("/** Session: " << qevent.session_id << " quit */;");
+    }
+    else
+    {
+        MXB_SINFO("/**"
+                  << " Session: " << qevent.session_id
+                  << " Event: " << qevent.event_id
+                  << " Duration: " << mxb::to_string(qevent.end_time - qevent.start_time)
+                  << " */ "
+                  << maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args)
+                  << ";");
     }
 }

@@ -53,12 +53,16 @@ void RepPlayer::replay()
         timeline_add(*(session_ite->second), std::move(qevent));
     }
 
-    std::cout << "Main loop: " << mxb::to_string(m_stopwatch.restart()) << std::endl;
+    MXB_SNOTICE("Main loop: " << mxb::to_string(m_stopwatch.restart()));
     wait_for_sessions_to_finish();
-    std::cout << "Final wait: " << mxb::to_string(m_stopwatch.restart()) << std::endl;
+    MXB_SNOTICE("Final wait: " << mxb::to_string(m_stopwatch.restart()));
     m_transform.finalize();
-    std::cout << "Transform finalize: " << mxb::to_string(m_stopwatch.restart()) << std::endl;
-    std::cout << mxb::get_collector_stats() << std::endl;
+    MXB_SNOTICE("Transform finalize: " << mxb::to_string(m_stopwatch.restart()));
+
+    for (auto str : mxb::strtok(mxb::get_collector_stats(), "\n"))
+    {
+        MXB_SNOTICE(str);
+    }
 }
 
 RepPlayer::ExecutionInfo RepPlayer::get_execution_info(RepSession& session, const QueryEvent& qevent)

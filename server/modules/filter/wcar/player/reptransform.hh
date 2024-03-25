@@ -5,6 +5,8 @@
  */
 #pragma once
 
+#include "../capdefs.hh"
+
 #include "repconfig.hh"
 #include "../capstorage.hh"
 #include "repstorage.hh"
@@ -81,7 +83,7 @@ public:
     }
 private:
     void transform_events(const fs::path& path, Action action);
-    void dump_event(const QueryEvent& qevent, std::ostream& out);
+    void dump_event(const QueryEvent& qevent);
 
     const RepConfig&            m_config;
     std::unique_ptr<Storage>    m_player_storage;

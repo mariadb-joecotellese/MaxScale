@@ -30,9 +30,10 @@ bool execute_stmt(MYSQL* pConn, const QueryEvent& qevent, RepRecorder* pRecorder
     if (mysql_query(pConn, sql.c_str()))
     {
         int error_number = mysql_errno(m_pConn);
-        std::cerr << "MariaDB: Error S " << qevent.session_id << " E " << qevent.event_id
-                  << " SQL " << mxb::show_some(sql)
-                  << " Error code " << error_number << ": " << mysql_error(m_pConn) << std::endl;
+        MXB_SERROR("MariaDB: Error S "
+                   << qevent.session_id << " E " << qevent.event_id
+                   << " SQL " << mxb::show_some(sql)
+                   << " Error code " << error_number << ": " << mysql_error(m_pConn));
         revent.error = error_number;
     }
 
@@ -102,16 +103,17 @@ void RepSession::run()
     m_pConn = mysql_init(nullptr);
     if (m_pConn == nullptr)
     {
-        std::cerr << "Could not initialize connector-c " << mysql_error(m_pConn) << std::endl;
+        MXB_SERROR("Could not initialize connector-c " << mysql_error(m_pConn));
         exit(EXIT_FAILURE);
     }
 
     if (mysql_real_connect(m_pConn, m_config.host.address().c_str(), m_config.user.c_str(),
                            m_config.password.c_str(), "", m_config.host.port(), nullptr, 0) == nullptr)
     {
-        std::cerr << "Could not connect to " << m_config.host.address()
-                  << ':' << std::to_string(m_config.host.port())
-                  << " Error: " << mysql_error(m_pConn) << '\n';
+        MXB_SERROR("Could not connect to "
+                   << m_config.host.address()
+                   << ':' << std::to_string(m_config.host.port())
+                   << " Error: " << mysql_error(m_pConn));
         exit(EXIT_FAILURE);
     }
 

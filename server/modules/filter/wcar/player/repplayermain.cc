@@ -16,6 +16,17 @@ try
     mxb::MaxBase mxb(MXB_LOG_TARGET_STDOUT);
 
     RepConfig config(argc, argv);
+    mxb_log_set_syslog_enabled(false);
+
+    if (config.verbosity > 0)
+    {
+        mxb_log_set_priority_enabled(LOG_INFO, true);
+    }
+
+    if (config.verbosity > 1)
+    {
+        mxb_log_set_priority_enabled(LOG_DEBUG, true);
+    }
 
     if (config.command == cmd::REPLAY)
     {

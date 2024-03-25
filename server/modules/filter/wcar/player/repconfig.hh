@@ -5,6 +5,8 @@
  */
 #pragma once
 
+#include "../capdefs.hh"
+
 #include <maxbase/host.hh>
 #include <mysql.h>
 #include <string>

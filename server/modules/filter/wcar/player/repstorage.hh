@@ -5,6 +5,8 @@
  */
 #pragma once
 
+#include "../capdefs.hh"
+
 #include <maxbase/ccdefs.hh>
 #include <maxbase/stopwatch.hh>
 #include <vector>

@@ -5,6 +5,8 @@
  */
 #pragma once
 
+#include "../capdefs.hh"
+
 #include "repstorage.hh"
 #include <maxscale/ccdefs.hh>
 #include <maxbase/collector.hh>

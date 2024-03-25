@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include <maxbase/ccdefs.hh>
+#include "../capdefs.hh"
 
 #include "repstorage.hh"
 #include <fstream>

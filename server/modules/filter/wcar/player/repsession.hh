@@ -5,6 +5,8 @@
  */
 #pragma once
 
+#include "../capdefs.hh"
+
 #include "../capstorage.hh"
 #include "repconfig.hh"
 #include "reprecorder.hh"
