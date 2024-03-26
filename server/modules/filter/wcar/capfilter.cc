@@ -7,6 +7,7 @@
 #include "capfilter.hh"
 #include "capbooststorage.hh"
 #include "capconfig.hh"
+#include "simtime.hh"
 #include <maxscale/mainworker.hh>
 #include <maxbase/stopwatch.hh>
 #include <string>
@@ -76,6 +77,7 @@ bool CapFilter::post_configure()
 {
     if (m_config.start_capture)
     {
+        SimTime::reset_sim_time(wall_time::Clock::now());
         m_sRecorder = make_storage(DEFAULT_FILE_PREFIX);
         m_sRecorder->start();
     }
@@ -137,6 +139,7 @@ bool CapFilter::start_capture(std::string file_prefix)
         file_prefix = DEFAULT_FILE_PREFIX;
     }
 
+    SimTime::reset_sim_time(wall_time::Clock::now());
     m_sRecorder = make_storage(file_prefix);
     m_sRecorder->start();
 

@@ -1,4 +1,5 @@
 #include "repplayer.hh"
+#include "../simtime.hh"
 #include <maxbase/stopwatch.hh>
 #include <maxbase/assert.hh>
 #include <maxsimd/canonical.hh>
@@ -34,6 +35,7 @@ void RepPlayer::replay()
     {
         if (m_timeline_delta == mxb::Duration::zero())
         {
+            SimTime::reset_sim_time(wall_time::Clock::now(), 1.0);
             m_timeline_delta = mxb::Clock::now() - qevent.start_time;
             m_stopwatch.restart();
         }
