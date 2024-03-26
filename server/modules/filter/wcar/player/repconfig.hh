@@ -45,6 +45,7 @@ struct RepConfig
     std::string file_name;      // full path, not necessarily in capture_dir
     std::string output_file;    // Output file, defaults to file_name
     std::string command = "replay";
+    float       sim_speed = 1.0;
 
     void show_help();
 

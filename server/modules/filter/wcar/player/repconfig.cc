@@ -34,7 +34,7 @@ const struct option long_opts[] =
     {"user",          required_argument, 0, 'u'},
     {"password",      required_argument, 0, 'p'},
     {"host",          required_argument, 0, 'H'},
-    {"mode",          required_argument, 0, 'm'},
+    {"speed",         required_argument, 0, 's'},
     {"csv",           optional_argument, 0, 'c'},
     {"output",        required_argument, 0, 'o'},
     {"verbose",       no_argument,       0, 'v'},
@@ -42,8 +42,8 @@ const struct option long_opts[] =
     {0,               0,                 0, 0  }
 };
 
-// This is not seprately checked, keep in sync with long_opts.
-const char* short_opts = "hvRu:p:H:c::o:";
+// This is not separately checked, keep in sync with long_opts.
+const char* short_opts = "hu:p:H:s:c::o:vR";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -112,19 +112,25 @@ std::string list_commands()
 
 void RepConfig::show_help()
 {
-    std::cout << "Usage: player [OPTION]... [COMMAND] FILE"
-              << OPT('h', "this help text (with current option values)")
+    std::cout << "Usage: player [OPTION]... [COMMAND] FILE\n"
+              << "\n"
+              << "Speed setting: The value is a multiplier. 2.5 is 2.5x speed and 0.5 is half speed.\n"
+              << "               A value of zero means no limit, or replay as fast as possible.\n"
+              << "Commands:\n"
+              << list_commands();
+    if (!file_name.empty())
+    {
+        std::cout << "\nInput file: " << file_name << "\n";
+    }
+    std::cout << OPT('h', "this help text (with current option values)")
               << OPT('c', "Save replay as CSV (options: none, minimal, full)")
+              << OPT('s', sim_speed)
               << OPT('o', "Output file (" + output_file + ")")
               << OPT('u', user)
               << OPT('p', password)
               << OPT('H', host)
               << OPT('v', verbosity)
               << OPT('R', row_counts)
-              << "\n\nInput file: " << file_name << "\n"
-              << "\n"
-              << "Commands:\n"
-              << list_commands()
               << std::endl;
 }
 
@@ -175,6 +181,12 @@ RepConfig::RepConfig(int argc, char** argv)
                 help = true;
                 error = true;
             }
+            break;
+
+        case 's':
+            sim_speed = std::stof(optarg);
+            // 10'000x overflows int64 nanos in ~ 10 days
+            sim_speed = std::min(sim_speed, 10'000.0f);
             break;
 
         case 'v':

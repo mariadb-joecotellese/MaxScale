@@ -33,7 +33,7 @@ void RepPlayer::replay()
         if (once)
         {
             once = false;
-            SimTime::reset_sim_time(qevent.start_time, 1.0);
+            SimTime::reset_sim_time(qevent.start_time, m_config.sim_speed);
             m_stopwatch.restart();
         }
 
@@ -108,10 +108,11 @@ void RepPlayer::timeline_add(RepSession& session, QueryEvent&& qevent)
     SimTime::sim_time().tick();
 
     mxb::Duration dur = qevent.start_time - SimTime::sim_time().now();
-    mxb::TimePoint wait_until = mxb::Clock::now() + dur;
     std::unique_lock lock(m_trxn_mutex, std::defer_lock);
-    if (dur > 0s)
+
+    if (m_config.sim_speed > 0 && dur > 0s)
     {
+        mxb::TimePoint wait_until = mxb::Clock::now() + dur;
         bool at_least_once = true;
 
         while (mxb::Clock::now() < wait_until || at_least_once)
