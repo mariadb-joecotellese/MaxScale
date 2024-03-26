@@ -27,10 +27,6 @@ public:
     void session_finished(const RepSession& session);
 
 private:
-    // Simulated time corresponding to the original timeline,
-    // sim_time() can be directly compared to a captured time.
-    mxb::TimePoint sim_time();
-
     // Wait for qevent start to reach sim_time(), then schedule_event().
     void timeline_add(RepSession& session, QueryEvent&& qevent);
 
@@ -64,9 +60,6 @@ private:
 
     const RepConfig& m_config;
     RepTransform     m_transform;
-
-    // Delta between start of simulation and capture_time (positive)
-    mxb::Duration m_timeline_delta = mxb::Duration::zero();
 
     // Active sessions
     std::unordered_map<int64_t, std::unique_ptr<RepSession>> m_sessions;

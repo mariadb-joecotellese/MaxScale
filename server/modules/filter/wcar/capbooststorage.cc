@@ -259,7 +259,7 @@ TrxEvent CapBoostStorage::load_trx_event()
     (**m_sGtid_in) & tevent.gtid.server_id;
     (**m_sGtid_in) & tevent.gtid.sequence_nr;
 
-    tevent.end_time = mxb::TimePoint(mxb::Duration(end_time_cnt));
+    tevent.end_time = wall_time::TimePoint(mxb::Duration(end_time_cnt));
 
     return tevent;
 }
@@ -314,8 +314,8 @@ void CapBoostStorage::preload_query_events(int64_t max_in_container)
         int64_t end_time_int;
         (**m_sQuery_event_in) & start_time_int;
         (**m_sQuery_event_in) & end_time_int;
-        qevent.start_time = mxb::TimePoint(mxb::Duration(start_time_int));
-        qevent.end_time = mxb::TimePoint(mxb::Duration(end_time_int));
+        qevent.start_time = wall_time::TimePoint(mxb::Duration(start_time_int));
+        qevent.end_time = wall_time::TimePoint(mxb::Duration(end_time_int));
 
         qevent.sCanonical = find_canonical(qevent.can_id);
 

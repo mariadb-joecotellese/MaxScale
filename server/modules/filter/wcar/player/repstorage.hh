@@ -13,13 +13,13 @@
 
 struct RepEvent
 {
-    int64_t        event_id {0};
-    mxb::TimePoint start_time {0s};
-    mxb::TimePoint end_time {0s};
-    int64_t        can_id {0};
-    int32_t        num_rows {0};
-    int32_t        rows_read {0};
-    uint16_t       error {0};
+    int64_t              event_id {0};
+    wall_time::TimePoint start_time {0s};
+    wall_time::TimePoint end_time {0s};
+    int64_t              can_id {0};
+    int32_t              num_rows {0};
+    int32_t              rows_read {0};
+    uint16_t             error {0};
 };
 
 class RepStorage

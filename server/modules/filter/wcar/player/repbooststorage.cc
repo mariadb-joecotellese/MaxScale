@@ -75,8 +75,8 @@ RepEvent RepBoostStorage::next_rep_event()
 
     RepEvent ev;
     ev.event_id = event_id;
-    ev.start_time = mxb::TimePoint{mxb::Duration{start_time}};
-    ev.end_time = mxb::TimePoint{mxb::Duration{end_time}};
+    ev.start_time = wall_time::TimePoint{mxb::Duration{start_time}};
+    ev.end_time = wall_time::TimePoint{mxb::Duration{end_time}};
     ev.can_id = can_id;
     ev.num_rows = num_rows;
     ev.rows_read = rows_read;

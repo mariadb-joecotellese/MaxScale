@@ -52,7 +52,7 @@ private:
     // no RoutingWorker is involved.
     enum Who {CURRENT_WORKER, MAIN_WORKER};
     void                    send_event(QueryEvent&& qevent, Who who = CURRENT_WORKER);
-    std::vector<QueryEvent> make_opening_events(maxbase::TimePoint start_time);
+    std::vector<QueryEvent> make_opening_events(wall_time::TimePoint start_time);
     QueryEvent              make_closing_event();
 
     const CapFilter&             m_filter;

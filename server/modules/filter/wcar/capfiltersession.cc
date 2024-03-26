@@ -6,6 +6,7 @@
 
 #include "capfiltersession.hh"
 #include "capfilter.hh"
+#include "simtime.hh"
 #include <maxbase/log.hh>
 #include <maxsimd/canonical.hh>
 #include <maxscale/protocol/mariadb/mysql.hh>
@@ -147,7 +148,7 @@ void CapFilterSession::send_event(QueryEvent&& qevent, Who who)
     pShared_data->send_update(std::move(qevent));
 }
 
-std::vector<QueryEvent> CapFilterSession::make_opening_events(mxb::TimePoint start_time)
+std::vector<QueryEvent> CapFilterSession::make_opening_events(wall_time::TimePoint start_time)
 {
     std::vector<QueryEvent> events;
 
@@ -156,7 +157,7 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(mxb::TimePoint sta
     QueryEvent opening_event;
     opening_event.session_id = m_pSession->id();
     opening_event.flags = 0;
-    auto now = mxb::Clock::now();
+    auto now = SimTime::sim_time().now();
     // The "- 1ns" is there to avoid having to take the flag into account in later sorting
     opening_event.start_time = start_time - 1ns;
     opening_event.end_time = start_time;
@@ -190,7 +191,7 @@ QueryEvent CapFilterSession::make_closing_event()
     closing_event.sCanonical = std::make_shared<std::string>("Close session");
     closing_event.session_id = m_pSession->id();
     closing_event.flags = CAP_SESSION_CLOSE;
-    closing_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick) + 1ns;
+    closing_event.start_time = SimTime::sim_time().now() + 1ns;
     closing_event.end_time = closing_event.start_time;
     closing_event.event_id = m_filter.get_next_event_id();
 
@@ -199,6 +200,8 @@ QueryEvent CapFilterSession::make_closing_event()
 
 bool CapFilterSession::routeQuery(GWBUF&& buffer)
 {
+    SimTime::sim_time().tick();
+
     m_capture = m_state.load(std::memory_order_relaxed) != CapState::DISABLED;
 
     m_ps_tracker.track_query(buffer);
@@ -228,7 +231,7 @@ bool CapFilterSession::routeQuery(GWBUF&& buffer)
     {
         const auto& maria_ses = static_cast<const MYSQL_session&>(protocol_data());
         m_query_event.session_id = m_pSession->id();
-        m_query_event.start_time = mxb::Clock::now(mxb::NowType::EPollTick);
+        m_query_event.start_time = SimTime::sim_time().now();
         m_query_event.flags = parser().get_type_mask(buffer);
     }
 
@@ -239,6 +242,8 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
                                    const maxscale::ReplyRoute& down,
                                    const maxscale::Reply& reply)
 {
+    SimTime::sim_time().tick();
+
     m_ps_tracker.track_reply(reply);
 
     if (m_ps_tracker.is_ldli())
@@ -250,7 +255,7 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
 
     if (m_capture)
     {
-        m_query_event.end_time = mxb::Clock::now(mxb::NowType::EPollTick);
+        m_query_event.end_time = SimTime::sim_time().now();
         m_query_event.event_id = m_filter.get_next_event_id();
         m_query_event.sTrx = m_session_state.update(m_query_event.event_id, reply);
         handle_cap_state(CapSignal::QEVENT);

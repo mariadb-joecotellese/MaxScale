@@ -22,21 +22,18 @@ RepPlayer::~RepPlayer()
     m_recorder.stop();
 }
 
-maxbase::TimePoint RepPlayer::sim_time()
-{
-    return mxb::Clock::now() - m_timeline_delta;
-}
-
 void RepPlayer::replay()
 {
+    bool once = true;
+
     // TODO: add throttling. This loop will now schedule all events, i.e. everything
     // that cannot be executed now, will go to pending, potentially consuming all memory.
     for (auto&& qevent : m_transform.player_storage())
     {
-        if (m_timeline_delta == mxb::Duration::zero())
+        if (once)
         {
-            SimTime::reset_sim_time(wall_time::Clock::now(), 1.0);
-            m_timeline_delta = mxb::Clock::now() - qevent.start_time;
+            once = false;
+            SimTime::reset_sim_time(qevent.start_time, 1.0);
             m_stopwatch.restart();
         }
 
@@ -108,7 +105,9 @@ void RepPlayer::session_finished(const RepSession& session)
 
 void RepPlayer::timeline_add(RepSession& session, QueryEvent&& qevent)
 {
-    mxb::Duration dur = qevent.start_time - sim_time();     // - 1min;
+    SimTime::sim_time().tick();
+
+    mxb::Duration dur = qevent.start_time - SimTime::sim_time().now();
     mxb::TimePoint wait_until = mxb::Clock::now() + dur;
     std::unique_lock lock(m_trxn_mutex, std::defer_lock);
     if (dur > 0s)

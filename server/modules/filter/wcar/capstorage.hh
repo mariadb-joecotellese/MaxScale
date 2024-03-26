@@ -55,8 +55,8 @@ struct QueryEvent
     int64_t                      can_id;
     int64_t                      session_id;
     uint64_t                     flags;
-    mxb::TimePoint               start_time;
-    mxb::TimePoint               end_time;
+    wall_time::TimePoint         start_time;
+    wall_time::TimePoint         end_time;
     int64_t                      event_id;
     std::unique_ptr<Trx>         sTrx;  // not populated when created from storage
 };

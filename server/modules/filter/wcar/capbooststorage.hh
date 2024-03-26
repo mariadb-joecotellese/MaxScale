@@ -29,12 +29,12 @@ enum class ReadWrite
 
 struct TrxEvent
 {
-    int64_t        session_id;
-    int64_t        start_event_id;
-    int64_t        end_event_id;
-    mxb::TimePoint end_time;
-    Gtid           gtid;
-    bool           completed = false;
+    int64_t              session_id;
+    int64_t              start_event_id;
+    int64_t              end_event_id;
+    wall_time::TimePoint end_time;
+    Gtid                 gtid;
+    bool                 completed = false;
 };
 
 template<typename BoostArchive>
