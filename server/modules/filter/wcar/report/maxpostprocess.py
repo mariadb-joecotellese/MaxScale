@@ -110,6 +110,22 @@ def get_error_counts():
     return {can_id: errcount for can_id, errcount in cursor.fetchall()}
 
 
+def get_qps():
+    """
+    Get the query counts in the given resolution
+    """
+    global cursor
+
+    val_min, val_max = cursor.execute("SELECT MIN(start_time), MAX(start_time + duration) FROM replay_results").fetchall()[0]
+    num_bins = int(val_max - val_min)
+    times = np.linspace(int(val_min), int(val_max) + 1, num=num_bins + 1)
+    counts = [0] * num_bins
+    cursor.execute("SELECT FLOOR(start_time + duration) , COUNT(*) qps FROM replay_results GROUP BY 1 ORDER BY 1")
+    for time_point, qps in cursor.fetchall():
+        counts[int(time_point - val_min)] = qps
+    return {"time": times.tolist(), "counts": counts}
+
+
 dur_stats = get_statistics("duration")
 rr_stats = get_statistics("rows_read")
 canonicals = get_canonicals()
@@ -130,10 +146,7 @@ for can, h in build_histograms().items():
 
 result = {
   "queries": queries,
-  "qps": {
-    "scale": "60s",
-    "values": []
-  }
+  "qps": get_qps()
 }
 
 if args.output:
