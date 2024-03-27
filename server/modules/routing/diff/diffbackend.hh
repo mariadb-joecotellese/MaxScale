@@ -263,10 +263,10 @@ bool DiffConcreteBackend<Stats, Result, ExplainResult>::execute(const SExplainRe
 /**
  * @class DiffMainBackend
  */
-class DiffMainBackend final : public DiffConcreteBackend<DiffMainStats, DiffResult, DiffExplainResult>
+class DiffMainBackend final : public DiffConcreteBackend<DiffMainStats, DiffResult, DiffExplainMainResult>
 {
 public:
-    using Base = DiffConcreteBackend<DiffMainStats, DiffResult, DiffExplainResult>;
+    using Base = DiffConcreteBackend<DiffMainStats, DiffResult, DiffExplainMainResult>;
 
     DiffMainBackend(mxs::Endpoint* pEndpoint);
 
@@ -287,13 +287,13 @@ private:
 /**
  * @class DiffOtherBackend
  */
-class DiffOtherBackend final : public DiffConcreteBackend<DiffOtherStats, DiffResult, DiffExplainResult>
+class DiffOtherBackend final : public DiffConcreteBackend<DiffOtherStats, DiffResult, DiffExplainOtherResult>
                              , private DiffOrdinaryOtherResult::Handler
                              , private DiffExplainOtherResult::Handler
 
 {
 public:
-    using Base = DiffConcreteBackend<DiffOtherStats, DiffResult, DiffExplainResult>;
+    using Base = DiffConcreteBackend<DiffOtherStats, DiffResult, DiffExplainOtherResult>;
 
     class Handler
     {

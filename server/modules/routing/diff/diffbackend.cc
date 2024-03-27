@@ -193,7 +193,7 @@ void DiffOtherBackend::ready(DiffOrdinaryOtherResult& other_result)
             auto* pExplain_main = new DiffExplainMainResult(&main_backend, sMain_result);
             sExplain_main.reset(pExplain_main);
 
-            main_backend.schedule_explain(sExplain_main);
+            main_backend.schedule_explain(std::move(sExplain_main));
             main_backend.execute_pending_explains();
         }
         [[fallthrough]];
