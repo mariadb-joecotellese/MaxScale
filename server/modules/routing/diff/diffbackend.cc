@@ -45,63 +45,22 @@ void DiffBackend::process_result(const GWBUF& buffer, const mxs::Reply& reply)
     mxb_assert(m_sQc);
     m_sQc->update_from_reply(reply);
 
-    mxb_assert(!m_results.empty());
-    m_results.front()->process(buffer);
-}
-
-void DiffBackend::execute_pending_explains()
-{
-    mxb_assert(m_pRouter_session);
-
-    m_pRouter_session->lcall([this] {
-            bool rv = true;
-
-            if (!extraordinary_in_process())
-            {
-                while (rv && !m_pending_explains.empty())
-                {
-                    auto sExplain_result = std::move(m_pending_explains.front());
-                    m_pending_explains.pop_front();
-
-                    rv = execute(sExplain_result);
-                }
-            }
-
-            return rv;
-        });
+    auto* pFront = front();
+    mxb_assert(pFront);
+    pFront->process(buffer);
 }
 
 void DiffBackend::close(close_type type)
 {
     mxs::Backend::close(type);
-
-    m_results.clear();
 }
 
-bool DiffBackend::execute(const std::shared_ptr<DiffExplainResult>& sExplain_result)
+void DiffBackend::lcall(std::function<bool()>&& fn)
 {
-    std::string sql { "EXPLAIN FORMAT=JSON "};
-    sql += sExplain_result->sql();
+    mxb_assert(m_pRouter_session);
 
-    m_results.emplace_back(std::move(sExplain_result));
-
-    GWBUF packet = phelper().create_packet(sql);
-    packet.set_type(static_cast<GWBUF::Type>(GWBUF::TYPE_COLLECT_RESULT | GWBUF::TYPE_COLLECT_ROWS));
-
-    bool rv = write(std::move(packet), mxs::Backend::EXPECT_RESPONSE);
-
-    // TODO: Need to consider just how a failure to write should affect
-    // TODO: the statistics.
-    book_explain();
-
-    return rv;
+    m_pRouter_session->lcall(std::move(fn));
 }
-
-void DiffBackend::schedule_explain(SDiffExplainResult&& sExplain_result)
-{
-    m_pending_explains.emplace_back(std::move(sExplain_result));
-}
-
 
 /**
  * DiffMainBackend
@@ -111,7 +70,7 @@ DiffMainBackend::DiffMainBackend(mxs::Endpoint* pEndpoint)
 {
 }
 
-DiffMainBackend::SResult DiffMainBackend::prepare(const GWBUF& packet)
+std::shared_ptr<DiffOrdinaryMainResult> DiffMainBackend::prepare(const GWBUF& packet)
 {
     auto sMain_result = std::make_shared<DiffOrdinaryMainResult>(this, packet);
 
@@ -199,7 +158,7 @@ DiffOtherBackend::~DiffOtherBackend()
 
 }
 
-void DiffOtherBackend::prepare(const DiffMainBackend::SResult& sMain_result)
+void DiffOtherBackend::prepare(const std::shared_ptr<DiffOrdinaryMainResult>& sMain_result)
 {
     // std::make_shared can't be used, because the private COtherResult::Handler base is inaccessible.
     auto* pOther_result = new DiffOrdinaryOtherResult(this, this, sMain_result);

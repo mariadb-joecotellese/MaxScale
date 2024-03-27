@@ -36,11 +36,6 @@ class DiffBackend : public mxs::Backend
 public:
     ~DiffBackend() = default;
 
-    using Result = DiffResult;
-    using SResult = std::shared_ptr<Result>;
-    using SDiffExplainResult = std::shared_ptr<DiffExplainResult>;
-
-
     void set_router_session(DiffRouterSession* pRouter_session);
 
     bool extraordinary_in_process() const;
@@ -57,10 +52,7 @@ public:
 
     void close(close_type type = CLOSE_NORMAL) override;
 
-    int32_t nBacklog() const
-    {
-        return m_results.size();
-    }
+    virtual int32_t nBacklog() const = 0;
 
     const mxs::Parser& parser() const
     {
@@ -74,35 +66,39 @@ public:
         return *m_pParser_helper;
     }
 
-    void execute_pending_explains();
-
-    void schedule_explain(SDiffExplainResult&&);
-
 protected:
     DiffBackend(mxs::Endpoint* pEndpoint);
 
+    virtual DiffResult* front() = 0;
+
     virtual void book_explain() = 0;
+
+    void lcall(std::function<bool()>&& fn);
 
     std::unique_ptr<mariadb::QueryClassifier> m_sQc;
     const mxs::Parser*                        m_pParser { nullptr };
     const mxs::Parser::Helper*                m_pParser_helper { nullptr };
-    std::deque<SResult>                       m_results;
 
 protected:
-    bool execute(const SDiffExplainResult& sExplain_result);
-
-    DiffRouterSession*             m_pRouter_session { nullptr };
-    std::deque<SDiffExplainResult> m_pending_explains;
+    DiffRouterSession* m_pRouter_session { nullptr };
 };
 
 
 /**
- * @class DiffBackendWithStats
+ * @class DiffConcreteBackend
  */
-template<class Stats>
-class DiffBackendWithStats : public DiffBackend
+template<class Stats, class Result, class ExplainResult>
+class DiffConcreteBackend : public DiffBackend
 {
 public:
+    using SResult = std::shared_ptr<Result>;
+    using SExplainResult = std::shared_ptr<ExplainResult>;
+
+    int32_t nBacklog() const override
+    {
+        return m_results.size();
+    }
+
     const Stats& stats() const
     {
         return m_stats;
@@ -112,24 +108,37 @@ public:
 
     Routing finish_result(const mxs::Reply& reply) override;
 
+    void close(close_type type = CLOSE_NORMAL) override;
+
+    void execute_pending_explains();
+
+    void schedule_explain(SExplainResult&&);
+
 protected:
-    DiffBackendWithStats(mxs::Endpoint* pEndpoint);
+    DiffConcreteBackend(mxs::Endpoint* pEndpoint);
+
+    DiffResult* front() override;
 
     void book_explain() override;
 
 protected:
-    Stats m_stats;
+    Stats                      m_stats;
+    std::deque<SResult>        m_results;
+    std::deque<SExplainResult> m_pending_explains;
+
+private:
+    bool execute(const SExplainResult& sExplain_result);
 };
 
 
-template<class Stats>
-DiffBackendWithStats<Stats>::DiffBackendWithStats(mxs::Endpoint* pEndpoint)
+template<class Stats, class Result, class ExplainResult>
+DiffConcreteBackend<Stats, Result, ExplainResult>::DiffConcreteBackend(mxs::Endpoint* pEndpoint)
     : DiffBackend(pEndpoint)
 {
 }
 
-template<class Stats>
-void DiffBackendWithStats<Stats>::book_explain()
+template<class Stats, class Result, class ExplainResult>
+void DiffConcreteBackend<Stats, Result, ExplainResult>::book_explain()
 {
     m_stats.inc_explain_requests();
 
@@ -141,8 +150,8 @@ void DiffBackendWithStats<Stats>::book_explain()
     m_stats.dec_requests_responding();
 }
 
-template<class Stats>
-bool DiffBackendWithStats<Stats>::write(GWBUF&& buffer, response_type type)
+template<class Stats, class Result, class ExplainResult>
+bool DiffConcreteBackend<Stats, Result, ExplainResult>::write(GWBUF&& buffer, response_type type)
 {
     mxb_assert(m_sQc);
     m_sQc->update_and_commit_route_info(buffer);
@@ -169,8 +178,8 @@ bool DiffBackendWithStats<Stats>::write(GWBUF&& buffer, response_type type)
     return Backend::write(std::move(buffer), type);
 }
 
-template<class Stats>
-DiffBackend::Routing DiffBackendWithStats<Stats>::finish_result(const mxs::Reply& reply)
+template<class Stats, class Result, class ExplainResult>
+DiffBackend::Routing DiffConcreteBackend<Stats, Result, ExplainResult>::finish_result(const mxs::Reply& reply)
 {
     mxb_assert(reply.is_complete());
     mxb_assert(!m_results.empty());
@@ -190,20 +199,78 @@ DiffBackend::Routing DiffBackendWithStats<Stats>::finish_result(const mxs::Reply
     return kind == DiffResult::Kind::EXTERNAL ? Routing::CONTINUE : Routing::STOP;
 }
 
+template<class Stats, class Result, class ExplainResult>
+void DiffConcreteBackend<Stats, Result, ExplainResult>::close(close_type type)
+{
+    DiffBackend::close(type);
+
+    m_results.clear();
+}
+
+template<class Stats, class Result, class ExplainResult>
+void DiffConcreteBackend<Stats, Result, ExplainResult>::execute_pending_explains()
+{
+    lcall([this] {
+        bool rv = true;
+
+        if (!extraordinary_in_process())
+        {
+            while (rv && !m_pending_explains.empty())
+            {
+                auto sExplain_result = std::move(m_pending_explains.front());
+                m_pending_explains.pop_front();
+
+                rv = execute(sExplain_result);
+            }
+        }
+
+        return rv;
+    });
+}
+
+template<class Stats, class Result, class ExplainResult>
+void DiffConcreteBackend<Stats, Result, ExplainResult>::schedule_explain(SExplainResult&& sExplain_result)
+{
+    m_pending_explains.emplace_back(std::move(sExplain_result));
+}
+
+template<class Stats, class Result, class ExplainResult>
+DiffResult* DiffConcreteBackend<Stats, Result, ExplainResult>::front()
+{
+    return m_results.empty() ? nullptr : m_results.front().get();
+}
+
+template<class Stats, class Result, class ExplainResult>
+bool DiffConcreteBackend<Stats, Result, ExplainResult>::execute(const SExplainResult& sExplain_result)
+{
+    std::string sql { "EXPLAIN FORMAT=JSON "};
+    sql += sExplain_result->sql();
+
+    m_results.emplace_back(std::move(sExplain_result));
+
+    GWBUF packet = phelper().create_packet(sql);
+    packet.set_type(static_cast<GWBUF::Type>(GWBUF::TYPE_COLLECT_RESULT | GWBUF::TYPE_COLLECT_ROWS));
+
+    bool rv = write(std::move(packet), mxs::Backend::EXPECT_RESPONSE);
+
+    // TODO: Need to consider just how a failure to write should affect
+    // TODO: the statistics.
+    book_explain();
+
+    return rv;
+}
 
 /**
  * @class DiffMainBackend
  */
-class DiffMainBackend final : public DiffBackendWithStats<DiffMainStats>
+class DiffMainBackend final : public DiffConcreteBackend<DiffMainStats, DiffResult, DiffExplainResult>
 {
 public:
-    using Base = DiffBackendWithStats<DiffMainStats>;
-    using Result = DiffOrdinaryMainResult;
-    using SResult = std::shared_ptr<Result>;
+    using Base = DiffConcreteBackend<DiffMainStats, DiffResult, DiffExplainResult>;
 
     DiffMainBackend(mxs::Endpoint* pEndpoint);
 
-    SResult prepare(const GWBUF& packet);
+    std::shared_ptr<DiffOrdinaryMainResult> prepare(const GWBUF& packet);
 
     uint8_t command() const
     {
@@ -220,15 +287,13 @@ private:
 /**
  * @class DiffOtherBackend
  */
-class DiffOtherBackend final : public DiffBackendWithStats<DiffOtherStats>
+class DiffOtherBackend final : public DiffConcreteBackend<DiffOtherStats, DiffResult, DiffExplainResult>
                              , private DiffOrdinaryOtherResult::Handler
                              , private DiffExplainOtherResult::Handler
 
 {
 public:
-    using Base = DiffBackendWithStats<DiffOtherStats>;
-    using Result = DiffOrdinaryOtherResult;
-    using SResult = std::shared_ptr<Result>;
+    using Base = DiffConcreteBackend<DiffOtherStats, DiffResult, DiffExplainResult>;
 
     class Handler
     {
@@ -257,7 +322,7 @@ public:
         return *m_sExporter.get();
     }
 
-    void prepare(const DiffMainBackend::SResult& sMain_result);
+    void prepare(const std::shared_ptr<DiffOrdinaryMainResult>& sMain_result);
 
 private:
     // DiffOrdinaryOtherResult::Handler
