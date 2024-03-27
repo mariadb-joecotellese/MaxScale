@@ -153,7 +153,7 @@ private:
         std::shared_ptr<std::string> sCanonical;
     };
 
-    using Canonicals = std::unordered_map<int64_t, CanonicalEntry>;
+    using Canonicals = std::unordered_map<std::string_view, CanonicalEntry>;
     Canonicals m_canonicals;
 
     using QueryEvents = std::deque<QueryEvent>;

@@ -124,17 +124,10 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
 
 void CapBoostStorage::add_query_event(QueryEvent&& qevent)
 {
-    int64_t hash{static_cast<int64_t>(std::hash<std::string> {}(*qevent.sCanonical))};
-    auto canon_ite = m_canonicals.find(hash);
+    auto canon_ite = m_canonicals.find(*qevent.sCanonical);
 
     if (canon_ite != std::end(m_canonicals))
     {
-        if (*qevent.sCanonical != *canon_ite->second.sCanonical)
-        {
-            MXB_WARNING("Hash collision found. Queries '%s' and '%s' hash to the same value.",
-                        qevent.sCanonical->c_str(), canon_ite->second.sCanonical->c_str());
-        }
-
         qevent.can_id = canon_ite->second.can_id;
         qevent.sCanonical = canon_ite->second.sCanonical;
     }
@@ -142,7 +135,8 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
     {
         qevent.can_id = next_can_id();
         save_canonical(*m_sCanonical_out, qevent.can_id, *qevent.sCanonical);
-        m_canonicals.emplace(hash, CanonicalEntry {qevent.can_id, qevent.sCanonical});
+        m_canonicals.emplace(std::string_view {*qevent.sCanonical}, CanonicalEntry {qevent.can_id,
+                                                                                    qevent.sCanonical});
     }
 
     save_query_event(*m_sQuery_event_out, qevent);
@@ -274,7 +268,7 @@ void CapBoostStorage::read_canonicals()
         (**m_sCanonical_in) & canonical;
         auto hash = std::hash<std::string> {}(canonical);
         auto shared = std::make_shared<std::string>(canonical);
-        m_canonicals.emplace(hash, CanonicalEntry {can_id, shared});
+        m_canonicals.emplace(std::string_view {*shared}, CanonicalEntry {can_id, shared});
     }
 }
 
