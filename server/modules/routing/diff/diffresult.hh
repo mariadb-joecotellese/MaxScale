@@ -114,9 +114,15 @@ private:
 };
 
 
+class DiffMainResult : public DiffResult
+{
+protected:
+    DiffMainResult(DiffMainBackend* pBackend);
+};
+
 class DiffOrdinaryOtherResult;
 
-class DiffOrdinaryMainResult final : public DiffResult
+class DiffOrdinaryMainResult final : public DiffMainResult
                                    , public std::enable_shared_from_this<DiffOrdinaryMainResult>
 
 {
@@ -179,7 +185,14 @@ private:
 };
 
 
-class DiffOrdinaryOtherResult final : public DiffResult
+class DiffOtherResult : public DiffResult
+{
+protected:
+    DiffOtherResult(DiffOtherBackend* pBackend);
+};
+
+
+class DiffOrdinaryOtherResult final : public DiffOtherResult
                                     , public std::enable_shared_from_this<DiffOrdinaryOtherResult>
 {
 public:

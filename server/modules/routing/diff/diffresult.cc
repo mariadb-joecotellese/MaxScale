@@ -52,10 +52,19 @@ std::chrono::nanoseconds DiffResult::close(const mxs::Reply& reply)
 
 
 /**
+ * DiffMainResult
+ */
+DiffMainResult::DiffMainResult(DiffMainBackend* pBackend)
+    : DiffResult(pBackend)
+{
+}
+
+
+/**
  * DiffOrdinaryMainResult
  */
 DiffOrdinaryMainResult::DiffOrdinaryMainResult(DiffMainBackend* pBackend, const GWBUF& packet)
-    : DiffResult(pBackend)
+    : DiffMainResult(pBackend)
     , m_id(this_unit.id++)
     , m_packet(packet.shallow_clone())
 {
@@ -120,6 +129,17 @@ std::chrono::nanoseconds DiffOrdinaryMainResult::close(const mxs::Reply& reply)
     return rv;
 }
 
+
+/**
+ * DiffOtherResult
+ */
+DiffOtherResult::DiffOtherResult(DiffOtherBackend* pBackend)
+    : DiffResult(pBackend)
+{
+}
+
+
+
 /**
  * DiffOrdinaryOtherResult
  */
@@ -127,7 +147,7 @@ std::chrono::nanoseconds DiffOrdinaryMainResult::close(const mxs::Reply& reply)
 DiffOrdinaryOtherResult::DiffOrdinaryOtherResult(DiffOtherBackend* pBackend,
                                                  Handler* pHandler,
                                                  std::shared_ptr<DiffOrdinaryMainResult> sMain_result)
-    : DiffResult(pBackend)
+    : DiffOtherResult(pBackend)
     , m_handler(*pHandler)
     , m_sMain_result(sMain_result)
 {
