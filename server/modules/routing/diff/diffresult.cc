@@ -181,29 +181,6 @@ void DiffOrdinaryOtherResult::main_was_closed()
 
 
 /**
- * DiffExplainResult
- */
-
-std::chrono::nanoseconds DiffExplainResult::close(const mxs::Reply& reply)
-{
-    DiffResult::close(reply);
-
-    mxb_assert(reply.is_complete());
-
-    if (!reply.row_data().empty())
-    {
-        mxb_assert(reply.row_data().size() == 1);
-        mxb_assert(reply.row_data().front().size() == 1);
-
-        m_json = reply.row_data().front().front();
-    }
-
-    // Return 0, so that the duration of the EXPLAIN request is not
-    // included in the total duration.
-    return std::chrono::milliseconds { 0 };
-}
-
-/**
  * DiffExplainMainResult
  */
 DiffExplainMainResult::DiffExplainMainResult(DiffMainBackend* pBackend,
@@ -241,7 +218,7 @@ std::chrono::nanoseconds DiffExplainMainResult::close(const mxs::Reply& reply)
 DiffExplainOtherResult::DiffExplainOtherResult(Handler* pHandler,
                                                std::shared_ptr<const DiffOrdinaryOtherResult> sOther_result,
                                                std::shared_ptr<DiffExplainMainResult> sExplain_main_result)
-    : DiffExplainResult(&sOther_result->backend())
+    : DiffExplainResult(static_cast<DiffOtherBackend*>(&sOther_result->backend()))
     , m_handler(*pHandler)
     , m_sOther_result(sOther_result)
     , m_sExplain_main_result(sExplain_main_result)

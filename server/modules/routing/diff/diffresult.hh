@@ -117,6 +117,8 @@ private:
 class DiffMainResult : public DiffResult
 {
 protected:
+    using Backend = DiffMainBackend;
+
     DiffMainResult(DiffMainBackend* pBackend);
 };
 
@@ -188,6 +190,8 @@ private:
 class DiffOtherResult : public DiffResult
 {
 protected:
+    using Backend = DiffOtherBackend;
+
     DiffOtherResult(DiffOtherBackend* pBackend);
 };
 
@@ -277,14 +281,15 @@ private:
 };
 
 
-class DiffExplainResult : public DiffResult
+template<class Base>
+class DiffExplainResult : public Base
 {
 public:
     virtual std::string_view sql() const = 0;
 
     const std::string& error() const
     {
-        const auto& r = reply();
+        const auto& r = this->reply();
         mxb_assert(r.is_complete());
 
         return r.error().message();
@@ -295,11 +300,28 @@ public:
         return m_json;
     }
 
-    std::chrono::nanoseconds close(const mxs::Reply& reply) override;
+    std::chrono::nanoseconds close(const mxs::Reply& reply) override
+    {
+        Base::close(reply);
+
+        mxb_assert(reply.is_complete());
+
+        if (!reply.row_data().empty())
+        {
+            mxb_assert(reply.row_data().size() == 1);
+            mxb_assert(reply.row_data().front().size() == 1);
+
+            m_json = reply.row_data().front().front();
+        }
+
+        // Return 0, so that the duration of the EXPLAIN request is not
+        // included in the total duration.
+        return std::chrono::nanoseconds { 0 };
+    }
 
 protected:
-    DiffExplainResult(DiffBackend* pBackend)
-        : DiffResult(pBackend)
+    DiffExplainResult(typename Base::Backend* pBackend)
+        : Base(pBackend)
     {
     }
 
@@ -310,7 +332,7 @@ private:
 
 class DiffExplainOtherResult;
 
-class DiffExplainMainResult final : public DiffExplainResult
+class DiffExplainMainResult final : public DiffExplainResult<DiffMainResult>
 {
 public:
     DiffExplainMainResult(DiffMainBackend* pBackend, std::shared_ptr<DiffOrdinaryMainResult> sMain_result);
@@ -353,7 +375,7 @@ private:
 };
 
 
-class DiffExplainOtherResult final : public DiffExplainResult
+class DiffExplainOtherResult final : public DiffExplainResult<DiffOtherResult>
                                    , public std::enable_shared_from_this<DiffExplainOtherResult>
 
 {
