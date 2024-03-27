@@ -198,7 +198,7 @@ class DiffMainBackend final : public DiffBackendWithStats<DiffMainStats>
 {
 public:
     using Base = DiffBackendWithStats<DiffMainStats>;
-    using Result = DiffMainResult;
+    using Result = DiffOrdinaryMainResult;
     using SResult = std::shared_ptr<Result>;
 
     DiffMainBackend(mxs::Endpoint* pEndpoint);
@@ -221,19 +221,19 @@ private:
  * @class DiffOtherBackend
  */
 class DiffOtherBackend final : public DiffBackendWithStats<DiffOtherStats>
-                             , private DiffOtherResult::Handler
+                             , private DiffOrdinaryOtherResult::Handler
                              , private DiffExplainOtherResult::Handler
 
 {
 public:
     using Base = DiffBackendWithStats<DiffOtherStats>;
-    using Result = DiffOtherResult;
+    using Result = DiffOrdinaryOtherResult;
     using SResult = std::shared_ptr<Result>;
 
     class Handler
     {
     public:
-        virtual Explain ready(DiffOtherResult& other_result) = 0;
+        virtual Explain ready(DiffOrdinaryOtherResult& other_result) = 0;
         virtual void ready(const DiffExplainOtherResult& explain_result) = 0;
     };
 
@@ -260,8 +260,8 @@ public:
     void prepare(const DiffMainBackend::SResult& sMain_result);
 
 private:
-    // DiffOtherResult::Handler
-    void ready(DiffOtherResult& other_result) override;
+    // DiffOrdinaryOtherResult::Handler
+    void ready(DiffOrdinaryOtherResult& other_result) override;
 
     // DiffExplainResult::Handler
     void ready(const DiffExplainOtherResult& other_result) override;

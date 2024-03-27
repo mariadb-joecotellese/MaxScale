@@ -114,16 +114,16 @@ private:
 };
 
 
-class DiffOtherResult;
+class DiffOrdinaryOtherResult;
 
-class DiffMainResult final : public DiffResult
-                           , public std::enable_shared_from_this<DiffMainResult>
+class DiffOrdinaryMainResult final : public DiffResult
+                                   , public std::enable_shared_from_this<DiffOrdinaryMainResult>
 
 {
 public:
-    DiffMainResult(DiffMainBackend* pBackend, const GWBUF& packet);
+    DiffOrdinaryMainResult(DiffMainBackend* pBackend, const GWBUF& packet);
 
-    ~DiffMainResult();
+    ~DiffOrdinaryMainResult();
 
     Kind kind() const override
     {
@@ -151,15 +151,15 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend class DiffOtherResult;
+    friend class DiffOrdinaryOtherResult;
 
-    void add_dependent(std::shared_ptr<DiffOtherResult> sDependent)
+    void add_dependent(std::shared_ptr<DiffOrdinaryOtherResult> sDependent)
     {
         mxb_assert(m_dependents.find(sDependent) == m_dependents.end());
         m_dependents.insert(sDependent);
     }
 
-    void remove_dependent(std::shared_ptr<DiffOtherResult> sDependent)
+    void remove_dependent(std::shared_ptr<DiffOrdinaryOtherResult> sDependent)
     {
         auto it = m_dependents.find(sDependent);
 
@@ -169,31 +169,31 @@ private:
     }
 
 private:
-    const int64_t                              m_id;
-    GWBUF                                      m_packet;
-    mutable std::string_view                   m_sql;
-    mutable uint32_t                           m_command {0};
-    mutable std::string_view                   m_canonical;
-    mutable Hash                               m_canonical_hash {0};
-    std::set<std::shared_ptr<DiffOtherResult>> m_dependents;
+    const int64_t                                      m_id;
+    GWBUF                                              m_packet;
+    mutable std::string_view                           m_sql;
+    mutable uint32_t                                   m_command {0};
+    mutable std::string_view                           m_canonical;
+    mutable Hash                                       m_canonical_hash {0};
+    std::set<std::shared_ptr<DiffOrdinaryOtherResult>> m_dependents;
 };
 
 
-class DiffOtherResult final : public DiffResult
-                            , public std::enable_shared_from_this<DiffOtherResult>
+class DiffOrdinaryOtherResult final : public DiffResult
+                                    , public std::enable_shared_from_this<DiffOrdinaryOtherResult>
 {
 public:
     class Handler
     {
     public:
-        virtual void ready(DiffOtherResult& other_result) = 0;
+        virtual void ready(DiffOrdinaryOtherResult& other_result) = 0;
     };
 
-    DiffOtherResult(DiffOtherBackend* pBackend,
-                    Handler* pHandler,
-                    std::shared_ptr<DiffMainResult> sMain_result);
+    DiffOrdinaryOtherResult(DiffOtherBackend* pBackend,
+                            Handler* pHandler,
+                            std::shared_ptr<DiffOrdinaryMainResult> sMain_result);
 
-    ~DiffOtherResult();
+    ~DiffOrdinaryOtherResult();
 
     bool registered_at_main() const
     {
@@ -214,7 +214,7 @@ public:
         m_registered_at_main = false;
     }
 
-    DiffMainResult& main_result() const
+    DiffOrdinaryMainResult& main_result() const
     {
         mxb_assert(m_sMain_result);
         return *m_sMain_result.get();
@@ -253,14 +253,14 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend DiffMainResult;
+    friend DiffOrdinaryMainResult;
 
     void main_was_closed();
 
 private:
-    Handler&                        m_handler;
-    std::shared_ptr<DiffMainResult> m_sMain_result;
-    bool                            m_registered_at_main { false };
+    Handler&                                m_handler;
+    std::shared_ptr<DiffOrdinaryMainResult> m_sMain_result;
+    bool                                    m_registered_at_main { false };
 };
 
 
@@ -300,7 +300,7 @@ class DiffExplainOtherResult;
 class DiffExplainMainResult final : public DiffExplainResult
 {
 public:
-    DiffExplainMainResult(DiffMainBackend* pBackend, std::shared_ptr<DiffMainResult> sMain_result);
+    DiffExplainMainResult(DiffMainBackend* pBackend, std::shared_ptr<DiffOrdinaryMainResult> sMain_result);
 
     ~DiffExplainMainResult();
 
@@ -335,7 +335,7 @@ private:
     }
 
 private:
-    std::shared_ptr<DiffMainResult>                m_sMain_result;
+    std::shared_ptr<DiffOrdinaryMainResult>           m_sMain_result;
     std::set<std::shared_ptr<DiffExplainOtherResult>> m_dependents;
 };
 
@@ -352,7 +352,7 @@ public:
     };
 
     DiffExplainOtherResult(Handler* pHandler,
-                           std::shared_ptr<const DiffOtherResult> sOther_result,
+                           std::shared_ptr<const DiffOrdinaryOtherResult> sOther_result,
                            std::shared_ptr<DiffExplainMainResult> sExplain_main_result);
     ~DiffExplainOtherResult();
 
@@ -389,7 +389,7 @@ public:
         return m_sOther_result->sql();
     }
 
-    const DiffOtherResult& other_result() const
+    const DiffOrdinaryOtherResult& other_result() const
     {
         return *m_sOther_result.get();
     }
@@ -407,8 +407,8 @@ private:
     void main_was_closed();
 
 private:
-    Handler&                               m_handler;
-    std::shared_ptr<const DiffOtherResult> m_sOther_result;
-    std::shared_ptr<DiffExplainMainResult> m_sExplain_main_result;
-    bool                                   m_registered_at_main { false };
+    Handler&                                       m_handler;
+    std::shared_ptr<const DiffOrdinaryOtherResult> m_sOther_result;
+    std::shared_ptr<DiffExplainMainResult>         m_sExplain_main_result;
+    bool                                           m_registered_at_main { false };
 };

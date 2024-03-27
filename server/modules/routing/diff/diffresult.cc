@@ -52,20 +52,20 @@ std::chrono::nanoseconds DiffResult::close(const mxs::Reply& reply)
 
 
 /**
- * DiffMainResult
+ * DiffOrdinaryMainResult
  */
-DiffMainResult::DiffMainResult(DiffMainBackend* pBackend, const GWBUF& packet)
+DiffOrdinaryMainResult::DiffOrdinaryMainResult(DiffMainBackend* pBackend, const GWBUF& packet)
     : DiffResult(pBackend)
     , m_id(this_unit.id++)
     , m_packet(packet.shallow_clone())
 {
 }
 
-DiffMainResult::~DiffMainResult()
+DiffOrdinaryMainResult::~DiffOrdinaryMainResult()
 {
 }
 
-std::string_view DiffMainResult::sql() const
+std::string_view DiffOrdinaryMainResult::sql() const
 {
     if (m_sql.empty())
     {
@@ -75,7 +75,7 @@ std::string_view DiffMainResult::sql() const
     return m_sql;
 }
 
-uint8_t DiffMainResult::command() const
+uint8_t DiffOrdinaryMainResult::command() const
 {
     if (m_command == 0)
     {
@@ -85,7 +85,7 @@ uint8_t DiffMainResult::command() const
     return m_command;
 }
 
-std::string_view DiffMainResult::canonical() const
+std::string_view DiffOrdinaryMainResult::canonical() const
 {
     if (m_canonical.empty())
     {
@@ -95,7 +95,7 @@ std::string_view DiffMainResult::canonical() const
     return m_canonical;
 }
 
-DiffResult::Hash DiffMainResult::canonical_hash() const
+DiffResult::Hash DiffOrdinaryMainResult::canonical_hash() const
 {
     if (m_canonical_hash == 0)
     {
@@ -105,14 +105,14 @@ DiffResult::Hash DiffMainResult::canonical_hash() const
     return m_canonical_hash;
 }
 
-std::chrono::nanoseconds DiffMainResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds DiffOrdinaryMainResult::close(const mxs::Reply& reply)
 {
     auto rv = DiffResult::close(reply);
 
     // A dependent may end up removing itself.
     auto dependents = m_dependents;
 
-    for (std::shared_ptr<DiffOtherResult> sDependent : dependents)
+    for (std::shared_ptr<DiffOrdinaryOtherResult> sDependent : dependents)
     {
         sDependent->main_was_closed();
     }
@@ -121,23 +121,23 @@ std::chrono::nanoseconds DiffMainResult::close(const mxs::Reply& reply)
 }
 
 /**
- * DiffOtherResult
+ * DiffOrdinaryOtherResult
  */
 
-DiffOtherResult::DiffOtherResult(DiffOtherBackend* pBackend,
-                                 Handler* pHandler,
-                                 std::shared_ptr<DiffMainResult> sMain_result)
+DiffOrdinaryOtherResult::DiffOrdinaryOtherResult(DiffOtherBackend* pBackend,
+                                                 Handler* pHandler,
+                                                 std::shared_ptr<DiffOrdinaryMainResult> sMain_result)
     : DiffResult(pBackend)
     , m_handler(*pHandler)
     , m_sMain_result(sMain_result)
 {
 }
 
-DiffOtherResult::~DiffOtherResult()
+DiffOrdinaryOtherResult::~DiffOrdinaryOtherResult()
 {
 }
 
-std::chrono::nanoseconds DiffOtherResult::close(const mxs::Reply& reply)
+std::chrono::nanoseconds DiffOrdinaryOtherResult::close(const mxs::Reply& reply)
 {
     auto rv = DiffResult::close(reply);
 
@@ -150,7 +150,7 @@ std::chrono::nanoseconds DiffOtherResult::close(const mxs::Reply& reply)
     return rv;
 }
 
-void DiffOtherResult::main_was_closed()
+void DiffOrdinaryOtherResult::main_was_closed()
 {
     if (closed())
     {
@@ -187,7 +187,7 @@ std::chrono::nanoseconds DiffExplainResult::close(const mxs::Reply& reply)
  * DiffExplainMainResult
  */
 DiffExplainMainResult::DiffExplainMainResult(DiffMainBackend* pBackend,
-                                             std::shared_ptr<DiffMainResult> sMain_result)
+                                             std::shared_ptr<DiffOrdinaryMainResult> sMain_result)
     : DiffExplainResult(pBackend)
     , m_sMain_result(sMain_result)
 {
@@ -219,7 +219,7 @@ std::chrono::nanoseconds DiffExplainMainResult::close(const mxs::Reply& reply)
  * DiffExplainOtherResult
  */
 DiffExplainOtherResult::DiffExplainOtherResult(Handler* pHandler,
-                                               std::shared_ptr<const DiffOtherResult> sOther_result,
+                                               std::shared_ptr<const DiffOrdinaryOtherResult> sOther_result,
                                                std::shared_ptr<DiffExplainMainResult> sExplain_main_result)
     : DiffExplainResult(&sOther_result->backend())
     , m_handler(*pHandler)

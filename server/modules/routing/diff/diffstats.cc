@@ -100,7 +100,7 @@ json_t* DiffMainStats::to_json() const
 /**
  * DiffOtherStats
  */
-void DiffOtherStats::add_result(const DiffOtherResult& other_result, const DiffConfig& config)
+void DiffOtherStats::add_result(const DiffOrdinaryOtherResult& other_result, const DiffConfig& config)
 {
     std::chrono::nanoseconds other_duration = other_result.duration();
     std::chrono::nanoseconds main_duration = other_result.main_result().duration();

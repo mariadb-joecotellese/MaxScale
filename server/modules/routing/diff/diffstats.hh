@@ -13,7 +13,7 @@
 class SERVICE;
 
 class DiffConfig;
-class DiffOtherResult;
+class DiffOrdinaryOtherResult;
 
 class DiffStats
 {
@@ -212,7 +212,7 @@ public:
         return m_nSlower;
     }
 
-    using ResultsByPermille = std::multimap<int64_t, std::shared_ptr<const DiffOtherResult>>;
+    using ResultsByPermille = std::multimap<int64_t, std::shared_ptr<const DiffOrdinaryOtherResult>>;
 
     const ResultsByPermille& faster_requests() const
     {
@@ -224,7 +224,7 @@ public:
         return m_slower_requests;
     }
 
-    void add_result(const DiffOtherResult& result, const DiffConfig& config);
+    void add_result(const DiffOrdinaryOtherResult& result, const DiffConfig& config);
 
     void add(const DiffOtherStats& stats, const DiffConfig& config);
 

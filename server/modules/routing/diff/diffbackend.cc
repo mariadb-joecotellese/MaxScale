@@ -113,7 +113,7 @@ DiffMainBackend::DiffMainBackend(mxs::Endpoint* pEndpoint)
 
 DiffMainBackend::SResult DiffMainBackend::prepare(const GWBUF& packet)
 {
-    auto sMain_result = std::make_shared<DiffMainResult>(this, packet);
+    auto sMain_result = std::make_shared<DiffOrdinaryMainResult>(this, packet);
 
     m_results.push_back(sMain_result);
 
@@ -154,7 +154,7 @@ DiffOtherBackend::~DiffOtherBackend()
     {
         // TODO: This casting is not ok. The inheritance hierarchy needs to be adjusted.
 
-        if (DiffOtherResult* pOther_result = dynamic_cast<DiffOtherResult*>(sResult.get()))
+        if (DiffOrdinaryOtherResult* pOther_result = dynamic_cast<DiffOrdinaryOtherResult*>(sResult.get()))
         {
             if (pOther_result->registered_at_main())
             {
@@ -202,15 +202,15 @@ DiffOtherBackend::~DiffOtherBackend()
 void DiffOtherBackend::prepare(const DiffMainBackend::SResult& sMain_result)
 {
     // std::make_shared can't be used, because the private COtherResult::Handler base is inaccessible.
-    auto* pOther_result = new DiffOtherResult(this, this, sMain_result);
-    auto sOther_result = std::shared_ptr<DiffOtherResult>(pOther_result);
+    auto* pOther_result = new DiffOrdinaryOtherResult(this, this, sMain_result);
+    auto sOther_result = std::shared_ptr<DiffOrdinaryOtherResult>(pOther_result);
 
     sOther_result->register_at_main();
 
     m_results.emplace_back(std::move(sOther_result));
 }
 
-void DiffOtherBackend::ready(DiffOtherResult& other_result)
+void DiffOtherBackend::ready(DiffOrdinaryOtherResult& other_result)
 {
     mxb_assert(m_pHandler);
 

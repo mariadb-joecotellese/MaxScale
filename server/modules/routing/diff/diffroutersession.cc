@@ -70,7 +70,7 @@ bool DiffRouterSession::routeQuery(GWBUF&& packet)
         mxs::Backend::response_type type = expecting_response
             ? mxs::Backend::EXPECT_RESPONSE : mxs::Backend::NO_RESPONSE;
 
-        std::shared_ptr<DiffMainResult> sMain_result;
+        std::shared_ptr<DiffOrdinaryMainResult> sMain_result;
 
         if (type != mxs::Backend::NO_RESPONSE)
         {
@@ -175,7 +175,7 @@ bool DiffRouterSession::handleError(mxs::ErrorType type,
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
 }
 
-Explain DiffRouterSession::ready(DiffOtherResult& other_result)
+Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)
 {
     Explain rv = Explain::NONE;
 
@@ -231,7 +231,7 @@ void DiffRouterSession::ready(const DiffExplainOtherResult& explain_result)
     }
 }
 
-bool DiffRouterSession::should_report(const DiffOtherResult& other_result) const
+bool DiffRouterSession::should_report(const DiffOrdinaryOtherResult& other_result) const
 {
     const auto& config = m_router.config();
 
@@ -263,7 +263,7 @@ bool DiffRouterSession::should_report(const DiffOtherResult& other_result) const
     return rv;
 }
 
-void DiffRouterSession::generate_report(const DiffOtherResult& other_result)
+void DiffRouterSession::generate_report(const DiffOrdinaryOtherResult& other_result)
 {
     generate_report(other_result, nullptr, nullptr);
 }
@@ -317,7 +317,7 @@ void DiffRouterSession::generate_report(const DiffExplainOtherResult& result)
     generate_report(result.other_result(), pExplain_other, pExplain_main);
 }
 
-void DiffRouterSession::generate_report(const DiffOtherResult& other_result,
+void DiffRouterSession::generate_report(const DiffOrdinaryOtherResult& other_result,
                                         json_t* pExplain_other,
                                         json_t* pExplain_main)
 {

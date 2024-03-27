@@ -41,16 +41,16 @@ public:
 
 private:
     // DiffOtherBackend::Handler
-    Explain ready(DiffOtherResult& other_result) override;
+    Explain ready(DiffOrdinaryOtherResult& other_result) override;
     void ready(const DiffExplainOtherResult& explain_other_result) override;
 
 private:
-    bool should_report(const DiffOtherResult& result) const;
+    bool should_report(const DiffOrdinaryOtherResult& result) const;
 
-    void generate_report(const DiffOtherResult& result);
+    void generate_report(const DiffOrdinaryOtherResult& result);
     void generate_report(const DiffExplainOtherResult& result);
 
-    void generate_report(const DiffOtherResult& other_result,
+    void generate_report(const DiffOrdinaryOtherResult& other_result,
                          json_t* pExplain_other,
                          json_t* pExplain_main);
     json_t* generate_json(const DiffResult& result, json_t* pExplain);
