@@ -12,16 +12,19 @@
  * Public License.
  */
 
+#include <maxbase/format.hh>
 #include <maxtest/config_operations.hh>
 #include <maxtest/replication_cluster.hh>
 
+namespace
+{
 // The configuration should use these names for the services, listeners and monitors
-#define SERVICE_NAME1  "rwsplit-service"
-#define SERVICE_NAME2  "read-connection-router-master"
-#define SERVICE_NAME3  "read-connection-router-slave"
-#define LISTENER_NAME1 "rwsplit-service-listener"
-#define LISTENER_NAME2 "read-connection-router-master-listener"
-#define LISTENER_NAME3 "read-connection-router-slave-listener"
+const char SERVICE_NAME1[] = "rwsplit-service";
+const char SERVICE_NAME2[] = "read-connection-router-master";
+const char SERVICE_NAME3[] = "read-connection-router-slave";
+const char LISTENER_NAME1[] = "rwsplit-service-listener";
+const char LISTENER_NAME2[] = "read-connection-router-master-listener";
+const char LISTENER_NAME3[] = "read-connection-router-slave-listener";
 
 struct
 {
@@ -34,6 +37,7 @@ struct
     {SERVICE_NAME2, LISTENER_NAME2, 4008},
     {SERVICE_NAME3, LISTENER_NAME3, 4009}
 };
+}
 
 Config::Config(TestConnections* parent)
     : test_(parent)
@@ -78,36 +82,50 @@ void Config::add_created_servers(const char* object)
     for (auto a : created_servers_)
     {
         // Not pretty but it should work
-        mxs->maxctrlf("link service %s server%d", object, a);
-        mxs->maxctrlf("link monitor %s server%d", object, a);
+        auto res1 = mxs->maxctrl(mxb::string_printf("link service %s server%d", object, a));
+        auto res2 = mxs->maxctrl(mxb::string_printf("link monitor %s server%d", object, a));
+        test_->expect((res1.rc != 0) != (res2.rc != 0),
+                      "Expected one link command to succeed and the other to fail.");
     }
 }
 
-void Config::destroy_server(int num)
+void Config::destroy_server(int num, Expect expect)
 {
-    mxs->maxctrlf("destroy server server%d", num);
-    created_servers_.erase(num);
+    auto cmd = mxb::string_printf("destroy server server%d", num);
+    auto res = mxs->maxctrl(cmd);
+    check_result(res, cmd, expect);
+    if (res.rc == 0)
+    {
+        created_servers_.erase(num);
+    }
 }
 
-void Config::create_server(int num)
+void Config::create_server(int num, Expect expect)
 {
-    auto homedir = mxs->access_homedir();
-    char ssl_line[200 + 3 * strlen(homedir)];
+    char ssl_line[1024];
     ssl_line[0] = '\0';
+
     if (test_->backend_ssl)
     {
+        auto key = mxs->cert_key_path();
+        auto cert = mxs->cert_path();
+        auto ca_cert = mxs->ca_cert_path();
         sprintf(ssl_line,
                 " ssl=true"
-                " ssl_key=/%s/certs/mxs.key "
-                " ssl_cert=/%s/certs/mxs.crt "
-                " ssl_ca=/%s/certs/ca.crt "
+                " ssl_key=%s ssl_cert=%s ssl_ca=%s "
                 " ssl_version=MAX "
                 " ssl_cert_verify_depth=9",
-                homedir, homedir, homedir);
+                key.c_str(), cert.c_str(), ca_cert.c_str());
     }
     auto* srv = test_->repl->backend(num);
-    mxs->maxctrlf("create server server%d %s %d %s", num, srv->ip_private(), srv->port(), ssl_line);
-    created_servers_.insert(num);
+    auto cmd = mxb::string_printf("create server server%d %s %d %s",
+                                  num, srv->ip_private(), srv->port(), ssl_line);
+    auto res = mxs->maxctrl(cmd);
+    check_result(res, cmd, expect);
+    if (res.rc == 0)
+    {
+        created_servers_.insert(num);
+    }
 }
 
 void Config::alter_server(int num, const char* key, const char* value)
@@ -168,24 +186,27 @@ void Config::restart_monitors()
     }
 }
 
-void Config::create_listener(Config::Service service)
+void Config::create_listener(Config::Service service, Expect expect)
 {
     int i = static_cast<int>(service);
-
-    mxs->maxctrlf("create listener %s %s %d", services[i].service, services[i].listener, services[i].port);
+    auto cmd = mxb::string_printf("create listener %s %s %d",
+                                  services[i].service, services[i].listener, services[i].port);
+    auto res = mxs->maxctrl(cmd);
+    check_result(res, cmd, expect);
 }
 
 void Config::create_ssl_listener(Config::Service service)
 {
     int i = static_cast<int>(service);
-    auto homedir = mxs->access_homedir();
+    auto key = mxs->cert_key_path();
+    auto cert = mxs->cert_path();
+    auto ca_cert = mxs->ca_cert_path();
+
     mxs->maxctrlf("create listener %s %s %d "
                   "ssl=true "
-                  "ssl_key=%s/certs/server-key.pem "
-                  "ssl_cert=%s/certs/server-cert.pem "
-                  "ssl_ca=%s/certs/ca.pem ",
+                  "ssl_key=%s ssl_cert=%s ssl_ca=%s ",
                   services[i].service, services[i].listener, services[i].port,
-                  homedir, homedir, homedir);
+                  key.c_str(), cert.c_str(), ca_cert.c_str());
 }
 
 void Config::destroy_listener(Config::Service service)
@@ -194,11 +215,11 @@ void Config::destroy_listener(Config::Service service)
     mxs->maxctrlf("destroy listener %s %s", services[i].service, services[i].listener);
 }
 
-void Config::create_all_listeners()
+void Config::create_all_listeners(Expect expect)
 {
-    create_listener(SERVICE_RWSPLIT);
-    create_listener(SERVICE_RCONN_SLAVE);
-    create_listener(SERVICE_RCONN_MASTER);
+    create_listener(SERVICE_RWSPLIT, expect);
+    create_listener(SERVICE_RCONN_SLAVE, expect);
+    create_listener(SERVICE_RCONN_MASTER, expect);
 }
 
 void Config::reset()
@@ -219,4 +240,23 @@ void Config::check_server_count(int expected)
     auto servers = mxs->get_servers();
     test_->expect((int)servers.size() == expected, "Found %zu servers when %i was expected.",
                   servers.size(), expected);
+}
+
+void Config::check_result(const mxt::CmdResult& res, const std::string& cmd, Expect expect)
+{
+    bool success = res.rc == 0;
+    bool expected = (expect == Expect::SUCCESS);
+    if (success != expected)
+    {
+        if (success)
+        {
+            test_->add_failure("MaxCtrl command '%s' succeeded when failure was expected.",
+                               cmd.c_str());
+        }
+        else
+        {
+            test_->add_failure("MaxCtrl command '%s' failed when success was expected. Error %i : %s",
+                               cmd.c_str(), res.rc, res.output.c_str());
+        }
+    }
 }

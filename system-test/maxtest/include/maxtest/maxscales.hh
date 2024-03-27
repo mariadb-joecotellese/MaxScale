@@ -44,6 +44,7 @@ struct ServerInfo
     static constexpr bitfield MAINT = (1 << 4);
     static constexpr bitfield DRAINING = (1 << 5);
     static constexpr bitfield DRAINED = (1 << 6);
+    static constexpr bitfield SYNCED = (1 << 7);
     static constexpr bitfield EXT_MASTER = (1 << 10);
     static constexpr bitfield DISK_LOW = (1 << 11);
     static constexpr bitfield BLR = (1 << 12);
@@ -193,6 +194,10 @@ public:
     const std::string&        node_name() const;
 
     bool ssl() const;
+
+    std::string cert_path() const;
+    std::string cert_key_path() const;
+    std::string ca_cert_path() const;
 
     int rwsplit_port {-1};          /**< RWSplit port */
     int readconn_master_port {-1};  /**< ReadConnection in master mode port */
@@ -361,7 +366,7 @@ public:
     void delete_log();
 
     /**
-     * Execute a MaxCtrl command
+     * Execute a MaxCtrl command. Does not check result.
      *
      * @param cmd  Command to execute, without the `maxctrl` part
      * @param sudo Run the command as root
@@ -370,6 +375,9 @@ public:
      */
     mxt::CmdResult maxctrl(const std::string& cmd, bool sudo = true);
 
+    /**
+     * Execute a MaxCtrl command, expecting success.
+     */
     mxt::CmdResult maxctrlf(const char* fmt, ...) mxb_attribute((format (printf, 2, 3)));
 
     /**

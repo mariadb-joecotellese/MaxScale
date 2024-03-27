@@ -218,21 +218,6 @@ BoostArchive& BoostFile<BoostArchive>::operator*()
     return *m_sArchive;
 }
 
-// TODO: Move these to MaxBase
-namespace maxbase
-{
-
-template<class T>
-struct always_false
-{
-    static constexpr bool value = false;
-};
-
-template<class T>
-inline constexpr bool always_false_v = always_false<T>::value;
-
-}
-
 template<typename BoostArchive>
 bool BoostFile<BoostArchive>::at_end_of_stream()
 {
