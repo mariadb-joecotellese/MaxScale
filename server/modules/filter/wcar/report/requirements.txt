@@ -1,0 +1,3 @@
+# A recent enough of a version of DuckDB and numpy is all we need
+duckdb
+numpy
