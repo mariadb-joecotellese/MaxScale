@@ -287,13 +287,15 @@ private:
 /**
  * @class DiffOtherBackend
  */
-class DiffOtherBackend final : public DiffConcreteBackend<DiffOtherStats, DiffResult, DiffExplainOtherResult>
+class DiffOtherBackend final : public DiffConcreteBackend<DiffOtherStats,
+                                                          DiffOtherResult,
+                                                          DiffExplainOtherResult>
                              , private DiffOrdinaryOtherResult::Handler
                              , private DiffExplainOtherResult::Handler
 
 {
 public:
-    using Base = DiffConcreteBackend<DiffOtherStats, DiffResult, DiffExplainOtherResult>;
+    using Base = DiffConcreteBackend<DiffOtherStats, DiffOtherResult, DiffExplainOtherResult>;
 
     class Handler
     {

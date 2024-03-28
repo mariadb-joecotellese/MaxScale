@@ -111,23 +111,10 @@ DiffOtherBackend::~DiffOtherBackend()
 
     for (auto& sResult : m_results)
     {
-        // TODO: This casting is not ok. The inheritance hierarchy needs to be adjusted.
-
-        if (DiffOrdinaryOtherResult* pOther_result = dynamic_cast<DiffOrdinaryOtherResult*>(sResult.get()))
+        if (sResult->registered_at_main())
         {
-            if (pOther_result->registered_at_main())
-            {
-                pOther_result->deregister_from_main();
-                ++nStill_registered;
-            }
-        }
-        else if (DiffExplainOtherResult* pExplain_result = dynamic_cast<DiffExplainOtherResult*>(sResult.get()))
-        {
-            if (pExplain_result->registered_at_main())
-            {
-                pExplain_result->deregister_from_main();
-                ++nStill_registered;
-            }
+            sResult->deregister_from_main();
+            ++nStill_registered;
         }
     }
 
