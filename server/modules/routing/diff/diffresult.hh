@@ -114,21 +114,60 @@ private:
 };
 
 
+/**
+ * @template DiffMainResult
+ *
+ * A result originating from the 'main' server.
+ * To be instantiated with the class from the 'other' hierarchy that
+ * matches the 'main' class that is derived from this template.
+ */
+template<class OtherResult_>
 class DiffMainResult : public DiffResult
 {
-protected:
+public:
     using Backend = DiffMainBackend;
+    using OtherResult = OtherResult_;
 
-    DiffMainResult(DiffMainBackend* pBackend);
+    void add_dependent(std::shared_ptr<OtherResult> sDependent)
+    {
+        mxb_assert(m_dependents.find(sDependent) == m_dependents.end());
+        m_dependents.insert(sDependent);
+    }
+
+    void remove_dependent(std::shared_ptr<OtherResult> sDependent)
+    {
+        auto it = m_dependents.find(sDependent);
+
+        mxb_assert(it != m_dependents.end());
+
+        m_dependents.erase(it);
+    }
+
+protected:
+    DiffMainResult(DiffMainBackend* pBackend)
+        : DiffResult(pBackend)
+    {
+    }
+
+protected:
+    std::set<std::shared_ptr<OtherResult>> m_dependents;
 };
 
+
+/**
+ * @class DiffOrdinaryMainResult
+ *
+ * Contains results related to an ordinary request sent to 'main'.
+ */
 class DiffOrdinaryOtherResult;
 
-class DiffOrdinaryMainResult final : public DiffMainResult
+class DiffOrdinaryMainResult final : public DiffMainResult<DiffOrdinaryOtherResult>
                                    , public std::enable_shared_from_this<DiffOrdinaryMainResult>
 
 {
 public:
+    using Base = DiffMainResult<DiffOrdinaryOtherResult>;
+
     DiffOrdinaryMainResult(DiffMainBackend* pBackend, const GWBUF& packet);
 
     ~DiffOrdinaryMainResult();
@@ -159,60 +198,52 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend class DiffOrdinaryOtherResult;
-
-    void add_dependent(std::shared_ptr<DiffOrdinaryOtherResult> sDependent)
-    {
-        mxb_assert(m_dependents.find(sDependent) == m_dependents.end());
-        m_dependents.insert(sDependent);
-    }
-
-    void remove_dependent(std::shared_ptr<DiffOrdinaryOtherResult> sDependent)
-    {
-        auto it = m_dependents.find(sDependent);
-
-        mxb_assert(it != m_dependents.end());
-
-        m_dependents.erase(it);
-    }
-
-private:
-    const int64_t                                      m_id;
-    GWBUF                                              m_packet;
-    mutable std::string_view                           m_sql;
-    mutable uint32_t                                   m_command {0};
-    mutable std::string_view                           m_canonical;
-    mutable Hash                                       m_canonical_hash {0};
-    std::set<std::shared_ptr<DiffOrdinaryOtherResult>> m_dependents;
+    const int64_t            m_id;
+    GWBUF                    m_packet;
+    mutable std::string_view m_sql;
+    mutable uint32_t         m_command {0};
+    mutable std::string_view m_canonical;
+    mutable Hash             m_canonical_hash {0};
 };
 
 
+/**
+ * @class DiffOtherResult
+ *
+ * A result originating from the 'other' server.
+ */
 class DiffOtherResult : public DiffResult
 {
-protected:
-    using Backend = DiffOtherBackend;
+public:
+    virtual bool registered_at_main() const = 0;
 
-    DiffOtherResult(DiffOtherBackend* pBackend);
+    virtual void deregister_from_main() = 0;
+
+protected:
+    using DiffResult::DiffResult;
 };
 
-
-class DiffOrdinaryOtherResult final : public DiffOtherResult
-                                    , public std::enable_shared_from_this<DiffOrdinaryOtherResult>
+/**
+ * @template DiffOtherResultT
+ *
+ * A result originating from the 'other' server.
+ * To be instantiated with the class from the 'main' hierarchy that
+ * matches the 'other' class that is derived from this template.
+ */
+template<class MainResult_>
+class DiffOtherResultT : public DiffOtherResult
 {
 public:
+    using Backend = DiffOtherBackend;
+    using MainResult = MainResult_;
+
     class Handler
     {
     public:
-        virtual void ready(DiffOrdinaryOtherResult& other_result) = 0;
+        virtual void ready(typename MainResult::OtherResult& other_result) = 0;
     };
 
-    DiffOrdinaryOtherResult(DiffOtherBackend* pBackend,
-                            Handler* pHandler,
-                            std::shared_ptr<DiffOrdinaryMainResult> sMain_result);
-
-    ~DiffOrdinaryOtherResult();
-
-    bool registered_at_main() const
+    bool registered_at_main() const override
     {
         return m_registered_at_main;
     }
@@ -220,16 +251,69 @@ public:
     void register_at_main()
     {
         mxb_assert(!m_registered_at_main);
-        m_sMain_result->add_dependent(shared_from_this());
-        m_registered_at_main = true;
+        if (m_sMain_result)
+        {
+            auto* pThis = static_cast<typename MainResult::OtherResult*>(this);
+            m_sMain_result->add_dependent(pThis->shared_from_this());
+            m_registered_at_main = true;
+        }
     }
 
-    void deregister_from_main()
+    void deregister_from_main() override
     {
         mxb_assert(m_registered_at_main);
-        m_sMain_result->remove_dependent(shared_from_this());
+        auto* pThis = static_cast<typename MainResult::OtherResult*>(this);
+        m_sMain_result->remove_dependent(pThis->shared_from_this());
         m_registered_at_main = false;
     }
+
+private:
+    friend MainResult;
+
+    void main_was_closed()
+    {
+        if (closed())
+        {
+            auto* pThis = static_cast<typename MainResult::OtherResult*>(this);
+            m_handler.ready(*pThis);
+            deregister_from_main();
+        }
+    }
+
+protected:
+    DiffOtherResultT(DiffOtherBackend* pBackend,
+                     Handler* pHandler,
+                     std::shared_ptr<MainResult> sMain_result = std::shared_ptr<MainResult>())
+        : DiffOtherResult(pBackend)
+        , m_handler(*pHandler)
+        , m_sMain_result(sMain_result)
+    {
+    }
+
+    Handler&                    m_handler;
+    std::shared_ptr<MainResult> m_sMain_result;
+
+private:
+    bool m_registered_at_main { false };
+};
+
+
+/**
+ * @class DiffOrdinaryOtherResult
+ *
+ * Containes results related to an ordinary request sent to 'other'.
+ */
+class DiffOrdinaryOtherResult final : public DiffOtherResultT<DiffOrdinaryMainResult>
+                                    , public std::enable_shared_from_this<DiffOrdinaryOtherResult>
+{
+public:
+    using Base = DiffOtherResultT<DiffOrdinaryMainResult>;
+
+    DiffOrdinaryOtherResult(DiffOtherBackend* pBackend,
+                            Handler* pHandler,
+                            std::shared_ptr<DiffOrdinaryMainResult> sMain_result);
+
+    ~DiffOrdinaryOtherResult();
 
     DiffOrdinaryMainResult& main_result() const
     {
@@ -268,19 +352,15 @@ public:
     }
 
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
-
-private:
-    friend DiffOrdinaryMainResult;
-
-    void main_was_closed();
-
-private:
-    Handler&                                m_handler;
-    std::shared_ptr<DiffOrdinaryMainResult> m_sMain_result;
-    bool                                    m_registered_at_main { false };
 };
 
 
+/**
+ * @template DiffExplainResult
+ *
+ * An EXPLAIN result. Can be instantiated with a class from the 'main'
+ * or 'other' hierarchy.
+ */
 template<class Base>
 class DiffExplainResult : public Base
 {
@@ -320,21 +400,25 @@ public:
     }
 
 protected:
-    DiffExplainResult(typename Base::Backend* pBackend)
-        : Base(pBackend)
-    {
-    }
+    using Base::Base;
 
 private:
     std::string m_json;
 };
 
 
+/**
+ * @class DiffExplainMainResult
+ *
+ * Contains results related to an EXPLAIN request sent to 'main'.
+ */
 class DiffExplainOtherResult;
 
-class DiffExplainMainResult final : public DiffExplainResult<DiffMainResult>
+class DiffExplainMainResult final : public DiffExplainResult<DiffMainResult<DiffExplainOtherResult>>
 {
 public:
+    using Base = DiffExplainResult<DiffMainResult<DiffExplainOtherResult>>;
+
     DiffExplainMainResult(DiffMainBackend* pBackend, std::shared_ptr<DiffOrdinaryMainResult> sMain_result);
 
     ~DiffExplainMainResult();
@@ -352,67 +436,26 @@ public:
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend class DiffExplainOtherResult;
-
-    void add_dependent(std::shared_ptr<DiffExplainOtherResult> sDependent)
-    {
-        mxb_assert(m_dependents.find(sDependent) == m_dependents.end());
-        m_dependents.insert(sDependent);
-    }
-
-    void remove_dependent(std::shared_ptr<DiffExplainOtherResult> sDependent)
-    {
-        auto it = m_dependents.find(sDependent);
-
-        mxb_assert(it != m_dependents.end());
-
-        m_dependents.erase(it);
-    }
-
-private:
-    std::shared_ptr<DiffOrdinaryMainResult>           m_sMain_result;
-    std::set<std::shared_ptr<DiffExplainOtherResult>> m_dependents;
+    std::shared_ptr<DiffOrdinaryMainResult> m_sMain_result;
 };
 
 
-class DiffExplainOtherResult final : public DiffExplainResult<DiffOtherResult>
+/**
+ * @class DiffExplainOtherResult
+ *
+ * Containes results related to an EXPLAIN request sent to 'other'.
+ */
+class DiffExplainOtherResult final : public DiffExplainResult<DiffOtherResultT<DiffExplainMainResult>>
                                    , public std::enable_shared_from_this<DiffExplainOtherResult>
 
 {
 public:
-    class Handler
-    {
-    public:
-        virtual void ready(const DiffExplainOtherResult& explain_other_result) = 0;
-    };
+    using Base = DiffExplainResult<DiffOtherResultT<DiffExplainMainResult>>;
 
     DiffExplainOtherResult(Handler* pHandler,
                            std::shared_ptr<const DiffOrdinaryOtherResult> sOther_result,
                            std::shared_ptr<DiffExplainMainResult> sExplain_main_result);
     ~DiffExplainOtherResult();
-
-    bool registered_at_main() const
-    {
-        return m_registered_at_main;
-    }
-
-    void register_at_main()
-    {
-        mxb_assert(!m_registered_at_main);
-
-        if (m_sExplain_main_result)
-        {
-            m_sExplain_main_result->add_dependent(shared_from_this());
-            m_registered_at_main = true;
-        }
-    }
-
-    void deregister_from_main()
-    {
-        mxb_assert(m_registered_at_main);
-        m_sExplain_main_result->remove_dependent(shared_from_this());
-        m_registered_at_main = false;
-    }
 
     std::string_view canonical() const override
     {
@@ -431,19 +474,11 @@ public:
 
     const DiffExplainMainResult* explain_main_result() const
     {
-        return m_sExplain_main_result.get();
+        return m_sMain_result.get();
     }
 
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
-    friend DiffExplainMainResult;
-
-    void main_was_closed();
-
-private:
-    Handler&                                       m_handler;
     std::shared_ptr<const DiffOrdinaryOtherResult> m_sOther_result;
-    std::shared_ptr<DiffExplainMainResult>         m_sExplain_main_result;
-    bool                                           m_registered_at_main { false };
 };

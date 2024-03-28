@@ -52,19 +52,10 @@ std::chrono::nanoseconds DiffResult::close(const mxs::Reply& reply)
 
 
 /**
- * DiffMainResult
- */
-DiffMainResult::DiffMainResult(DiffMainBackend* pBackend)
-    : DiffResult(pBackend)
-{
-}
-
-
-/**
  * DiffOrdinaryMainResult
  */
 DiffOrdinaryMainResult::DiffOrdinaryMainResult(DiffMainBackend* pBackend, const GWBUF& packet)
-    : DiffMainResult(pBackend)
+    : Base(pBackend)
     , m_id(this_unit.id++)
     , m_packet(packet.shallow_clone())
 {
@@ -131,25 +122,13 @@ std::chrono::nanoseconds DiffOrdinaryMainResult::close(const mxs::Reply& reply)
 
 
 /**
- * DiffOtherResult
- */
-DiffOtherResult::DiffOtherResult(DiffOtherBackend* pBackend)
-    : DiffResult(pBackend)
-{
-}
-
-
-
-/**
  * DiffOrdinaryOtherResult
  */
 
 DiffOrdinaryOtherResult::DiffOrdinaryOtherResult(DiffOtherBackend* pBackend,
                                                  Handler* pHandler,
                                                  std::shared_ptr<DiffOrdinaryMainResult> sMain_result)
-    : DiffOtherResult(pBackend)
-    , m_handler(*pHandler)
-    , m_sMain_result(sMain_result)
+    : Base(pBackend, pHandler, sMain_result)
 {
 }
 
@@ -170,22 +149,12 @@ std::chrono::nanoseconds DiffOrdinaryOtherResult::close(const mxs::Reply& reply)
     return rv;
 }
 
-void DiffOrdinaryOtherResult::main_was_closed()
-{
-    if (closed())
-    {
-        m_handler.ready(*this);
-        deregister_from_main();
-    }
-}
-
-
 /**
  * DiffExplainMainResult
  */
 DiffExplainMainResult::DiffExplainMainResult(DiffMainBackend* pBackend,
                                              std::shared_ptr<DiffOrdinaryMainResult> sMain_result)
-    : DiffExplainResult(pBackend)
+    : Base(pBackend)
     , m_sMain_result(sMain_result)
 {
     mxb_assert(m_sMain_result);
@@ -218,10 +187,8 @@ std::chrono::nanoseconds DiffExplainMainResult::close(const mxs::Reply& reply)
 DiffExplainOtherResult::DiffExplainOtherResult(Handler* pHandler,
                                                std::shared_ptr<const DiffOrdinaryOtherResult> sOther_result,
                                                std::shared_ptr<DiffExplainMainResult> sExplain_main_result)
-    : DiffExplainResult(static_cast<DiffOtherBackend*>(&sOther_result->backend()))
-    , m_handler(*pHandler)
+    : Base(static_cast<DiffOtherBackend*>(&sOther_result->backend()), pHandler, sExplain_main_result)
     , m_sOther_result(sOther_result)
-    , m_sExplain_main_result(sExplain_main_result)
 {
     mxb_assert(m_sOther_result);
 }
@@ -234,24 +201,15 @@ std::chrono::nanoseconds DiffExplainOtherResult::close(const mxs::Reply& reply)
 {
     auto rv = DiffExplainResult::close(reply);
 
-    if (!m_sExplain_main_result || m_sExplain_main_result->closed())
+    if (!m_sMain_result || m_sMain_result->closed())
     {
         m_handler.ready(*this);
 
-        if (m_sExplain_main_result)
+        if (m_sMain_result)
         {
             deregister_from_main();
         }
     }
 
     return rv;
-}
-
-void DiffExplainOtherResult::main_was_closed()
-{
-    if (closed())
-    {
-        m_handler.ready(*this);
-        deregister_from_main();
-    }
 }

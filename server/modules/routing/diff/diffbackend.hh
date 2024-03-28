@@ -329,7 +329,7 @@ private:
     void ready(DiffOrdinaryOtherResult& other_result) override;
 
     // DiffExplainResult::Handler
-    void ready(const DiffExplainOtherResult& other_result) override;
+    void ready(DiffExplainOtherResult& other_result) override;
 
 private:
     using SDiffExporter = std::shared_ptr<DiffExporter>;

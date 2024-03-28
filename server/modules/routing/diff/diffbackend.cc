@@ -217,7 +217,7 @@ void DiffOtherBackend::ready(DiffOrdinaryOtherResult& other_result)
     execute_pending_explains();
 }
 
-void DiffOtherBackend::ready(const DiffExplainOtherResult& explain_result)
+void DiffOtherBackend::ready(DiffExplainOtherResult& explain_result)
 {
     mxb_assert(m_pHandler);
 
