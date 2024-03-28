@@ -19,11 +19,7 @@ parser.add_argument("FILE", help="the replay file to process")
 parser.add_argument("-o", "--output", metavar="",
                     help="the output file where the aggregated JSON is written (stdout by default).")
 parser.add_argument("--debug", default=False, action="store_true", help="enable debug output")
-args = parser.parse_args()
-
-cursor = duckdb.connect()
-cursor.execute(f"CREATE TEMPORARY TABLE replay_results AS FROM '{args.FILE}'")
-cursor.execute(f"CREATE TEMPORARY TABLE canonicals AS FROM '{args.CANONICALS}'")
+cursor = None
 
 
 def prepare_histogram_bins():
@@ -126,31 +122,78 @@ def get_qps():
     return {"time": times.tolist(), "counts": counts}
 
 
-dur_stats = get_statistics("duration")
-rr_stats = get_statistics("rows_read")
-canonicals = get_canonicals()
-error_counts = get_error_counts()
-queries = []
+def process(replay, canonicals):
+    """
+    Post-process the replay
+    Args:
+        replay: The replay file
+        canonicals: The canonicals file
 
-for can, h in build_histograms().items():
-    queries.append({
-      "id": can,
-      "sql": canonicals[can],
-      "errors": error_counts[can],
-      "rows_read": rr_stats[can],
-      "duration" : dur_stats[can] | {
-           "hist_counts": h["hist_counts"].tolist(),
-           "hist_bins":h["hist_bins"].tolist()
-         }
-    })
+    Returns:
+        The result dict with the per-canonical statistics in "queries" and the overall QPS in "qps"
+    """
+    global cursor
+    cursor = duckdb.connect()
+    cursor.execute(f"CREATE TEMPORARY TABLE replay_results AS FROM '{replay}'")
+    cursor.execute(f"CREATE TEMPORARY TABLE canonicals AS FROM '{canonicals}'")
 
-result = {
-  "queries": queries,
-  "qps": get_qps()
-}
+    dur_stats = get_statistics("duration")
+    rr_stats = get_statistics("rows_read")
+    canonicals = get_canonicals()
+    error_counts = get_error_counts()
+    qps = get_qps()
+    queries = []
 
-if args.output:
-  with open(args.output, "w") as f:
-    json.dump(result, f)
-else:
-  print(json.dumps(result))
+    for can, h in build_histograms().items():
+        queries.append({
+          "id": can,
+          "sql": canonicals[can],
+          "errors": error_counts[can],
+          "rows_read": rr_stats[can],
+          "duration" : dur_stats[can] | {
+               "hist_counts": h["hist_counts"].tolist(),
+               "hist_bins":h["hist_bins"].tolist()
+             }
+        })
+
+    cursor.close()
+    cursor = None
+    return {
+      "queries": queries,
+      "qps": qps
+    }
+
+
+def compare(res1: dict, res2: dict):
+    """
+    Compare the queries of two post-procesed replays
+    Args:
+        res1: First replay result
+        res2: Second replay result
+
+    Returns:
+        A list of tuples with the query objects as the first two values and the third value as
+        the difference of the statistics of the two queries, i.e. res1 - res2.
+    """
+    result = []
+    lhs = {q["sql"]: q for q in res1["queries"]}
+    rhs = {q["sql"]: q for q in res2["queries"]}
+    for k in lhs:
+        diff = {
+            k1: {
+                k2 : rhs[k][k1][k2] - lhs[k][k1][k2] for k2 in lhs[k][k1] if k2 not in ["hist_counts", "hist_bins"]
+            } for k1 in ["duration", "rows_read"]
+        }
+        diff["errors"] = rhs[k]["errors"] - lhs[k]["errors"]
+        result.append((lhs[k], rhs[k], diff))
+    return result
+
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    result = process(args.FILE, args.CANONICALS)
+    if args.output:
+        with open(args.output, "w") as f:
+            json.dump(result, f)
+    else:
+        print(json.dumps(result))
