@@ -11,7 +11,8 @@ import numpy as np
 # Reusable SQL fragments
 LOW_VALUE = "MIN(duration)"
 HIGH_VALUE = "PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration)"
-BIN_COUNT = "2 * CBRT(COUNT(duration))" # Rice rule: https://en.wikipedia.org/wiki/Histogram#Rice_rule
+BIN_COUNT = "CASE WHEN 2 * CBRT(COUNT(duration)) < 10 THEN 10 ELSE 2 * CBRT(COUNT(duration)) END" # Rice rule: https://en.wikipedia.org/wiki/Histogram#Rice_rule
+NO_ERRORS_IN_a = "COALESCE(CAST(a.error AS INT), 0) = 0"
 
 parser = argparse.ArgumentParser(description="Post-process CSV-formatted replay results into JSON.")
 parser.add_argument("CANONICALS", help="the file with the canonical forms of the SQL")
@@ -58,10 +59,10 @@ WITH bin_sizes AS(
        {BIN_COUNT} bin_count
   FROM replay_results GROUP BY canonical
 ) SELECT a.canonical,
-         FLOOR(((duration - b.low_value) / (b.high_value - b.low_value)) * b.bin_count) bin_num,
+         FLOOR(((CASE WHEN duration < b.high_value THEN duration else b.high_value END - b.low_value) / (b.high_value - b.low_value)) * b.bin_count) bin_num,
          COUNT(duration) bin_count
 FROM replay_results a JOIN bin_sizes b ON (a.canonical = b.canonical)
-WHERE a.duration < b.high_value AND COALESCE(CAST(a.error AS INT), 0) = 0
+WHERE {NO_ERRORS_IN_a}
 GROUP BY 1, 2 ORDER BY 1, 2
 """
     for can, bin_num, bin_count in cursor.execute(sql).fetchall():
@@ -69,6 +70,10 @@ GROUP BY 1, 2 ORDER BY 1, 2
         num = int(bin_num)
         counts[num if len(counts) > num else len(counts) - 1] = bin_count
     return hist
+
+
+def make_stats(v_sum, v_min, v_max, v_avg, v_cnt, v_stddev):
+    return {"sum": v_sum, "min": v_min, "max": v_max, "mean": v_avg, "count": v_cnt, "stddev": v_stddev}
 
 
 def get_statistics(field):
@@ -79,12 +84,13 @@ def get_statistics(field):
     """
     global cursor
     sql = f"""
-SELECT canonical, SUM({field}), MIN({field}), MAX({field}), AVG({field}), COUNT({field}), STDDEV({field})
-FROM replay_results GROUP BY canonical
-    """
+SELECT canonical, SUM({field}), MIN({field}), MAX({field}), AVG({field}), COUNT({field}), STDDEV_POP({field})
+FROM replay_results a WHERE {NO_ERRORS_IN_a} GROUP BY 1
+"""
     res = dict()
     for can, v_sum, v_min, v_max, v_avg, v_cnt, v_stddev in cursor.execute(sql).fetchall():
-        res[can] = {"sum": v_sum, "min": v_min, "max": v_max, "mean": v_avg, "count": v_cnt, "stddev": v_stddev}
+        # v_stddev may be None if there's only one value
+        res[can] = make_stats(v_sum, v_min, v_max, v_avg, v_cnt, v_stddev if v_stddev else 0)
     return res
 
 
@@ -143,14 +149,15 @@ def process(replay, canonicals):
     error_counts = get_error_counts()
     qps = get_qps()
     queries = []
+    no_stats = make_stats(0, 0, 0, 0, 0, 0)
 
     for can, h in build_histograms().items():
         queries.append({
           "id": can,
           "sql": canonicals[can],
           "errors": error_counts[can],
-          "rows_read": rr_stats[can],
-          "duration" : dur_stats[can] | {
+          "rows_read": rr_stats[can] if can in rr_stats else no_stats,
+          "duration" : (dur_stats[can] if can in dur_stats else no_stats) | {
                "hist_counts": h["hist_counts"].tolist(),
                "hist_bins":h["hist_bins"].tolist()
              }
