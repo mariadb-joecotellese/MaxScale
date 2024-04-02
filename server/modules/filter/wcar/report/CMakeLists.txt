@@ -1,0 +1,5 @@
+install_custom_script(maxpostprocess.py ${MAXSCALE_SHAREDIR}/wcar/ enterprise)
+install_custom_file(requirements.txt ${MAXSCALE_SHAREDIR}/wcar/ enterprise)
+install_custom_file(requirements-notebook.txt ${MAXSCALE_SHAREDIR}/wcar/ enterprise)
+install_custom_file(notebook_helper.py ${MAXSCALE_SHAREDIR}/wcar/ enterprise)
+install_custom_file(WCAR.ipynb ${MAXSCALE_SHAREDIR}/wcar/ enterprise)

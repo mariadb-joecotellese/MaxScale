@@ -1,0 +1,5 @@
+# Include the maxpostprocess.py dependencies as well in case a raw replay is visualized
+-r requirements.txt
+# Jupyter
+jupyter
+matplotlib

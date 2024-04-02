@@ -18,3 +18,4 @@ set_target_properties(wcar PROPERTIES VERSION "1.0.0" LINK_FLAGS -Wl,-z,defs)
 install_module(wcar enterprise)
 
 add_subdirectory(player)
+add_subdirectory(report)
