@@ -45,7 +45,7 @@ void* query_thread(void* data)
 int main(int argc, char* argv[])
 {
     TestConnections* test = new TestConnections(argc, argv);
-    Config config(test);
+    mxt::Config config(test);
 
     config.create_all_listeners();
     config.create_monitor("mysql-monitor", "mysqlmon", 500);
@@ -70,19 +70,20 @@ int main(int argc, char* argv[])
         {
             if ((x + i) % 2 == 0)
             {
-                config.create_server(i);
+                config.create_server(i, mxt::Config::Expect::ANY);
                 config.add_server(i);
             }
             else
             {
                 config.remove_server(i);
-                config.destroy_server(i);
+                config.destroy_server(i, mxt::Config::Expect::ANY);
             }
 
             sleep(1);
         }
     }
 
+    test->tprintf("Add/remove done.");
     running = false;
 
     for (int i = 0; i < num_threads; i++)
@@ -93,8 +94,8 @@ int main(int argc, char* argv[])
     /** Make sure the servers exist before checking that connectivity is OK */
     for (int i = 0; i < test->repl->N; i++)
     {
-        config.create_server(i);
-        config.add_server(i);
+        config.create_server(i, mxt::Config::Expect::ANY);
+        config.add_server(i, mxt::Config::Expect::ANY);
     }
 
     sleep(1);
