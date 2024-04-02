@@ -49,7 +49,9 @@ def plot_qps(res1, res2):
 
 
 def display_table(compared, value, metric, orderby, top, relative):
-    if relative:
+    if value == "errors":
+        compared.sort(key=lambda x: orderby * x[2]["errors"])
+    elif relative:
         compared.sort(key=lambda x: orderby * ((x[2][value][metric]) / (x[0][value][metric]) if x[0][value][metric] != 0 else 0))
     else:
         compared.sort(key=lambda x: orderby * x[2][value][metric])
@@ -58,12 +60,20 @@ def display_table(compared, value, metric, orderby, top, relative):
 |--|-----|------|----------|--------|----------|------|---|
 """
     for lhs, rhs, diff in compared[0:top]:
+        if value == "errors":
+            dv = diff["errors"]
+            lv = lhs["errors"]
+            rv = rhs["errors"]
+        else:
+            dv = diff[value][metric]
+            lv = lhs[value][metric]
+            rv = rhs[value][metric]
         table += f"|{lhs['id'] if 'id' in lhs else sha1(lhs['sql']).hexdigest().encode()}"
-        table += f"|{lhs[value]['count']}"
-        table += f"|{diff[value][metric]}"
-        table += f"|{math.floor(10000 * (diff[value][metric]) / (lhs[value][metric])) / 100 if lhs[value][metric] != 0 else 0.0}%"
-        table += f"|{lhs[value][metric]}"
-        table += f"|{rhs[value][metric]}"
+        table += f"|{lhs['duration']['count']}"
+        table += f"|{dv}"
+        table += f"|{math.floor(10000 * (dv) / (lv)) / 100 if lv != 0 else 0.0}%"
+        table += f"|{lv}"
+        table += f"|{rv}"
         table += f"|{diff['errors']}"
         table += f"|```{lhs['sql']}```"
         table += f"|\n"
@@ -71,10 +81,17 @@ def display_table(compared, value, metric, orderby, top, relative):
 
 
 def plot_query_table(compared):
-    value_w = widgets.Dropdown(options=["duration", "rows_read"], value="duration")
+    value_w = widgets.Dropdown(options=["duration", "rows_read", "errors"], value="duration")
     metric_w = widgets.Dropdown(options=["sum", "mean", "min", "max", "stddev"], value="sum")
     orderby_w = widgets.Dropdown(options=[("Improved", 1), ("Degraded", -1)], value=1)
     relative_w = widgets.Dropdown(options=[("Relative", True), ("Absolute", False)], value=True)
+
+    def value_changed(changed):
+        disable_on_error = changed["new"] == "errors"
+        metric_w.disabled = disable_on_error
+        relative_w.disabled = disable_on_error
+
+    value_w.observe(value_changed, "value")
 
     top_w = widgets.IntSlider(value=10, min=1, max=min(len(compared), 100), step=1,
                               continuous_update=False, orientation='horizontal',
@@ -84,8 +101,8 @@ def plot_query_table(compared):
         'value': value_w, 'metric': metric_w, 'orderby': orderby_w,
         'top': top_w, 'relative': relative_w, 'compared': widgets.fixed(compared)})
     box = widgets.HBox([widgets.Label("Value: "), value_w,
-                        widgets.Label("Metric: "), metric_w,
                         widgets.Label("Order By: "), orderby_w,
+                        widgets.Label("Metric: "), metric_w,
                         widgets.Label("Change: "), relative_w,
                         widgets.Label("Top: "), top_w])
 
