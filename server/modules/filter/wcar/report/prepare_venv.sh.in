@@ -1,0 +1,25 @@
+#!/usr/bin/bash
+#
+# Copyright (c) 2024 MariaDB plc
+#
+
+envdir=$1
+req_file=$2
+sharedir="@CMAKE_INSTALL_PREFIX@/@MAXSCALE_SHAREDIR@"
+mxs_version="@MAXSCALE_VERSION@"
+version_file="$envdir/version.txt"
+
+if [ ! -d "$envdir" ]
+then
+    echo "Creating Python virtual environment in: $envdir"
+    python3 -m venv "$envdir" || exit 1
+fi
+
+source "$envdir/bin/activate"
+
+if [ ! -f "$version_file" ] || [ "$(cat $version_file)" != "$mxs_version" ]
+then
+    echo "Installing dependencies..."
+    pip --disable-pip-version-check --no-input -qq install -r "$sharedir/wcar/$req_file"
+    echo "$mxs_version" > "$version_file"
+fi

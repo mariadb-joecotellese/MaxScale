@@ -1,0 +1,27 @@
+#!/usr/bin/bash
+#
+# Copyright (c) 2024 MariaDB plc
+#
+
+if [ $# -lt 2 ]
+then
+    echo "USAGE: $0 BASELINE COMPARISON"
+    exit 1
+elif [ ! -f "$1" ]
+then
+    echo "No such file: $1"
+    exit 1
+elif [ ! -f "$2" ]
+then
+    echo "No such file: $2"
+    exit 1
+fi
+
+sharedir="@CMAKE_INSTALL_PREFIX@/@MAXSCALE_SHAREDIR@"
+envdir="$HOME/.maxvisualize"
+
+$sharedir/wcar/prepare_venv.sh "$envdir" "requirements-notebook.txt"
+source "$envdir/bin/activate"
+
+echo "Press Ctrl-C to stop the visualization"
+BASELINE=$(realpath $1) COMPARISON=$(realpath $2) voila "$sharedir/wcar/WCAR.ipynb" >& /dev/null

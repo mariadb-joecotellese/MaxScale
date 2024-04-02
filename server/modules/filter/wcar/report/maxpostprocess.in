@@ -1,0 +1,12 @@
+#!/usr/bin/bash
+#
+# Copyright (c) 2024 MariaDB plc
+#
+
+sharedir="@CMAKE_INSTALL_PREFIX@/@MAXSCALE_SHAREDIR@"
+envdir="$HOME/.maxpostprocess"
+
+$sharedir/wcar/prepare_venv.sh "$envdir" "requirements.txt"
+source "$envdir/bin/activate"
+
+python3 "$sharedir/wcar/maxpostprocess.py" $@
