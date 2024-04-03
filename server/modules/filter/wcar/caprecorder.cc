@@ -12,7 +12,7 @@ namespace
 CapRecorder::CapRecorder(std::unique_ptr<RecorderContext>&& context)
     : Collector{std::move(context),
                 0,      // Support dynamic thread count
-                10000,  // Queue length.
+                512,    // Queue length.
                 0}      // Cap, not used in updates_only mode
 {
     Data::initialize_workers();
