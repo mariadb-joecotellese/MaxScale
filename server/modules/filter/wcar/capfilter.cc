@@ -39,6 +39,7 @@ CapFilter::CapFilter(const std::string& name)
     return post_configure();
 })
 {
+    SimTime::reset_sim_time(wall_time::Clock::now());
 }
 
 std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_prefix)
