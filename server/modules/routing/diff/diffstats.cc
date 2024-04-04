@@ -45,19 +45,16 @@ json_t* create_query(int id, const std::string& sql, const mxs::ResponseDistribu
     json_object_set_new(pQuery, "errors", json_integer(0)); // TODO
 
     json_t* pRows_read = json_object();
-    json_t* pZero_integer = json_integer(0);
-    json_object_set(pRows_read, "sum", pZero_integer);
-    json_object_set(pRows_read, "min", pZero_integer);
-    json_object_set(pRows_read, "max", pZero_integer);
-    json_object_set_new(pRows_read, "count", pZero_integer);
-    json_t* pZero_real = json_real(0.0);
-    json_object_set(pRows_read, "mean", pZero_real);
-    json_object_set_new(pRows_read, "stddev", pZero_real);
+    json_object_set_new(pRows_read, "sum", json_real(0));
+    json_object_set_new(pRows_read, "min", json_real(0));
+    json_object_set_new(pRows_read, "max", json_real(0));
+    json_object_set_new(pRows_read, "mean", json_real(0));
+    json_object_set_new(pRows_read, "count", json_real(0));
+    json_object_set_new(pRows_read, "stddev", json_real(0));
 
     json_object_set_new(pQuery, "rows_read", pRows_read);
 
     json_t* pDuration = json_object();
-
     json_object_set_new(pDuration, "sum", json_real(0));
     json_object_set_new(pDuration, "min", json_real(0));
     json_object_set_new(pDuration, "max", json_real(0));
@@ -108,8 +105,6 @@ json_t* DiffStats::get_data() const
     json_t* pQueries = json_array();
 
     int id = 1;
-
-    json_array_append_new(pQueries, create_query(id++, "TOTAL", m_response_distribution));
 
     for (const auto& kv : m_response_distributions)
     {
@@ -173,7 +168,7 @@ void DiffOtherStats::add_result(const DiffOrdinaryOtherResult& other_result, con
         // Slower
         if (m_slower_requests.size() < (size_t)config.retain_slower_statements)
         {
-            m_slower_requests.insert(std::make_pair(permille, other_result.shared_from_this()));
+            m_slower_requests.emplace(permille, other_result.shared_from_this());
         }
         else
         {
@@ -181,7 +176,7 @@ void DiffOtherStats::add_result(const DiffOrdinaryOtherResult& other_result, con
 
             if (permille >= it->first)
             {
-                m_slower_requests.insert({permille, other_result.shared_from_this()});
+                m_slower_requests.emplace(permille, other_result.shared_from_this());
 
                 m_slower_requests.erase(m_slower_requests.begin());
             }
@@ -316,10 +311,6 @@ DiffRouterSessionStats::DiffRouterSessionStats(mxs::Target* pMain, const DiffMai
     : m_pMain(pMain)
     , m_main_stats(main_stats)
 {
-    for (auto& kv : main_stats.response_distributions())
-    {
-        m_response_distribution += kv.second;
-    }
 }
 
 void DiffRouterSessionStats::add_other(mxs::Target* pOther, const DiffOtherStats& other_stats)
@@ -327,11 +318,6 @@ void DiffRouterSessionStats::add_other(mxs::Target* pOther, const DiffOtherStats
     mxb_assert(m_other_stats.find(pOther) == m_other_stats.end());
 
     m_other_stats.insert(std::make_pair(pOther, other_stats));
-
-    for (auto& kv : other_stats.response_distributions())
-    {
-        m_response_distribution += kv.second;
-    }
 }
 
 json_t* DiffRouterSessionStats::to_json() const
@@ -360,11 +346,11 @@ std::map<mxs::Target*, json_t*> DiffRouterSessionStats::get_data() const
 {
     std::map<mxs::Target*, json_t*> rv;
 
-    rv.insert(std::make_pair(m_pMain, m_main_stats.get_data()));
+    rv.emplace(m_pMain, m_main_stats.get_data());
 
     for (const auto& kv : m_other_stats)
     {
-        rv.insert(std::make_pair(kv.first, kv.second.get_data()));
+        rv.emplace(kv.first, kv.second.get_data());
     }
 
     return rv;

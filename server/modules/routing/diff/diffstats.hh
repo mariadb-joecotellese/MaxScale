@@ -29,7 +29,6 @@ public:
     {
         m_total_duration += duration;
 
-        m_response_distribution.add(duration);
         m_response_distributions[std::string(canonical)].add(duration);
     }
 
@@ -154,7 +153,6 @@ public:
         m_explain_duration += rhs.m_explain_duration;
         m_nExplain_requests += rhs.m_nExplain_requests;
         m_nExplain_responses += rhs.m_nExplain_responses;
-        m_response_distribution += rhs.m_response_distribution;
 
         for (const auto& kv : rhs.m_response_distributions)
         {
@@ -175,7 +173,6 @@ protected:
     std::chrono::nanoseconds  m_explain_duration { 0 };
     int64_t                   m_nExplain_requests { 0 };
     int64_t                   m_nExplain_responses { 0 };
-    mxs::ResponseDistribution m_response_distribution;
     ResponseDistributions     m_response_distributions;
 };
 
@@ -276,8 +273,6 @@ public:
                 m_other_stats.insert(kv);
             }
         }
-
-        m_response_distribution += rhs.m_response_distribution;
     }
 
     json_t* to_json() const;
@@ -288,7 +283,6 @@ private:
     mxs::Target*                           m_pMain { nullptr };
     DiffMainStats                          m_main_stats;
     std::map<mxs::Target*, DiffOtherStats> m_other_stats;
-    mxs::ResponseDistribution              m_response_distribution;
 };
 
 class DiffRouterStats
