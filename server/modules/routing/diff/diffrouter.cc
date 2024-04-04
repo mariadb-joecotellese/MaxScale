@@ -114,7 +114,8 @@ std::shared_ptr<mxs::RouterSession> DiffRouter::newSession(MXS_SESSION* pSession
 
     if (connected)
     {
-        sRouter_session = std::make_shared<DiffRouterSession>(pSession, this, std::move(sMain), std::move(backends));
+        sRouter_session = std::make_shared<DiffRouterSession>(pSession, this,
+                                                              std::move(sMain), std::move(backends));
     }
 
     return sRouter_session;
@@ -457,12 +458,14 @@ bool DiffRouter::summary(Summary summary, json_t** ppOutput)
     Stats stats = m_stats;
     guard.unlock();
 
-    std::string path = mxs::datadir();
-    path += "/";
-    path += MXB_MODULE_NAME;
-    path += "/";
-    path += m_config.service_name;
-    path += "/summary_";
+    std::string base = mxs::datadir();
+    base += "/";
+    base += MXB_MODULE_NAME;
+    base += "/";
+    base += m_config.service_name;
+    base += "/Summary_";
+
+    std::string path = base;
 
     time_t now = time(nullptr);
     std::stringstream time;
@@ -485,6 +488,16 @@ bool DiffRouter::summary(Summary summary, json_t** ppOutput)
     else
     {
         json_decref(pOutput);
+    }
+
+    std::map<mxs::Target*, json_t*> data_by_target = stats.get_data();
+
+    for (const auto& kv : data_by_target)
+    {
+        std::string s = base + kv.first->name() + "_" + time.str() + ".json";
+
+        save_stats(s, kv.second);
+        json_decref(kv.second);
     }
 
     return rv;

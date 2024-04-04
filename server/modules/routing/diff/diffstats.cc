@@ -15,27 +15,61 @@ using std::chrono::duration_cast;
 namespace
 {
 
-json_t* create_histogram(const mxs::ResponseDistribution& response_distribution)
+void add_histogram(json_t* pDuration, const mxs::ResponseDistribution& rd)
 {
-    json_t* pHistogram = json_array();
+    json_t* pHist_counts = json_array();
+    json_t* pHist_bins = json_array();
 
-    for (const auto& element : response_distribution.get())
+    for (const auto& element : rd.get())
     {
-        using std::chrono::duration_cast;
-        using std::chrono::milliseconds;
+        auto count = element.count;
+        std::chrono::duration<double> bin = element.limit;
 
-        auto limit = std::chrono::duration_cast<std::chrono::microseconds>(element.limit).count();
-        auto total = std::chrono::duration_cast<std::chrono::microseconds>(element.total).count();
-
-        json_t* pElement = json_object();
-        json_object_set_new(pElement, "limit", json_integer(limit));
-        json_object_set_new(pElement, "count", json_integer(element.count));
-        json_object_set_new(pElement, "total", json_integer(total));
-
-        json_array_append_new(pHistogram, pElement);
+        json_array_append_new(pHist_counts, json_integer(count));
+        json_array_append_new(pHist_bins, json_real(bin.count()));
     }
 
-    return pHistogram;
+    // TODO: One extra for the visualization.
+    json_array_append_new(pHist_bins, json_real(100000.1));
+
+    json_object_set_new(pDuration, "hist_counts", pHist_counts);
+    json_object_set_new(pDuration, "hist_bins", pHist_bins);
+}
+
+json_t* create_query(int id, const std::string& sql, const mxs::ResponseDistribution& rd)
+{
+    json_t* pQuery = json_object();
+
+    json_object_set_new(pQuery, "id", json_integer(id));
+    json_object_set_new(pQuery, "sql", json_string(sql.c_str()));
+    json_object_set_new(pQuery, "errors", json_integer(0)); // TODO
+
+    json_t* pRows_read = json_object();
+    json_t* pZero_integer = json_integer(0);
+    json_object_set(pRows_read, "sum", pZero_integer);
+    json_object_set(pRows_read, "min", pZero_integer);
+    json_object_set(pRows_read, "max", pZero_integer);
+    json_object_set_new(pRows_read, "count", pZero_integer);
+    json_t* pZero_real = json_real(0.0);
+    json_object_set(pRows_read, "mean", pZero_real);
+    json_object_set_new(pRows_read, "stddev", pZero_real);
+
+    json_object_set_new(pQuery, "rows_read", pRows_read);
+
+    json_t* pDuration = json_object();
+
+    json_object_set_new(pDuration, "sum", json_real(0));
+    json_object_set_new(pDuration, "min", json_real(0));
+    json_object_set_new(pDuration, "max", json_real(0));
+    json_object_set_new(pDuration, "mean", json_real(0));
+    json_object_set_new(pDuration, "count", json_real(0));
+    json_object_set_new(pDuration, "stddev", json_real(0));
+
+    add_histogram(pDuration, rd);
+
+    json_object_set_new(pQuery, "duration", pDuration);
+
+    return pQuery;
 }
 
 }
@@ -43,44 +77,67 @@ json_t* create_histogram(const mxs::ResponseDistribution& response_distribution)
 /**
  * DiffStats
  */
-void DiffStats::fill_json(json_t* pJson) const
+json_t* DiffStats::get_statistics() const
 {
-    std::chrono::milliseconds ms;
+    json_t* pStatistics = json_object();
 
-    ms = duration_cast<std::chrono::milliseconds>(m_total_duration);
-    json_object_set_new(pJson, "total_duration", json_integer(ms.count()));
-    json_object_set_new(pJson, "request_packets", json_integer(m_nRequest_packets));
-    json_object_set_new(pJson, "requests", json_integer(m_nRequests));
-    json_object_set_new(pJson, "requests_explainable", json_integer(m_nRequests_explainable));
-    json_object_set_new(pJson, "requests_responding", json_integer(m_nRequests_responding));
-    json_object_set_new(pJson, "responses", json_integer(m_nResponses));
+    std::chrono::duration<double> dur;
+
+    dur = m_total_duration;
+    json_object_set_new(pStatistics, "duration", json_real(dur.count()));
+    json_object_set_new(pStatistics, "request_packets", json_integer(m_nRequest_packets));
+    json_object_set_new(pStatistics, "requests", json_integer(m_nRequests));
+    json_object_set_new(pStatistics, "requests_explainable", json_integer(m_nRequests_explainable));
+    json_object_set_new(pStatistics, "requests_responding", json_integer(m_nRequests_responding));
+    json_object_set_new(pStatistics, "responses", json_integer(m_nResponses));
 
     json_t* pExplain = json_object();
-    ms = duration_cast<std::chrono::milliseconds>(m_explain_duration);
-    json_object_set_new(pExplain, "duration", json_integer(ms.count()));
+    dur = m_explain_duration;
+    json_object_set_new(pExplain, "duration", json_real(dur.count()));
     json_object_set_new(pExplain, "requests", json_integer(m_nExplain_requests));
     json_object_set_new(pExplain, "responses", json_integer(m_nExplain_responses));
 
-    json_object_set_new(pJson, "explain", pExplain);
+    json_object_set_new(pStatistics, "explain", pExplain);
 
-    json_t* pHistograms = json_array();
+    return pStatistics;
+}
+
+json_t* DiffStats::get_data() const
+{
+    json_t* pData = json_object();
+    json_t* pQueries = json_array();
+
+    int id = 1;
+
+    json_array_append_new(pQueries, create_query(id++, "TOTAL", m_response_distribution));
 
     for (const auto& kv : m_response_distributions)
     {
-        auto& canonical = kv.first;
+        auto& sql = kv.first;
         auto& response_distribution = kv.second;
 
-        json_t* pHistogram_entry = json_object();
-        json_object_set_new(pHistogram_entry, "canonical", json_string(canonical.c_str()));
-        json_object_set_new(pHistogram_entry, "histogram", create_histogram(response_distribution));
-
-        json_array_append_new(pHistograms, pHistogram_entry);
+        json_array_append_new(pQueries, create_query(id++, sql, response_distribution));
     }
 
-    json_object_set_new(pJson, "histogram", create_histogram(m_response_distribution));
-    json_object_set_new(pJson, "histograms", pHistograms);
-}
+    json_object_set_new(pData, "queries", pQueries);
 
+    json_t* pQps = json_object();
+    json_t* pZero = json_real(0.0);
+
+    json_t* pTime = json_array();
+    json_array_append(pTime, pZero);
+    json_array_append(pTime, pZero);
+
+    json_t* pCounts = json_array();
+    json_array_append_new(pCounts, pZero);
+
+    json_object_set_new(pQps, "time", pTime);
+    json_object_set_new(pQps, "counts", pCounts);
+
+    json_object_set_new(pData, "qps", pQps);
+
+    return pData;
+}
 
 /**
  * DiffMainStats
@@ -89,9 +146,8 @@ json_t* DiffMainStats::to_json() const
 {
     json_t* pJson = json_object();
 
-    json_t* pData = json_object();
-    fill_json(pData);
-    json_object_set_new(pJson, "data", pData);
+    json_object_set_new(pJson, "statistics", get_statistics());
+    json_object_set_new(pJson, "data", get_data());
 
     return pJson;
 }
@@ -201,9 +257,11 @@ json_t* DiffOtherStats::to_json() const
 {
     json_t* pJson = json_object();
 
-    json_t* pData = json_object();
-    fill_json(pData);
-    json_object_set_new(pData, "requests_skipped", json_integer(m_nRequests_skipped));
+    json_t* pStatistics = get_statistics();
+    json_object_set_new(pStatistics, "requests_skipped", json_integer(m_nRequests_skipped));
+
+    json_object_set_new(pJson, "statistics", pStatistics);
+    json_object_set_new(pJson, "data", get_data());
 
     json_t* pVerdict = json_object();
     json_object_set_new(pVerdict, "faster", json_integer(m_nFaster));
@@ -245,7 +303,6 @@ json_t* DiffOtherStats::to_json() const
     json_object_set_new(pVerdict, "fastest", create_result_array(m_faster_requests));
     json_object_set_new(pVerdict, "slowest", create_result_array(m_slower_requests));
 
-    json_object_set_new(pJson, "data", pData);
     json_object_set_new(pJson, "verdict", pVerdict);
 
     return pJson;
@@ -297,6 +354,20 @@ json_t* DiffRouterSessionStats::to_json() const
     json_object_set_new(pJson, "others", pOthers);
 
     return pJson;
+}
+
+std::map<mxs::Target*, json_t*> DiffRouterSessionStats::get_data() const
+{
+    std::map<mxs::Target*, json_t*> rv;
+
+    rv.insert(std::make_pair(m_pMain, m_main_stats.get_data()));
+
+    for (const auto& kv : m_other_stats)
+    {
+        rv.insert(std::make_pair(kv.first, kv.second.get_data()));
+    }
+
+    return rv;
 }
 
 /**

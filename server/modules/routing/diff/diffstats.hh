@@ -162,7 +162,8 @@ public:
         }
     }
 
-    void fill_json(json_t* pJson) const;
+    json_t* get_statistics() const;
+    json_t* get_data() const;
 
 protected:
     std::chrono::nanoseconds  m_total_duration { 0 };
@@ -281,6 +282,8 @@ public:
 
     json_t* to_json() const;
 
+    std::map<mxs::Target*, json_t*> get_data() const;
+
 private:
     mxs::Target*                           m_pMain { nullptr };
     DiffMainStats                          m_main_stats;
@@ -306,6 +309,11 @@ public:
     void post_configure(const DiffConfig& config);
 
     json_t* to_json() const;
+
+    std::map<mxs::Target*, json_t*> get_data() const
+    {
+        return m_router_session_stats.get_data();
+    }
 
 private:
     const SERVICE&         m_service;
