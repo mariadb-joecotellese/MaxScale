@@ -24,4 +24,4 @@ $sharedir/wcar/prepare_venv.sh "$envdir" "requirements-notebook.txt"
 source "$envdir/bin/activate"
 
 echo "Press Ctrl-C to stop the visualization"
-BASELINE=$(realpath $1) COMPARISON=$(realpath $2) voila "$sharedir/wcar/WCAR.ipynb" >& /dev/null
+BASELINE=$(realpath $1) COMPARISON=$(realpath $2) voila "$sharedir/wcar/WCAR.ipynb"

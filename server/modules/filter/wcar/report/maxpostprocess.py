@@ -59,7 +59,9 @@ WITH bin_sizes AS(
        {BIN_COUNT} bin_count
   FROM replay_results GROUP BY canonical
 ) SELECT a.canonical,
-         FLOOR(((CASE WHEN duration < b.high_value THEN duration else b.high_value END - b.low_value) / (b.high_value - b.low_value)) * b.bin_count) bin_num,
+         FLOOR(((
+           CASE WHEN duration < b.high_value THEN duration else b.high_value END - b.low_value + 1.0
+         ) / (b.high_value - b.low_value + 1.0)) * b.bin_count) bin_num,
          COUNT(duration) bin_count
 FROM replay_results a JOIN bin_sizes b ON (a.canonical = b.canonical)
 WHERE {NO_ERRORS_IN_a}
@@ -117,15 +119,9 @@ def get_qps():
     Get the query counts in the given resolution
     """
     global cursor
-
-    val_min, val_max = cursor.execute("SELECT MIN(start_time), MAX(start_time + duration) FROM replay_results").fetchall()[0]
-    num_bins = int(val_max - val_min)
-    times = np.linspace(int(val_min), int(val_max) + 1, num=num_bins + 1)
-    counts = [0] * num_bins
     cursor.execute("SELECT FLOOR(start_time + duration) , COUNT(*) qps FROM replay_results GROUP BY 1 ORDER BY 1")
-    for time_point, qps in cursor.fetchall():
-        counts[int(time_point - val_min)] = qps
-    return {"time": times.tolist(), "counts": counts}
+    times, counts = zip(*cursor.fetchall())
+    return {"time": list(times) + [times[-1] + 1], "counts": list(counts)}
 
 
 def process(replay, canonicals):

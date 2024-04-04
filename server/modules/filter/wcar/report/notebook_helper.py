@@ -34,14 +34,21 @@ def load_data():
     return compared, res1, res2
 
 
+def plot_one_qps(ax, res, label):
+    t = res["qps"]["time"]
+    c = res["qps"]["counts"]
+    if len(t) > len(c) + 1:
+        t = t[:len(c) + 1]
+    elif len(c) >= len(t):
+        c = c[:len(t) - 1]
+    ax.stairs(c, t, label=label, alpha=0.5);
+
+
 def plot_qps(res1, res2):
     fig, ax = plt.subplots()
     fig.set_size_inches(20, 5)
-    min_s = min(res1["qps"]["time"][0], res2["qps"]["time"][0])
-    max_s = max(res1["qps"]["time"][-1], res2["qps"]["time"][-1])
-
-    ax.stairs(res1["qps"]["counts"], res1["qps"]["time"], label="Baseline", alpha=0.5);
-    ax.stairs(res2["qps"]["counts"], res2["qps"]["time"], label="Comparison", alpha=0.5);
+    plot_one_qps(ax, res1, "Baseline")
+    plot_one_qps(ax, res2, "Comparison")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("QPS")
     ax.legend()
