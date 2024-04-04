@@ -8,6 +8,7 @@
 #include "../capdefs.hh"
 
 #include <maxbase/host.hh>
+#include <maxscale/paths.hh>
 #include <mysql.h>
 #include <string>
 #include <memory>
@@ -41,7 +42,7 @@ struct RepConfig
     CsvType       csv = CsvType::NONE;
     bool          row_counts = true;
 
-    std::string capture_dir = "/home/mariadb/maxscale/var/lib/maxscale/capture";
+    std::string capture_dir = mxs::datadir() + std::string("/capture");
     std::string file_name;      // full path, not necessarily in capture_dir
     std::string output_file;    // Output file, defaults to file_name
     std::string command = "replay";
