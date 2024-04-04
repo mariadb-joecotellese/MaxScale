@@ -253,16 +253,19 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
         m_capture = false;
     }
 
-    if (m_capture)
+    if (reply.is_complete())
     {
-        m_query_event.end_time = SimTime::sim_time().now();
-        m_query_event.event_id = m_filter.get_next_event_id();
-        m_query_event.sTrx = m_session_state.update(m_query_event.event_id, reply);
-        handle_cap_state(CapSignal::QEVENT);
-    }
-    else
-    {
-        m_session_state.update(-1, reply);      // maintain state
+        if (m_capture)
+        {
+            m_query_event.end_time = SimTime::sim_time().now();
+            m_query_event.event_id = m_filter.get_next_event_id();
+            m_query_event.sTrx = m_session_state.update(m_query_event.event_id, reply);
+            handle_cap_state(CapSignal::QEVENT);
+        }
+        else
+        {
+            m_session_state.update(-1, reply);  // maintain state
+        }
     }
 
     return mxs::FilterSession::clientReply(std::move(buffer), down, reply);
