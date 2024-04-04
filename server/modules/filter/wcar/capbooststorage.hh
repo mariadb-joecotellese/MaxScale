@@ -110,9 +110,9 @@ public:
     /**
      * Convert the events to SQL and write them into a file
      *
-     * @param path The path to the file where the output is written
+     * @param out The stream where the output is written
      */
-    void events_to_sql(fs::path path);
+    void events_to_sql(std::ostream& out);
 
     std::vector<TrxEvent> release_trx_events()
     {

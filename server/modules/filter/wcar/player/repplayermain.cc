@@ -59,7 +59,17 @@ try
     }
     else if (config.command == cmd::DUMP_DATA)
     {
-        CapBoostStorage(config.file_name, ReadWrite::READ_ONLY).events_to_sql(config.output_file);
+        CapBoostStorage storage(config.file_name, ReadWrite::READ_ONLY);
+
+        if (config.output_file == config.file_name)
+        {
+            storage.events_to_sql(std::cout);
+        }
+        else
+        {
+            std::ofstream out(config.output_file);
+            storage.events_to_sql(out);
+        }
     }
     else
     {
