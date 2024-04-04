@@ -44,6 +44,7 @@ RepCsvStorage::RepCsvStorage(std::filesystem::path path, Canonicals canonicals)
         MXB_THROW(WcarError, "Could not open file " << path << ": " << mxb_strerror(errno));
     }
 
+    m_file << std::fixed;
     m_file << "event_id,canonical,duration,start_time,result_rows,rows_read,error\n";
 }
 
