@@ -23,8 +23,9 @@ std::vector<Command> s_commands{
     {cmd::REPLAY, "Replay the capture."},
     {cmd::TRANSFORM, "Only transform the capture to make it ready for replay."},
     {cmd::CONVERT, "Converts the input file (either .cx or .rx) to a replay file (.rx or .csv)."},
-    {cmd::LIST_QUERIES, "List the canonical forms of the captured SQL as CSV."},
+    {cmd::CANONICALS, "List the canonical forms of the captured SQL as CSV."},
     {cmd::DUMP_DATA, "Dump capture data as SQL."},
+    {cmd::SHOW, "Show the SQL of one or more events"}
 };
 }
 
@@ -212,15 +213,6 @@ RepConfig::RepConfig(int argc, char** argv)
             error = true;
         }
     }
-    else if (argc - optind > 2)
-    {
-        if (!help)
-        {
-            std::cerr << "error: Too many arguments" << std::endl;
-            help = true;
-            error = true;
-        }
-    }
     else
     {
         if (argc - optind > 1)
@@ -239,7 +231,7 @@ RepConfig::RepConfig(int argc, char** argv)
             }
         }
 
-        file_name = argv[optind];
+        file_name = argv[optind++];
         if (file_name[0] != '/')
         {
             file_name = capture_dir + '/' + file_name;
@@ -256,6 +248,30 @@ RepConfig::RepConfig(int argc, char** argv)
         {
             // The RepStorage will rename it with the appropriate file extension.
             output_file = file_name;
+        }
+
+        while (optind < argc)
+        {
+            extra_args.push_back(argv[optind++]);
+        }
+    }
+
+    if (!help)
+    {
+        if (command == cmd::SHOW)
+        {
+            if (extra_args.empty())
+            {
+                std::cerr << "error: Not enough arguments" << std::endl;
+                help = true;
+                error = true;
+            }
+        }
+        else if (!extra_args.empty())
+        {
+            std::cerr << "error: Too many arguments" << std::endl;
+            help = true;
+            error = true;
         }
     }
 

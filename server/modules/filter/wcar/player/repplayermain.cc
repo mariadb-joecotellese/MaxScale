@@ -43,7 +43,7 @@ try
     {
         RepConverter converter(config);
     }
-    else if (config.command == cmd::LIST_QUERIES)
+    else if (config.command == cmd::CANONICALS)
     {
         auto canonicals = CapBoostStorage(config.file_name, ReadWrite::READ_ONLY).canonicals();
 
@@ -69,6 +69,30 @@ try
         {
             std::ofstream out(config.output_file);
             storage.events_to_sql(out);
+        }
+    }
+    else if (config.command == cmd::SHOW)
+    {
+        std::set<uint64_t> ids;
+
+        for (const auto& str : config.extra_args)
+        {
+            ids.insert(atol(str.c_str()));
+        }
+
+        for (auto&& qevent : CapBoostStorage(config.file_name, ReadWrite::READ_ONLY))
+        {
+            if (auto it = ids.find(qevent.event_id); it != ids.end())
+            {
+                std::cout << maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args)
+                          << ";\n";
+                ids.erase(it);
+
+                if (ids.empty())
+                {
+                    break;
+                }
+            }
         }
     }
     else

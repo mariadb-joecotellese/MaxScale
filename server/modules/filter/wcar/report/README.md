@@ -19,7 +19,7 @@ file is.
 The first step is to generate the CSV file with the query digests using the `maxplayer` program.
 
 ```
-maxplayer list-queries /path/to/capture.cx -o canonicals.csv
+maxplayer canonicals /path/to/capture.cx -o canonicals.csv
 ```
 
 After that, each replay can be processed into a summary.

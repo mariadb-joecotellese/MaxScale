@@ -20,8 +20,9 @@ namespace cmd
 static const char* REPLAY = "replay";
 static const char* TRANSFORM = "transform";
 static const char* CONVERT = "convert";
-static const char* LIST_QUERIES = "list-queries";
+static const char* CANONICALS = "canonicals";
 static const char* DUMP_DATA = "dump-data";
+static const char* SHOW = "show";
 }
 
 struct RepConfig
@@ -47,6 +48,8 @@ struct RepConfig
     std::string output_file;    // Output file, defaults to file_name
     std::string command = "replay";
     float       sim_speed = 1.0;
+
+    std::vector<std::string> extra_args;
 
     void show_help();
 
