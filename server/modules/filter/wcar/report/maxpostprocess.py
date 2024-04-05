@@ -110,7 +110,7 @@ def get_error_counts():
     Get error counts per canonical
     """
     global cursor
-    cursor.execute("SELECT canonical, COUNT(error) FROM replay_results GROUP BY canonical")
+    cursor.execute("SELECT canonical, SUM(CASE error WHEN 0 THEN 0 ELSE 1 END) FROM replay_results GROUP BY canonical")
     return {can_id: errcount for can_id, errcount in cursor.fetchall()}
 
 
