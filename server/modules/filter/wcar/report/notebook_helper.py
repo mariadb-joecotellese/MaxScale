@@ -10,6 +10,9 @@ from hashlib import sha1
 from IPython.display import Markdown, HTML, display
 import ipywidgets as widgets
 
+SORT_ASC = 1
+SORT_DESC = -1
+SORT_ID = 0
 
 def load_data():
     if "CANONICALS" in env and "BASELINE_REPLAY" in env and "COMPARISON_REPLAY" in env:
@@ -56,7 +59,9 @@ def plot_qps(res1, res2):
 
 
 def display_table(compared, value, metric, orderby, top, relative):
-    if value == "errors":
+    if orderby == SORT_ID:
+        compared.sort(key=lambda x: x[0]["id"])
+    elif value == "errors":
         compared.sort(key=lambda x: orderby * x[2]["errors"])
     elif relative:
         compared.sort(key=lambda x: orderby * ((x[2][value][metric]) / (x[0][value][metric]) if x[0][value][metric] != 0 else 0))
@@ -90,7 +95,7 @@ def display_table(compared, value, metric, orderby, top, relative):
 def plot_query_table(compared):
     value_w = widgets.Dropdown(options=["duration", "rows_read", "errors"], value="duration")
     metric_w = widgets.Dropdown(options=["sum", "mean", "min", "max", "stddev"], value="sum")
-    orderby_w = widgets.Dropdown(options=[("Improved", 1), ("Degraded", -1)], value=1)
+    orderby_w = widgets.Dropdown(options=[("Improved", SORT_ASC), ("Degraded", SORT_DESC), ("ID", SORT_ID)], value=1)
     relative_w = widgets.Dropdown(options=[("Relative", True), ("Absolute", False)], value=True)
 
     def value_changed(changed):
@@ -107,8 +112,8 @@ def plot_query_table(compared):
     out = widgets.interactive_output(display_table, {
         'value': value_w, 'metric': metric_w, 'orderby': orderby_w,
         'top': top_w, 'relative': relative_w, 'compared': widgets.fixed(compared)})
-    box = widgets.HBox([widgets.Label("Value: "), value_w,
-                        widgets.Label("Order By: "), orderby_w,
+    box = widgets.HBox([widgets.Label("Order By: "), orderby_w,
+                        widgets.Label("Value: "), value_w,
                         widgets.Label("Metric: "), metric_w,
                         widgets.Label("Change: "), relative_w,
                         widgets.Label("Top: "), top_w])
