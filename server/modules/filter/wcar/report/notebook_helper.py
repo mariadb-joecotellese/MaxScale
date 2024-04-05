@@ -128,10 +128,9 @@ def show_histogram(compared, sql):
 
 
 def plot_histogram(compared):
-    id_list = [q[0]["sql"] for q in compared]
-    id_list.sort()
+    id_list = [(f"{q[0]["id"]}: {q[0]["sql"][:100]}", q[0]["sql"]) for q in sorted(compared, key=lambda x: x[0]["id"])]
     # Using `interactive` avoids having the window jump around when toggling the ID
-    ia = widgets.interactive(show_histogram, sql = widgets.Dropdown(options=id_list, value=id_list[0]),
+    ia = widgets.interactive(show_histogram, sql = widgets.Dropdown(options=id_list, value=id_list[0][1]),
                              compared = widgets.fixed(compared))
     ia.layout.height = '1000px'
     display(ia)
