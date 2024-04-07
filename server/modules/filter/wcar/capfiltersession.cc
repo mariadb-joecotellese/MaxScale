@@ -123,6 +123,7 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
 
 void CapFilterSession::start_capture(const std::shared_ptr<CapRecorder>& sRecorder)
 {
+    m_inside_initial_trx = m_session_state.in_trx();
     m_sRecorder = std::atomic_load_explicit(&sRecorder, std::memory_order_relaxed);
     handle_cap_state(CapSignal::START);
 }
@@ -296,6 +297,11 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
         {
             m_session_state.update(-1, reply);  // maintain state
         }
+    }
+
+    if (m_inside_initial_trx)
+    {
+        m_inside_initial_trx = m_session_state.in_trx();
     }
 
     return mxs::FilterSession::clientReply(std::move(buffer), down, reply);

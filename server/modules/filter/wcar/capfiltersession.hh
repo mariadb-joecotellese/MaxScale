@@ -68,6 +68,7 @@ private:
     std::mutex                   m_state_mutex;
 
     CapSessionState m_session_state;
+    bool            m_inside_initial_trx = false;   // A trx was active when capture started
     bool            m_capture = false;
     InitState       m_init_state = InitState::SEND_QUERY;
     QueryEvent      m_query_event;
