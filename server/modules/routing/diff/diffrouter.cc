@@ -17,6 +17,7 @@
 #include "../../../core/internal/service.hh"
 #include "diffroutersession.hh"
 #include "diffutils.hh"
+#include "diffbinspecs.hh"
 
 using namespace mxq;
 using namespace mxs;
@@ -28,6 +29,7 @@ DiffRouter::DiffRouter(SERVICE* pService)
     , m_config(pService->name(), this)
     , m_service(*pService)
     , m_stats(pService)
+    , m_sBin_specs(std::make_shared<DiffBinSpecs>())
 {
 }
 
@@ -508,6 +510,84 @@ void DiffRouter::collect(const DiffRouterSessionStats& stats)
     std::lock_guard<std::mutex> guard(m_stats_lock);
 
     m_stats.add(stats, m_config);
+}
+
+std::shared_ptr<const DiffBinSpecs> DiffRouter::add_sample_for(std::string_view canonical,
+                                                               const mxb::Duration& duration)
+{
+    std::shared_ptr<const DiffBinSpecs> sBin_specs;
+
+    std::shared_lock<std::shared_mutex> shared_guard(m_bin_specs_rwlock);
+
+    if (m_sBin_specs->find(canonical) != m_sBin_specs->end())
+    {
+        // The current m_sBin_specs contains the bin specification for
+        // the canonical statement, so return it.
+        sBin_specs = m_sBin_specs;
+    }
+    else
+    {
+        shared_guard.unlock();
+
+        std::lock_guard<std::shared_mutex> guard(m_bin_specs_rwlock);
+
+        // Have to check again; something might have happened between the shared
+        // guard being unlocked and the guard being locked.
+
+        if (m_sBin_specs->find(canonical) != m_sBin_specs->end())
+        {
+            sBin_specs = m_sBin_specs;
+        }
+        else
+        {
+            auto it = m_samples_by_canonical.find(canonical);
+
+            if (it == m_samples_by_canonical.end())
+            {
+                // First sample, so add an entry.
+                it = m_samples_by_canonical.emplace(std::string(canonical), Samples()).first;
+                it->second.reserve(1000); // TODO: Make configurable.
+            }
+
+            Samples& samples = it->second;
+            samples.push_back(duration);
+
+            if (samples.size() >= 1000) // TODO: Make configurable.
+            {
+                // Enough samples collected.
+                std::sort(samples.begin(), samples.end());
+
+                auto jt = samples.begin();
+                auto min = *jt;
+                std::advance(jt, ((double)samples.size() * 0.99));
+                auto max = *jt;
+
+                auto delta = (max - min) / 12; // TODO: Make configurable.
+
+                DiffBinSpecs::Bins bins;
+
+                for (int i = 0; i <= 12; ++i)
+                {
+                    bins.push_back(min + i * delta);
+                }
+
+                // Various DiffRouterSessions have a shared_ptr to the current
+                // m_sBin_specs and hence it cannot be modified. Instead we create
+                // a new one. Eventually, when all canonical statements have been
+                // sampled, there will be just one DiffBinSpecs instance alive
+                // that everyone uses.
+                auto sNext = std::make_shared<DiffBinSpecs>(*m_sBin_specs);
+                sNext->add(canonical, bins);
+
+                m_sBin_specs = sNext;
+                sBin_specs = m_sBin_specs;
+
+                m_samples_by_canonical.erase(it);
+            }
+        }
+    }
+
+    return sBin_specs;
 }
 
 void DiffRouter::set_state(DiffState diff_state, SyncState sync_state)

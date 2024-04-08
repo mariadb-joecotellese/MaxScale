@@ -15,6 +15,7 @@
 #include "diffresult.hh"
 #include "diffstats.hh"
 
+class DiffBinSpecs;
 class DiffRouter;
 
 class DiffRouterSession final : public mxs::RouterSession
@@ -39,6 +40,17 @@ public:
     bool handleError(mxs::ErrorType type, const std::string& message,
                      mxs::Endpoint* pProblem, const mxs::Reply& reply) override;
 
+    /**
+     * Get histogram bins for a particular canonical statement.
+     *
+     * @param canonical  A canonical statements.
+     * @param duration   The duration the current execution took, used as a sample if needed.
+     *
+     * @return A non-empty vector of bin fenceposts, if the bins have been sampled enough
+     *         for the canonical statement in question. Otherwise an empty vector.
+     */
+    std::vector<mxb::Duration> get_bins_for(std::string_view canonical, const mxb::Duration& duration);
+
 private:
     // DiffOtherBackend::Handler
     Explain ready(DiffOrdinaryOtherResult& other_result) override;
@@ -55,8 +67,9 @@ private:
                          json_t* pExplain_main);
     json_t* generate_json(const DiffResult& result, json_t* pExplain);
 
-    SDiffMainBackend   m_sMain;
-    SDiffOtherBackends m_others;
-    int                m_responses = 0;
-    DiffRouter&        m_router;
+    SDiffMainBackend                    m_sMain;
+    SDiffOtherBackends                  m_others;
+    int                                 m_responses = 0;
+    DiffRouter&                         m_router;
+    std::shared_ptr<const DiffBinSpecs> m_sBin_specs;
 };

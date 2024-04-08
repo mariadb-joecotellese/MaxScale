@@ -194,7 +194,8 @@ DiffBackend::Routing DiffConcreteBackend<Stats, Result, ExplainResult>::finish_r
     auto canonical = sResult->canonical();
     auto duration = sResult->close(reply);
 
-    m_stats.add_canonical_result(canonical, duration);
+    mxb_assert(m_pRouter_session);
+    m_stats.add_canonical_result(*m_pRouter_session, canonical, duration);
 
     return kind == DiffResult::Kind::EXTERNAL ? Routing::CONTINUE : Routing::STOP;
 }

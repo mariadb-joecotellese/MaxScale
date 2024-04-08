@@ -9,34 +9,40 @@
 #include <maxscale/service.hh>
 #include "diffconfig.hh"
 #include "diffresult.hh"
+#include "diffroutersession.hh"
 
 using std::chrono::duration_cast;
 
 namespace
 {
 
-void add_histogram(json_t* pDuration, const mxs::ResponseDistribution& rd)
+void add_histogram(json_t* pDuration, const DiffHistogram& hist)
 {
     json_t* pHist_counts = json_array();
     json_t* pHist_bins = json_array();
 
-    for (const auto& element : rd.get())
+    const auto& elements = hist.elements();
+
+    for (auto it = elements.begin(); it != elements.end(); ++it)
     {
+        const auto& element = *it;
+
         auto count = element.count;
         std::chrono::duration<double> bin = element.limit;
 
-        json_array_append_new(pHist_counts, json_integer(count));
+        if (it != elements.begin())
+        {
+            json_array_append_new(pHist_counts, json_integer(count));
+        }
+
         json_array_append_new(pHist_bins, json_real(bin.count()));
     }
-
-    // TODO: One extra for the visualization.
-    json_array_append_new(pHist_bins, json_real(100000.1));
 
     json_object_set_new(pDuration, "hist_counts", pHist_counts);
     json_object_set_new(pDuration, "hist_bins", pHist_bins);
 }
 
-json_t* create_query(int id, const std::string& sql, const mxs::ResponseDistribution& rd)
+json_t* create_query(int id, const std::string& sql, const DiffHistogram& hist)
 {
     json_t* pQuery = json_object();
 
@@ -62,7 +68,7 @@ json_t* create_query(int id, const std::string& sql, const mxs::ResponseDistribu
     json_object_set_new(pDuration, "count", json_real(0));
     json_object_set_new(pDuration, "stddev", json_real(0));
 
-    add_histogram(pDuration, rd);
+    add_histogram(pDuration, hist);
 
     json_object_set_new(pQuery, "duration", pDuration);
 
@@ -74,6 +80,38 @@ json_t* create_query(int id, const std::string& sql, const mxs::ResponseDistribu
 /**
  * DiffStats
  */
+void DiffStats::add_canonical_result(DiffRouterSession& router_session,
+                                     std::string_view canonical,
+                                     const std::chrono::nanoseconds& duration)
+{
+    m_total_duration += duration;
+
+    auto it = m_histograms.find(canonical);
+
+    if (it != m_histograms.end())
+    {
+        it->second.add(duration);
+    }
+    else
+    {
+        std::vector<mxb::Duration> bins = router_session.get_bins_for(canonical, duration);
+
+        if (!bins.empty())
+        {
+            // This particular canonical statement has been sampled enough and the bins
+            // are now available so the histogram of that canonical statement can now
+            // be created.
+
+            // TODO: Should be configuration item.
+            DiffHistogram::OutlierApproach outlier_approach = DiffHistogram::OutlierApproach::CLAMP;
+
+            auto p = m_histograms.emplace(std::string(canonical), DiffHistogram(bins, outlier_approach));
+            it = p.first;
+            it->second.add(duration);
+        }
+    }
+}
+
 json_t* DiffStats::get_statistics() const
 {
     json_t* pStatistics = json_object();
@@ -106,7 +144,7 @@ json_t* DiffStats::get_data() const
 
     int id = 1;
 
-    for (const auto& kv : m_response_distributions)
+    for (const auto& kv : m_histograms)
     {
         auto& sql = kv.first;
         auto& response_distribution = kv.second;

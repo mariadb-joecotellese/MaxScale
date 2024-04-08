@@ -5,6 +5,7 @@
  */
 #include "diffroutersession.hh"
 #include <maxscale/protocol/mariadb/mysql.hh>
+#include "diffbinspecs.hh"
 #include "diffresult.hh"
 #include "diffrouter.hh"
 
@@ -37,6 +38,7 @@ DiffRouterSession::DiffRouterSession(MXS_SESSION* pSession,
     , m_sMain(std::move(sMain))
     , m_others(std::move(others))
     , m_router(*pRouter)
+    , m_sBin_specs(std::make_shared<DiffBinSpecs>())
 {
     m_sMain->set_router_session(this);
 
@@ -173,6 +175,35 @@ bool DiffRouterSession::handleError(mxs::ErrorType type,
     // We can continue as long as the main connection isn't dead
     bool ok = m_router.config().on_error.get() == OnError::IGNORE && pBackend != m_sMain.get();
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
+}
+
+std::vector<mxb::Duration> DiffRouterSession::get_bins_for(std::string_view canonical,
+                                                           const mxb::Duration& duration)
+{
+    std::vector<mxb::Duration> rv;
+
+    auto it = m_sBin_specs->find(canonical);
+
+    if (it != m_sBin_specs->end())
+    {
+        rv = it->second;
+    }
+    else
+    {
+        auto sBin_specs = m_router.add_sample_for(canonical, duration);
+
+        if (sBin_specs)
+        {
+            m_sBin_specs = sBin_specs;
+
+            it = m_sBin_specs->find(canonical);
+            mxb_assert(it != m_sBin_specs->end());
+
+            rv = it->second;
+        }
+    }
+
+    return rv;
 }
 
 Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)
