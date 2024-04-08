@@ -291,11 +291,15 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
             m_query_event.end_time = SimTime::sim_time().now();
             m_query_event.event_id = m_filter.get_next_event_id();
             m_query_event.sTrx = m_session_state.update(m_query_event.event_id, reply);
-            handle_cap_state(CapSignal::QEVENT);
+            // This implicitely implements CaptureStartMethod::IGNORE_ACTIVE_TRANSACTIONS
+            if (!m_inside_initial_trx)
+            {
+                handle_cap_state(CapSignal::QEVENT);
+            }
         }
         else
         {
-            m_session_state.update(-1, reply);  // maintain state
+            m_session_state.update(-1, reply);      // maintain state
         }
     }
 
