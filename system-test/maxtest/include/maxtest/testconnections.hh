@@ -54,7 +54,7 @@
                 throw std::runtime_error(#a); \
             }} while (false)
 
-typedef std::set<std::string> StringSet;
+using namespace std::chrono_literals;
 
 namespace maxtest
 {
@@ -457,6 +457,7 @@ private:
     bool call_mdbci(const char* options);
     int  setup_vms();
     bool setup_backends();
+    bool check_create_backends();
     void timeout_thread_func();
     void log_copy_thread_func();
     void copy_all_logs();
@@ -477,12 +478,3 @@ private:
     int count_tcp_time_wait() const;
 };
 
-/**
- * Dump two server status sets as strings
- *
- * @param current  The current status
- * @param expected The expected status
- *
- * @return String form comparison of status sets
- */
-std::string dump_status(const StringSet& current, const StringSet& expected);
