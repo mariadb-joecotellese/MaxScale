@@ -40,7 +40,7 @@ def prepare_histogram_bins():
     for can, low_value, high_value, val_count, bin_count in cursor.execute(sql_bins).fetchall():
         range_max = high_value if val_count > 1 else low_value + 1
         counts, bins = np.histogram([], range=(low_value, range_max), bins=int(bin_count))
-        res[can] = {"hist_bins": bins, "hist_counts": counts}
+        res[can] = {"hist_bin_edges": bins, "hist_bin_counts": counts}
     return res
 
 
@@ -68,7 +68,7 @@ WHERE {NO_ERRORS_IN_a}
 GROUP BY 1, 2 ORDER BY 1, 2
 """
     for can, bin_num, bin_count in cursor.execute(sql).fetchall():
-        counts = hist[can]["hist_counts"]
+        counts = hist[can]["hist_bin_counts"]
         num = int(bin_num)
         counts[num if len(counts) > num else len(counts) - 1] = bin_count
     return hist
@@ -154,8 +154,8 @@ def process(replay, canonicals):
           "errors": error_counts[can],
           "rows_read": rr_stats[can] if can in rr_stats else no_stats,
           "duration" : (dur_stats[can] if can in dur_stats else no_stats) | {
-               "hist_counts": h["hist_counts"].tolist(),
-               "hist_bins":h["hist_bins"].tolist()
+               "hist_bin_counts": h["hist_bin_counts"].tolist(),
+               "hist_bin_edges":h["hist_bin_edges"].tolist()
              }
         })
 
@@ -184,7 +184,7 @@ def compare(res1: dict, res2: dict):
     for k in lhs:
         diff = {
             k1: {
-                k2 : rhs[k][k1][k2] - lhs[k][k1][k2] for k2 in lhs[k][k1] if k2 not in ["hist_counts", "hist_bins"]
+                k2 : rhs[k][k1][k2] - lhs[k][k1][k2] for k2 in lhs[k][k1] if k2 not in ["hist_bin_counts", "hist_bin_edges"]
             } for k1 in ["duration", "rows_read"]
         }
         diff["errors"] = rhs[k]["errors"] - lhs[k]["errors"]

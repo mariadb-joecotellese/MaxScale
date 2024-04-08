@@ -126,8 +126,8 @@ def show_histogram(compared, sql):
     lhs, rhs = [(v[0]["duration"], v[1]["duration"]) for v in compared if v[0]["sql"] == sql][0]
     fig, ax = plt.subplots()
     fig.set_size_inches(8, 8)
-    ax.stairs(lhs["hist_counts"], lhs["hist_bins"], label="Baseline", alpha=0.5, fill=True)
-    ax.stairs(rhs["hist_counts"], rhs["hist_bins"], label="Comparison", alpha=0.5, fill=True)
+    ax.stairs(lhs["hist_bin_counts"], lhs["hist_bin_edges"], label="Baseline", alpha=0.5, fill=True)
+    ax.stairs(rhs["hist_bin_counts"], rhs["hist_bin_edges"], label="Comparison", alpha=0.5, fill=True)
     ax.set_xlabel("Time (s)")
     ax.legend()
 
