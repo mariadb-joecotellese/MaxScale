@@ -4,6 +4,7 @@ add_library(diff SHARED
   diffcommands.cc
   diffconfig.cc
   diffexporter.cc
+  diffhistogram.cc
   diffregistry.cc
   diffresult.cc
   diffrouter.cc
