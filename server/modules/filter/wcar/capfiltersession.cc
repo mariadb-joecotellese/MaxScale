@@ -76,6 +76,7 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
             handled = true;
             break;
 
+        case CapSignal::STOP:
         case CapSignal::CLOSE_SESSION:
             m_state.store(CapState::DISABLED, std::memory_order_release);
             handled = true;
