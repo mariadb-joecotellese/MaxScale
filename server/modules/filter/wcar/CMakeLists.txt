@@ -3,6 +3,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/BuildBoost.cmake)
 add_library(wcar-core
   capbooststorage.cc
 )
+add_dependencies(wcar-core maxscale-common)
 
 add_library(wcar SHARED
   cap.cc
