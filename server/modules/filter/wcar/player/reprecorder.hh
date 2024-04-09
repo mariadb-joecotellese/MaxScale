@@ -9,7 +9,7 @@
 
 #include "repstorage.hh"
 #include <maxscale/ccdefs.hh>
-#include <maxbase/collector.hh>
+#include "../wcar_collector.hh"
 
 struct RecorderContext
 {

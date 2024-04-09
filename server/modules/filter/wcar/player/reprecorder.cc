@@ -9,7 +9,8 @@ RepRecorder::RepRecorder(std::unique_ptr<RecorderContext>&& context, int num_thr
     : Collector{std::move(context),
                 num_threads,
                 512,    // Queue length.
-                0}      // Rep, not used in updates_only mode
+                0,      // Cap, not used in updates_only mode
+                mxb::CollecterStopMethod::QUEUES_EMPTY}
 {
 }
 

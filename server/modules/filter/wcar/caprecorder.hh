@@ -8,7 +8,7 @@
 #include "capstorage.hh"
 #include <maxscale/ccdefs.hh>
 #include <maxscale/routingworker.hh>
-#include <maxbase/collector.hh>
+#include "wcar_collector.hh"
 #include <maxsimd/canonical.hh>
 
 
