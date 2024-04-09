@@ -15,10 +15,10 @@
 #include <maxscale/service.hh>
 #include "diffconfig.hh"
 #include "diffexporter.hh"
+#include "diffhistogram.hh"
 #include "diffregistry.hh"
 #include "diffstats.hh"
 
-class DiffBinSpecs;
 class DiffRouterSession;
 
 class DiffRouter : public mxs::Router
@@ -103,17 +103,19 @@ public:
 
     /**
      * Add an execution duration sample for a particular canonical statement.
-     * Obtain a DiffBinSpecs instance if enough samples have been collected.
+     * Obtain a DiffHistogram::Specification::Registry instance if enough samples
+     * have been collected.
      *
      * @param canonical  A canonical statement.
      * @param duration   The duration the current execution took, used as a sample if needed.
      *
      * @return If there are enough samples for that particular canonical statement,
-     *         a DiffBinSpecs instance containing at least the bin specification for
-     *         that canonical statement is returned. Otherwise nullptr.
+     *         a DiffHistogram::Specification::Registry instance containing at least the
+     *         bin specification for that canonical statement is returned. Otherwise nullptr.
      */
-    std::shared_ptr<const DiffBinSpecs> add_sample_for(std::string_view canonical,
-                                                       const mxb::Duration& duration);
+    using HSRegistry = DiffHistogram::Specification::Registry;
+    std::shared_ptr<const HSRegistry> add_sample_for(std::string_view canonical,
+                                                     const mxb::Duration& duration);
 
 private:
     void set_state(DiffState diff_state,
@@ -190,6 +192,6 @@ private:
     std::vector<SERVER*>                    m_stop_replication;
     std::vector<SERVER*>                    m_start_replication;
     SamplesByCanonical                      m_samples_by_canonical;
-    std::shared_ptr<const DiffBinSpecs>     m_sBin_specs;
-    std::shared_mutex                       m_bin_specs_rwlock;
+    std::shared_ptr<const HSRegistry>       m_sHSRegistry;
+    std::shared_mutex                       m_hsregistry_rwlock;
 };

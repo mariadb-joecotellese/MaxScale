@@ -17,7 +17,6 @@
 #include "../../../core/internal/service.hh"
 #include "diffroutersession.hh"
 #include "diffutils.hh"
-#include "diffbinspecs.hh"
 
 using namespace mxq;
 using namespace mxs;
@@ -29,7 +28,7 @@ DiffRouter::DiffRouter(SERVICE* pService)
     , m_config(pService->name(), this)
     , m_service(*pService)
     , m_stats(pService)
-    , m_sBin_specs(std::make_shared<DiffBinSpecs>())
+    , m_sHSRegistry(std::make_shared<HSRegistry>())
 {
 }
 
@@ -512,31 +511,31 @@ void DiffRouter::collect(const DiffRouterSessionStats& stats)
     m_stats.add(stats, m_config);
 }
 
-std::shared_ptr<const DiffBinSpecs> DiffRouter::add_sample_for(std::string_view canonical,
-                                                               const mxb::Duration& duration)
+std::shared_ptr<const DiffRouter::HSRegistry> DiffRouter::add_sample_for(std::string_view canonical,
+                                                                         const mxb::Duration& duration)
 {
-    std::shared_ptr<const DiffBinSpecs> sBin_specs;
+    std::shared_ptr<const HSRegistry> sHSRegistry;
 
-    std::shared_lock<std::shared_mutex> shared_guard(m_bin_specs_rwlock);
+    std::shared_lock<std::shared_mutex> shared_guard(m_hsregistry_rwlock);
 
-    if (m_sBin_specs->find(canonical) != m_sBin_specs->end())
+    if (m_sHSRegistry->find(canonical) != m_sHSRegistry->end())
     {
-        // The current m_sBin_specs contains the bin specification for
+        // The current m_sHSRegistry contains the bin specification for
         // the canonical statement, so return it.
-        sBin_specs = m_sBin_specs;
+        sHSRegistry = m_sHSRegistry;
     }
     else
     {
         shared_guard.unlock();
 
-        std::lock_guard<std::shared_mutex> guard(m_bin_specs_rwlock);
+        std::lock_guard<std::shared_mutex> guard(m_hsregistry_rwlock);
 
         // Have to check again; something might have happened between the shared
         // guard being unlocked and the guard being locked.
 
-        if (m_sBin_specs->find(canonical) != m_sBin_specs->end())
+        if (m_sHSRegistry->find(canonical) != m_sHSRegistry->end())
         {
-            sBin_specs = m_sBin_specs;
+            sHSRegistry = m_sHSRegistry;
         }
         else
         {
@@ -564,30 +563,25 @@ std::shared_ptr<const DiffBinSpecs> DiffRouter::add_sample_for(std::string_view 
 
                 auto delta = (max - min) / 12; // TODO: Make configurable.
 
-                DiffBinSpecs::Bins bins;
-
-                for (int i = 0; i <= 12; ++i)
-                {
-                    bins.push_back(min + i * delta);
-                }
+                DiffHistogram::Specification specification { min, delta, 12 };
 
                 // Various DiffRouterSessions have a shared_ptr to the current
-                // m_sBin_specs and hence it cannot be modified. Instead we create
+                // m_sHSRegistry and hence it cannot be modified. Instead we create
                 // a new one. Eventually, when all canonical statements have been
-                // sampled, there will be just one DiffBinSpecs instance alive
-                // that everyone uses.
-                auto sNext = std::make_shared<DiffBinSpecs>(*m_sBin_specs);
-                sNext->add(canonical, bins);
+                // sampled, there will be just one DiffHistogram::BinSpecs instance
+                // alive that everyone uses.
+                auto sNext = std::make_shared<HSRegistry>(*m_sHSRegistry);
+                sNext->add(canonical, specification);
 
-                m_sBin_specs = sNext;
-                sBin_specs = m_sBin_specs;
+                m_sHSRegistry = sNext;
+                sHSRegistry = m_sHSRegistry;
 
                 m_samples_by_canonical.erase(it);
             }
         }
     }
 
-    return sBin_specs;
+    return sHSRegistry;
 }
 
 void DiffRouter::set_state(DiffState diff_state, SyncState sync_state)

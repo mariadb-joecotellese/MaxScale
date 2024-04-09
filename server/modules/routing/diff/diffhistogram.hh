@@ -12,6 +12,81 @@
 class DiffHistogram
 {
 public:
+    class Specification
+    {
+    public:
+        class Registry
+        {
+        public:
+            Registry() = default;
+            Registry(const Registry& other) = default;
+
+            using SpecificationsByCanonical = std::map<std::string, Specification, std::less<>>;
+
+            using iterator = SpecificationsByCanonical::const_iterator;
+
+            void add(std::string_view canonical, const Specification& specification)
+            {
+                m_specifications_by_canonical.emplace(canonical, specification);
+            }
+
+            iterator begin() const
+            {
+                return m_specifications_by_canonical.begin();
+            }
+
+            iterator end() const
+            {
+                return m_specifications_by_canonical.end();
+            }
+
+            iterator find(std::string_view canonical) const
+            {
+                return m_specifications_by_canonical.find(canonical);
+            }
+
+        private:
+            SpecificationsByCanonical m_specifications_by_canonical;
+        };
+
+        Specification() = default;
+        Specification(mxb::Duration min,
+                      mxb::Duration delta,
+                      int           bins)
+            : m_min(min)
+            , m_delta(delta)
+            , m_bins(bins)
+        {
+        }
+
+        Specification(const Specification& other) = default;
+
+        bool empty() const
+        {
+            return m_bins == 0;
+        }
+
+        mxb::Duration min() const
+        {
+            return m_min;
+        }
+
+        mxb::Duration delta() const
+        {
+            return m_delta;
+        }
+
+        int bins() const
+        {
+            return m_bins;
+        }
+
+    private:
+        mxb::Duration m_min { 0 };
+        mxb::Duration m_delta { 0 };
+        int           m_bins { 0 };
+    };
+
     enum OutlierApproach
     {
         IGNORE,
@@ -34,12 +109,18 @@ public:
         mxb::Duration total {0};
     };
 
-    DiffHistogram(const std::vector<mxb::Duration>& bins,
+    DiffHistogram(const Specification& specification,
                   OutlierApproach outlier_approach)
-        : m_elements(bins.begin(), bins.end())
-        , m_outlier_approach(outlier_approach)
+        : m_outlier_approach(outlier_approach)
     {
-        mxb_assert(bins.size() >= 2);
+        mxb_assert(specification.bins() >= 2);
+
+        m_elements.reserve(specification.bins());
+
+        for (int i = 0; i <= specification.bins(); ++i)
+        {
+            m_elements.emplace_back(specification.min() + i * specification.delta());
+        }
     }
 
     DiffHistogram(const DiffHistogram& other) = default;

@@ -94,9 +94,9 @@ void DiffStats::add_canonical_result(DiffRouterSession& router_session,
     }
     else
     {
-        std::vector<mxb::Duration> bins = router_session.get_bins_for(canonical, duration);
+        DiffHistogram::Specification spec = router_session.get_specification_for(canonical, duration);
 
-        if (!bins.empty())
+        if (!spec.empty())
         {
             // This particular canonical statement has been sampled enough and the bins
             // are now available so the histogram of that canonical statement can now
@@ -105,7 +105,7 @@ void DiffStats::add_canonical_result(DiffRouterSession& router_session,
             // TODO: Should be configuration item.
             DiffHistogram::OutlierApproach outlier_approach = DiffHistogram::OutlierApproach::CLAMP;
 
-            auto p = m_histograms.emplace(std::string(canonical), DiffHistogram(bins, outlier_approach));
+            auto p = m_histograms.emplace(std::string(canonical), DiffHistogram(spec, outlier_approach));
             it = p.first;
             it->second.add(duration);
         }
