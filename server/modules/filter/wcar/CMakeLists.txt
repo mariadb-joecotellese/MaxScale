@@ -1,3 +1,10 @@
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND ${CMAKE_CXX_COMPILER_VERSION} VERSION_GREATER_EQUAL 9.1.0)
+  message(STATUS "Using <execution> for parallel sorting")
+  add_definitions(-DHAVE_STD_EXECUTION=1)
+else()
+  message(STATUS "Compiler too old or <execution> not found, using serial sorting")
+endif()
+
 include(${CMAKE_SOURCE_DIR}/cmake/BuildBoost.cmake)
 
 add_library(wcar-core

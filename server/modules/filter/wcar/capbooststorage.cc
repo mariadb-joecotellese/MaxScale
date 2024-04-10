@@ -7,7 +7,13 @@
 #include <maxbase/assert.hh>
 #include <algorithm>
 #include <type_traits>
+
+#if HAVE_STD_EXECUTION
 #include <execution>
+#define sort_par(...) std::sort(std::execution::par, __VA_ARGS__)
+#else
+#define sort_par(...) std::sort(__VA_ARGS__)
+#endif
 
 constexpr int64_t MAX_QUERY_EVENTS = 10'000;
 
@@ -44,8 +50,7 @@ QuerySort::QuerySort(CapBoostStorage& storage,
 {
     // Sort by gtid, which can lead to out of order end_time. The number of
     // gtids is small relative to query events and fit in memory (TODO document).
-    std::sort(std::execution::par, storage.m_tevents.begin(), storage.m_tevents.end(), []
-              (const auto& lhs, const auto& rhs){
+    sort_par(storage.m_tevents.begin(), storage.m_tevents.end(), [](const auto& lhs, const auto& rhs){
         if (lhs.gtid.domain_id == lhs.gtid.domain_id)
         {
             return lhs.gtid.sequence_nr < rhs.gtid.sequence_nr;
@@ -70,8 +75,7 @@ void QuerySort::add_query_event(std::deque<QueryEvent>& qevents)
 
 void QuerySort::finalize()
 {
-    std::sort(std::execution::par, m_qevents.begin(), m_qevents.end(),
-              [](const auto& lhs, const auto& rhs){
+    sort_par(m_qevents.begin(), m_qevents.end(), [](const auto& lhs, const auto& rhs){
         return lhs.start_time < rhs.start_time;
     });
 
