@@ -5,6 +5,7 @@
  */
 
 #include "diffrouter.hh"
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <maxbase/format.hh>
@@ -511,6 +512,28 @@ void DiffRouter::collect(const DiffRouterSessionStats& stats)
     m_stats.add(stats, m_config);
 }
 
+namespace
+{
+
+// https://en.wikipedia.org/wiki/Histogram#Freedman%E2%80%93Diaconis'_choice
+inline mxb::Duration calculate_delta_fd(const std::vector<mxb::Duration>& samples, size_t size)
+{
+    auto iqr = samples[size * 0.75] - samples[size * 0.25];
+    auto delta = 2 * iqr / std::cbrt(size);
+
+    return duration_cast<mxb::Duration>(delta);
+}
+
+// https://en.wikipedia.org/wiki/Histogram#Sturges'_formula
+inline mxb::Duration calculate_delta_sturges(mxb::Duration min, mxb::Duration max, size_t size)
+{
+    auto delta = (max - min) / (log2(size) + 1);
+
+    return duration_cast<mxb::Duration>(delta);
+}
+
+}
+
 std::shared_ptr<const DiffRouter::HSRegistry> DiffRouter::add_sample_for(std::string_view canonical,
                                                                          const mxb::Duration& duration)
 {
@@ -556,20 +579,27 @@ std::shared_ptr<const DiffRouter::HSRegistry> DiffRouter::add_sample_for(std::st
                 // Enough samples collected.
                 std::sort(samples.begin(), samples.end());
 
-                auto jt = samples.begin();
-                auto min = *jt;
-                std::advance(jt, ((double)samples.size() * 0.99));
-                auto max = *jt;
+                auto begin = samples.begin();
+                auto end = begin;
+                size_t size = 0.99 * samples.size();
+                std::advance(end, size);
 
-                auto delta = (max - min) / 12; // TODO: Make configurable.
+                mxb::Duration min = *begin;
+                mxb::Duration max = *end;
 
-                DiffHistogram::Specification specification { min, delta, 12 };
+                mxb::Duration delta_fd = calculate_delta_fd(samples, size);
+                mxb::Duration delta_sturges = calculate_delta_sturges(min, max, size);
+
+                mxb::Duration delta = std::min(delta_fd, delta_sturges);
+                int n = (max - min) / delta + 1;
+
+                DiffHistogram::Specification specification { min, delta, n };
 
                 // Various DiffRouterSessions have a shared_ptr to the current
                 // m_sHSRegistry and hence it cannot be modified. Instead we create
                 // a new one. Eventually, when all canonical statements have been
-                // sampled, there will be just one DiffHistogram::BinSpecs instance
-                // alive that everyone uses.
+                // sampled, there will be just one DiffHistogram::Specification::Registry
+                // instance that everyone uses.
                 auto sNext = std::make_shared<HSRegistry>(*m_sHSRegistry);
                 sNext->add(canonical, specification);
 
