@@ -57,7 +57,8 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
             handled = true;
             break;
 
-        default:
+        case CapSignal::STOP:
+            // Bug, asserts in debug
             break;
         }
         break;
@@ -82,7 +83,8 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
             handled = true;
             break;
 
-        default:
+        case CapSignal::START:
+            // Bug, asserts in debug
             break;
         }
         break;
@@ -111,7 +113,8 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
             handled = true;
             break;
 
-        default:
+        case CapSignal::START:
+            // Bug, asserts in debug
             break;
         }
         break;
@@ -129,7 +132,7 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
 void CapFilterSession::start_capture(const std::shared_ptr<CapRecorder>& sRecorder)
 {
     m_inside_initial_trx = m_session_state.in_trx();
-    m_sRecorder = std::atomic_load_explicit(&sRecorder, std::memory_order_relaxed);
+    m_sRecorder = sRecorder;
     handle_cap_state(CapSignal::START);
 }
 
@@ -171,7 +174,6 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(wall_time::TimePoi
     QueryEvent opening_event;
     opening_event.session_id = m_pSession->id();
     opening_event.flags = 0;
-    auto now = SimTime::sim_time().now();
     // The "- 1ns" is there to avoid having to take the flag into account in later sorting
     opening_event.start_time = start_time - 1ns;
     opening_event.end_time = start_time;
@@ -240,7 +242,7 @@ bool CapFilterSession::routeQuery(GWBUF&& buffer)
 
     SimTime::sim_time().tick();
 
-    m_capture = m_state.load(std::memory_order_relaxed) != CapState::DISABLED;
+    m_capture = m_state.load(std::memory_order_acquire) != CapState::DISABLED;
 
     m_ps_tracker.track_query(buffer);
 

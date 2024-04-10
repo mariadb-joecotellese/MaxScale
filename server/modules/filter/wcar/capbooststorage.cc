@@ -113,7 +113,7 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     {
         m_sCanonical_in = std::make_unique<BoostIFile>(m_canonical_path);
         m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
-        m_sGtid_in = std::make_unique<BoostIFile>(m_trx_path);
+        m_sTrx_in = std::make_unique<BoostIFile>(m_trx_path);
         read_canonicals();
         load_gtrx_events();
         preload_query_events(MAX_QUERY_EVENTS);
@@ -122,7 +122,7 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     {
         m_sCanonical_out = std::make_unique<BoostOFile>(m_canonical_path);
         m_sQuery_event_out = std::make_unique<BoostOFile>(m_query_event_path);
-        m_sGtid_out = std::make_unique<BoostOFile>(m_trx_path);
+        m_sTrx_out = std::make_unique<BoostOFile>(m_trx_path);
     }
 }
 
@@ -151,7 +151,7 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
                         qevent.event_id,
                         qevent.end_time,
                         qevent.sTrx->gtid};
-        save_trx_event(*m_sGtid_out, gevent);
+        save_trx_event(*m_sTrx_out, gevent);
     }
 }
 
@@ -225,20 +225,16 @@ void CapBoostStorage::save_query_event(BoostOFile& bof, const QueryEvent& qevent
         *bof & a.value;
     }
 
-    mxb::Duration start_time_dur = qevent.start_time.time_since_epoch();
-    mxb::Duration end_time_dur = qevent.end_time.time_since_epoch();
-    *bof & *reinterpret_cast<const int64_t*>(&start_time_dur);
-    *bof & *reinterpret_cast<const int64_t*>(&end_time_dur);
+    *bof& qevent.start_time.time_since_epoch().count();
+    *bof& qevent.end_time.time_since_epoch().count();
 }
 
 void CapBoostStorage::save_trx_event(BoostOFile& bof, const TrxEvent& tevent)
 {
-    int64_t end_time_cnt = tevent.end_time.time_since_epoch().count();
-
     *bof & tevent.session_id;
     *bof & tevent.start_event_id;
     *bof & tevent.end_event_id;
-    *bof & end_time_cnt;
+    *bof& tevent.end_time.time_since_epoch().count();
     *bof & tevent.gtid.domain_id;
     *bof & tevent.gtid.server_id;
     *bof & tevent.gtid.sequence_nr;
@@ -249,13 +245,13 @@ TrxEvent CapBoostStorage::load_trx_event()
     TrxEvent tevent;
     int64_t end_time_cnt;
 
-    (**m_sGtid_in) & tevent.session_id;
-    (**m_sGtid_in) & tevent.start_event_id;
-    (**m_sGtid_in) & tevent.end_event_id;
-    (**m_sGtid_in) & end_time_cnt;
-    (**m_sGtid_in) & tevent.gtid.domain_id;
-    (**m_sGtid_in) & tevent.gtid.server_id;
-    (**m_sGtid_in) & tevent.gtid.sequence_nr;
+    (**m_sTrx_in) & tevent.session_id;
+    (**m_sTrx_in) & tevent.start_event_id;
+    (**m_sTrx_in) & tevent.end_event_id;
+    (**m_sTrx_in) & end_time_cnt;
+    (**m_sTrx_in) & tevent.gtid.domain_id;
+    (**m_sTrx_in) & tevent.gtid.server_id;
+    (**m_sTrx_in) & tevent.gtid.sequence_nr;
 
     tevent.end_time = wall_time::TimePoint(mxb::Duration(end_time_cnt));
 
@@ -270,7 +266,6 @@ void CapBoostStorage::read_canonicals()
     {
         (**m_sCanonical_in) & can_id;
         (**m_sCanonical_in) & canonical;
-        auto hash = std::hash<std::string> {}(canonical);
         auto shared = std::make_shared<std::string>(canonical);
         m_canonicals.emplace(std::string_view {*shared}, CanonicalEntry {can_id, shared});
     }
@@ -279,7 +274,7 @@ void CapBoostStorage::read_canonicals()
 void CapBoostStorage::load_gtrx_events()
 {
     m_tevents.clear();
-    while (!m_sGtid_in->at_end_of_stream())
+    while (!m_sTrx_in->at_end_of_stream())
     {
         m_tevents.push_back(load_trx_event());
     }

@@ -174,8 +174,8 @@ private:
     std::unique_ptr<BoostOFile> m_sQuery_event_out;
     std::unique_ptr<BoostIFile> m_sQuery_event_in;
 
-    std::unique_ptr<BoostOFile> m_sGtid_out;
-    std::unique_ptr<BoostIFile> m_sGtid_in;
+    std::unique_ptr<BoostOFile> m_sTrx_out;
+    std::unique_ptr<BoostIFile> m_sTrx_in;
 };
 
 // Inline definitions
