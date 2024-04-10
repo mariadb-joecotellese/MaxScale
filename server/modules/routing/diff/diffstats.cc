@@ -23,13 +23,16 @@ void add_histogram(json_t* pDuration, const DiffHistogram& hist)
 
     const auto& bins = hist.bins();
 
-    auto it = bins.begin();
-    const auto& first = *it;
-    std::chrono::duration<double> edge = first.left;
+    const auto& sos = hist.smaller_outliers();
 
+    std::chrono::duration<double> edge = sos.left;
     json_array_append_new(pHist_bin_edges, json_real(edge.count()));
 
-    for (; it != bins.end(); ++it)
+    edge = sos.right;
+    json_array_append_new(pHist_bin_edges, json_real(edge.count()));
+    json_array_append_new(pHist_bin_counts, json_integer(sos.count));
+
+    for (auto it = bins.begin(); it != bins.end(); ++it)
     {
         const auto& bin = *it;
         edge = bin.right;
@@ -37,6 +40,11 @@ void add_histogram(json_t* pDuration, const DiffHistogram& hist)
         json_array_append_new(pHist_bin_counts, json_integer(bin.count));
         json_array_append_new(pHist_bin_edges, json_real(edge.count()));
     }
+
+    const auto& los = hist.larger_outliers();
+    edge = los.right;
+    json_array_append_new(pHist_bin_edges, json_real(edge.count()));
+    json_array_append_new(pHist_bin_counts, json_integer(los.count));
 
     json_object_set_new(pDuration, "hist_bin_counts", pHist_bin_counts);
     json_object_set_new(pDuration, "hist_bin_edges", pHist_bin_edges);

@@ -20,27 +20,29 @@ DiffHistogram::DiffHistogram(const Specification& specification)
 
         m_bins.emplace_back(l, r);
     }
+
+    const auto& front = m_bins.front();
+
+    m_smaller_outliers.right = front.left;
+    m_smaller_outliers.left = std::max(mxb::Duration {0}, front.left - specification.delta());
+
+    const auto& back = m_bins.back();
+
+    m_larger_outliers.left = back.right;
+    m_larger_outliers.right = back.right + specification.delta();
 }
 
 void DiffHistogram::add(mxb::Duration dur)
 {
-    if (dur < m_bins.front().left)
+    if (dur < m_smaller_outliers.right)
     {
-        ++m_nSmaller_outliers;
-
-        auto& bin = *(m_bins.begin() + 1);
-
-        ++bin.count;
-        bin.total += dur;
+        ++m_smaller_outliers.count;
+        m_smaller_outliers.total += dur;
     }
-    else if (dur >= m_bins.back().right)
+    else if (dur >= m_larger_outliers.left)
     {
-        ++m_nLarger_outliers;
-
-        auto& bin = *(m_bins.end() - 2);
-
-        ++bin.count;
-        bin.total += dur;
+        ++m_larger_outliers.count;
+        m_larger_outliers.total += dur;
     }
     else
     {
@@ -52,7 +54,7 @@ void DiffHistogram::add(mxb::Duration dur)
         {
             auto& bin = *it;
 
-            if (dur <= bin.right)
+            if (dur < bin.right)
             {
                 ++bin.count;
                 bin.total += dur;

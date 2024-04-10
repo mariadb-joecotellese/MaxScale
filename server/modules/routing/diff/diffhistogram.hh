@@ -109,14 +109,14 @@ public:
     DiffHistogram(const Specification& specification);
     DiffHistogram(const DiffHistogram& other) = default;
 
-    int64_t smaller_outliers() const
+    const Bin& smaller_outliers() const
     {
-        return m_nSmaller_outliers;
+        return m_smaller_outliers;
     }
 
-    int64_t larger_outliers() const
+    const Bin& larger_outliers() const
     {
-        return m_nLarger_outliers;
+        return m_larger_outliers;
     }
 
     void add(mxb::Duration dur);
@@ -130,6 +130,6 @@ public:
 
 private:
     std::vector<Bin> m_bins;
-    int64_t          m_nSmaller_outliers { 0 };
-    int64_t          m_nLarger_outliers { 0 };
+    Bin              m_smaller_outliers;
+    Bin              m_larger_outliers;
 };
