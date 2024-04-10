@@ -132,4 +132,5 @@ private:
     std::vector<Bin> m_bins;
     Bin              m_smaller_outliers;
     Bin              m_larger_outliers;
+    double           m_range;
 };

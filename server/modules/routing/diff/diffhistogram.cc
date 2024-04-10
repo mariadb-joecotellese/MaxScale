@@ -30,6 +30,8 @@ DiffHistogram::DiffHistogram(const Specification& specification)
 
     m_larger_outliers.left = back.right;
     m_larger_outliers.right = back.right + specification.delta();
+
+    m_range = back.right.count() - front.left.count();
 }
 
 void DiffHistogram::add(mxb::Duration dur)
@@ -46,23 +48,19 @@ void DiffHistogram::add(mxb::Duration dur)
     }
     else
     {
-        auto begin = m_bins.begin() + 1;
-        auto end = m_bins.end();
-        auto it = begin;
+        mxb_assert(dur >= m_bins.front().left);
+        mxb_assert(dur < m_bins.back().right);
 
-        for (; it < end; ++it)
-        {
-            auto& bin = *it;
+        double ratio = (dur - m_bins.front().left).count() / m_range;
 
-            if (dur < bin.right)
-            {
-                ++bin.count;
-                bin.total += dur;
-                break;
-            }
-        }
+        size_t index = m_bins.size() * ratio;
 
-        mxb_assert(it != end);
+        mxb_assert(index < m_bins.size());
+
+        auto& bin = m_bins[index];
+
+        ++bin.count;
+        bin.total += dur;
     }
 }
 
