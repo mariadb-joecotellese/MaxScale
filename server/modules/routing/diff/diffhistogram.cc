@@ -8,44 +8,38 @@
 
 void DiffHistogram::add(mxb::Duration dur)
 {
-    if (dur < m_elements.front().limit)
+    if (dur < m_bins.front().limit)
     {
         ++m_nSmaller_outliers;
 
-        if (m_outlier_approach == OutlierApproach::CLAMP)
-        {
-            auto& element = *(m_elements.begin() + 1);
+        auto& bin = *(m_bins.begin() + 1);
 
-            ++element.count;
-            element.total += dur;
-        }
+        ++bin.count;
+        bin.total += dur;
     }
-    else if (dur >= m_elements.back().limit)
+    else if (dur >= m_bins.back().limit)
     {
         ++m_nLarger_outliers;
 
-        if (m_outlier_approach == OutlierApproach::CLAMP)
-        {
-            auto& element = *(m_elements.end() - 2);
+        auto& bin = *(m_bins.end() - 2);
 
-            ++element.count;
-            element.total += dur;
-        }
+        ++bin.count;
+        bin.total += dur;
     }
     else
     {
-        auto begin = m_elements.begin() + 1;
-        auto end = m_elements.end();
+        auto begin = m_bins.begin() + 1;
+        auto end = m_bins.end();
         auto it = begin;
 
         for (; it < end; ++it)
         {
-            auto& element = *it;
+            auto& bin = *it;
 
-            if (dur <= element.limit)
+            if (dur <= bin.limit)
             {
-                ++element.count;
-                element.total += dur;
+                ++bin.count;
+                bin.total += dur;
                 break;
             }
         }
@@ -56,15 +50,15 @@ void DiffHistogram::add(mxb::Duration dur)
 
 DiffHistogram& DiffHistogram::operator += (const DiffHistogram& rhs)
 {
-    mxb_assert(m_elements.size() == rhs.m_elements.size());
+    mxb_assert(m_bins.size() == rhs.m_bins.size());
 
-    auto it = m_elements.begin();
-    auto jt = rhs.m_elements.begin();
+    auto it = m_bins.begin();
+    auto jt = rhs.m_bins.begin();
 
-    while (it != m_elements.end())
+    while (it != m_bins.end())
     {
-        Element& l = *it;
-        const Element& r = *jt;
+        Bin& l = *it;
+        const Bin& r = *jt;
 
         mxb_assert(l.limit == r.limit);
         l.count += r.count;

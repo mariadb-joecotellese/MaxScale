@@ -18,28 +18,28 @@ namespace
 
 void add_histogram(json_t* pDuration, const DiffHistogram& hist)
 {
-    json_t* pHist_counts = json_array();
-    json_t* pHist_bins = json_array();
+    json_t* pHist_bin_counts = json_array();
+    json_t* pHist_bin_edges = json_array();
 
-    const auto& elements = hist.elements();
+    const auto& bins = hist.bins();
 
-    for (auto it = elements.begin(); it != elements.end(); ++it)
+    for (auto it = bins.begin(); it != bins.end(); ++it)
     {
-        const auto& element = *it;
+        const auto& bin = *it;
 
-        auto count = element.count;
-        std::chrono::duration<double> bin = element.limit;
+        auto count = bin.count;
+        std::chrono::duration<double> edge = bin.limit;
 
-        if (it != elements.begin())
+        if (it != bins.begin())
         {
-            json_array_append_new(pHist_counts, json_integer(count));
+            json_array_append_new(pHist_bin_counts, json_integer(count));
         }
 
-        json_array_append_new(pHist_bins, json_real(bin.count()));
+        json_array_append_new(pHist_bin_edges, json_real(edge.count()));
     }
 
-    json_object_set_new(pDuration, "hist_counts", pHist_counts);
-    json_object_set_new(pDuration, "hist_bins", pHist_bins);
+    json_object_set_new(pDuration, "hist_bin_counts", pHist_bin_counts);
+    json_object_set_new(pDuration, "hist_bin_edges", pHist_bin_edges);
 }
 
 json_t* create_query(int id, const std::string& sql, const DiffHistogram& hist)
@@ -102,10 +102,7 @@ void DiffStats::add_canonical_result(DiffRouterSession& router_session,
             // are now available so the histogram of that canonical statement can now
             // be created.
 
-            // TODO: Should be configuration item.
-            DiffHistogram::OutlierApproach outlier_approach = DiffHistogram::OutlierApproach::CLAMP;
-
-            auto p = m_histograms.emplace(std::string(canonical), DiffHistogram(spec, outlier_approach));
+            auto p = m_histograms.emplace(std::string(canonical), DiffHistogram(spec));
             it = p.first;
             it->second.add(duration);
         }

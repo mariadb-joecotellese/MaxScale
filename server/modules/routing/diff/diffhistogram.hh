@@ -87,19 +87,13 @@ public:
         int           m_bins { 0 };
     };
 
-    enum OutlierApproach
+    struct Bin
     {
-        IGNORE,
-        CLAMP
-    };
-
-    struct Element
-    {
-        Element()
+        Bin()
         {
         }
 
-        Element(mxb::Duration l)
+        Bin(mxb::Duration l)
             : limit(l)
         {
         }
@@ -109,17 +103,15 @@ public:
         mxb::Duration total {0};
     };
 
-    DiffHistogram(const Specification& specification,
-                  OutlierApproach outlier_approach)
-        : m_outlier_approach(outlier_approach)
+    DiffHistogram(const Specification& specification)
     {
         mxb_assert(specification.bins() >= 2);
 
-        m_elements.reserve(specification.bins());
+        m_bins.reserve(specification.bins());
 
         for (int i = 0; i <= specification.bins(); ++i)
         {
-            m_elements.emplace_back(specification.min() + i * specification.delta());
+            m_bins.emplace_back(specification.min() + i * specification.delta());
         }
     }
 
@@ -137,16 +129,15 @@ public:
 
     void add(mxb::Duration dur);
 
-    const std::vector<Element>& elements() const
+    const std::vector<Bin>& bins() const
     {
-        return m_elements;
+        return m_bins;
     }
 
     DiffHistogram& operator += (const DiffHistogram& rhs);
 
 private:
-    std::vector<Element> m_elements;
-    OutlierApproach      m_outlier_approach;
-    int64_t              m_nSmaller_outliers { 0 };
-    int64_t              m_nLarger_outliers { 0 };
+    std::vector<Bin> m_bins;
+    int64_t          m_nSmaller_outliers { 0 };
+    int64_t          m_nLarger_outliers { 0 };
 };
