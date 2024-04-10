@@ -102,6 +102,10 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
             break;
 
         case CapSignal::STOP:
+            if (m_session_state.in_trx())
+            {
+                send_event(make_rollback_event(), MAIN_WORKER);
+            }
             send_event(make_closing_event(), MAIN_WORKER);
             m_state.store(CapState::DISABLED, std::memory_order_release);
             handled = true;
@@ -192,6 +196,20 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(wall_time::TimePoi
     }
 
     return events;
+}
+
+QueryEvent CapFilterSession::make_rollback_event()
+{
+    QueryEvent rollback_event;
+    rollback_event.sCanonical = std::make_shared<std::string>("ROLLBACK -- Capture generated");
+    rollback_event.session_id = m_pSession->id();
+    rollback_event.flags = 0;
+    rollback_event.start_time = SimTime::sim_time().now();
+    rollback_event.end_time = rollback_event.start_time;
+    rollback_event.event_id = m_filter.get_next_event_id();
+    rollback_event.sTrx = m_session_state.make_fake_trx(rollback_event.event_id);
+
+    return rollback_event;
 }
 
 QueryEvent CapFilterSession::make_closing_event()

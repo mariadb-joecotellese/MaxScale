@@ -12,7 +12,16 @@ class CapSessionState
 {
 public:
     CapSessionState() = default;
+
+    /** Return a valid ptr if the reply ended a trx where
+     *  a trx begin had been detected.
+     */
     std::unique_ptr<Trx> update(int64_t event_id, const mxs::Reply& reply);
+
+    /** For the case where capture is stopped in the middle of a trx and
+     *  a rollback (or whatever) is generated.
+     */
+    std::unique_ptr<Trx> make_fake_trx(int64_t event_id);
 
     bool in_trx();
 
