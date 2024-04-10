@@ -6,9 +6,25 @@
 
 #include "diffhistogram.hh"
 
+
+DiffHistogram::DiffHistogram(const Specification& specification)
+{
+    mxb_assert(specification.bins() >= 2);
+
+    m_bins.reserve(specification.bins());
+
+    for (int i = 0; i <= specification.bins(); ++i)
+    {
+        auto l = specification.min() + i * specification.delta();
+        auto r = l + specification.delta();
+
+        m_bins.emplace_back(l, r);
+    }
+}
+
 void DiffHistogram::add(mxb::Duration dur)
 {
-    if (dur < m_bins.front().limit)
+    if (dur < m_bins.front().left)
     {
         ++m_nSmaller_outliers;
 
@@ -17,7 +33,7 @@ void DiffHistogram::add(mxb::Duration dur)
         ++bin.count;
         bin.total += dur;
     }
-    else if (dur >= m_bins.back().limit)
+    else if (dur >= m_bins.back().right)
     {
         ++m_nLarger_outliers;
 
@@ -36,7 +52,7 @@ void DiffHistogram::add(mxb::Duration dur)
         {
             auto& bin = *it;
 
-            if (dur <= bin.limit)
+            if (dur <= bin.right)
             {
                 ++bin.count;
                 bin.total += dur;
@@ -60,7 +76,7 @@ DiffHistogram& DiffHistogram::operator += (const DiffHistogram& rhs)
         Bin& l = *it;
         const Bin& r = *jt;
 
-        mxb_assert(l.limit == r.limit);
+        mxb_assert(l.left == r.left && l.right == r.right);
         l.count += r.count;
         l.total += r.total;
 

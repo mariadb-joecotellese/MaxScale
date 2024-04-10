@@ -93,28 +93,20 @@ public:
         {
         }
 
-        Bin(mxb::Duration l)
-            : limit(l)
+        Bin(mxb::Duration l,
+            mxb::Duration r)
+            : left(l)
+            , right(r)
         {
         }
 
-        mxb::Duration limit {0};
+        mxb::Duration left  {0};
+        mxb::Duration right {0};
         int64_t       count {0};
         mxb::Duration total {0};
     };
 
-    DiffHistogram(const Specification& specification)
-    {
-        mxb_assert(specification.bins() >= 2);
-
-        m_bins.reserve(specification.bins());
-
-        for (int i = 0; i <= specification.bins(); ++i)
-        {
-            m_bins.emplace_back(specification.min() + i * specification.delta());
-        }
-    }
-
+    DiffHistogram(const Specification& specification);
     DiffHistogram(const DiffHistogram& other) = default;
 
     int64_t smaller_outliers() const

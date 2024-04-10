@@ -23,18 +23,18 @@ void add_histogram(json_t* pDuration, const DiffHistogram& hist)
 
     const auto& bins = hist.bins();
 
-    for (auto it = bins.begin(); it != bins.end(); ++it)
+    auto it = bins.begin();
+    const auto& first = *it;
+    std::chrono::duration<double> edge = first.left;
+
+    json_array_append_new(pHist_bin_edges, json_real(edge.count()));
+
+    for (; it != bins.end(); ++it)
     {
         const auto& bin = *it;
+        edge = bin.right;
 
-        auto count = bin.count;
-        std::chrono::duration<double> edge = bin.limit;
-
-        if (it != bins.begin())
-        {
-            json_array_append_new(pHist_bin_counts, json_integer(count));
-        }
-
+        json_array_append_new(pHist_bin_counts, json_integer(bin.count));
         json_array_append_new(pHist_bin_edges, json_real(edge.count()));
     }
 
