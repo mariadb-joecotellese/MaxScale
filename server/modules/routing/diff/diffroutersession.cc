@@ -37,6 +37,7 @@ DiffRouterSession::DiffRouterSession(MXS_SESSION* pSession,
     , m_sMain(std::move(sMain))
     , m_others(std::move(others))
     , m_router(*pRouter)
+    , m_sHSRegistry(std::make_shared<HSRegistry>())
 {
     m_sMain->set_router_session(this);
 
@@ -173,6 +174,35 @@ bool DiffRouterSession::handleError(mxs::ErrorType type,
     // We can continue as long as the main connection isn't dead
     bool ok = m_router.config().on_error.get() == OnError::IGNORE && pBackend != m_sMain.get();
     return ok || mxs::RouterSession::handleError(type, message, pProblem, reply);
+}
+
+DiffHistogram::Specification DiffRouterSession::get_specification_for(std::string_view canonical,
+                                                                      const mxb::Duration& duration)
+{
+    DiffHistogram::Specification rv;
+
+    auto it = m_sHSRegistry->find(canonical);
+
+    if (it != m_sHSRegistry->end())
+    {
+        rv = it->second;
+    }
+    else
+    {
+        auto sHSRegistry = m_router.add_sample_for(canonical, duration);
+
+        if (sHSRegistry)
+        {
+            m_sHSRegistry = sHSRegistry;
+
+            it = m_sHSRegistry->find(canonical);
+            mxb_assert(it != m_sHSRegistry->end());
+
+            rv = it->second;
+        }
+    }
+
+    return rv;
 }
 
 Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)

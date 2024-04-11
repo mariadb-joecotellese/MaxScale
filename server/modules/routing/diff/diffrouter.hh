@@ -6,6 +6,7 @@
 #pragma once
 
 #include "diffdefs.hh"
+#include <set>
 #include <shared_mutex>
 #include <maxbase/worker.hh>
 #include <maxscale/router.hh>
@@ -14,6 +15,7 @@
 #include <maxscale/service.hh>
 #include "diffconfig.hh"
 #include "diffexporter.hh"
+#include "diffhistogram.hh"
 #include "diffregistry.hh"
 #include "diffstats.hh"
 
@@ -99,6 +101,22 @@ public:
         return m_registry;
     }
 
+    /**
+     * Add an execution duration sample for a particular canonical statement.
+     * Obtain a DiffHistogram::Specification::Registry instance if enough samples
+     * have been collected.
+     *
+     * @param canonical  A canonical statement.
+     * @param duration   The duration the current execution took, used as a sample if needed.
+     *
+     * @return If there are enough samples for that particular canonical statement,
+     *         a DiffHistogram::Specification::Registry instance containing at least the
+     *         bin specification for that canonical statement is returned. Otherwise nullptr.
+     */
+    using HSRegistry = DiffHistogram::Specification::Registry;
+    std::shared_ptr<const HSRegistry> add_sample_for(std::string_view canonical,
+                                                     const mxb::Duration& duration);
+
 private:
     void set_state(DiffState diff_state,
                    SyncState sync_state = SyncState::NOT_APPLICABLE);
@@ -158,6 +176,8 @@ private:
     DiffRouter(SERVICE* pService);
 
     using SExporter = std::shared_ptr<DiffExporter>;
+    using Samples = std::vector<mxb::Duration>;
+    using SamplesByCanonical = std::map<std::string, Samples, std::less<>>;
 
     DiffState                               m_diff_state { DiffState::PREPARED };
     SyncState                               m_sync_state { SyncState::NOT_APPLICABLE };
@@ -171,4 +191,7 @@ private:
     DiffRegistry                            m_registry;
     std::vector<SERVER*>                    m_stop_replication;
     std::vector<SERVER*>                    m_start_replication;
+    SamplesByCanonical                      m_samples_by_canonical;
+    std::shared_ptr<const HSRegistry>       m_sHSRegistry;
+    std::shared_mutex                       m_hsregistry_rwlock;
 };

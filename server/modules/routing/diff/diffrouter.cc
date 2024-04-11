@@ -5,6 +5,7 @@
  */
 
 #include "diffrouter.hh"
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <maxbase/format.hh>
@@ -28,6 +29,7 @@ DiffRouter::DiffRouter(SERVICE* pService)
     , m_config(pService->name(), this)
     , m_service(*pService)
     , m_stats(pService)
+    , m_sHSRegistry(std::make_shared<HSRegistry>())
 {
 }
 
@@ -114,7 +116,8 @@ std::shared_ptr<mxs::RouterSession> DiffRouter::newSession(MXS_SESSION* pSession
 
     if (connected)
     {
-        sRouter_session = std::make_shared<DiffRouterSession>(pSession, this, std::move(sMain), std::move(backends));
+        sRouter_session = std::make_shared<DiffRouterSession>(pSession, this,
+                                                              std::move(sMain), std::move(backends));
     }
 
     return sRouter_session;
@@ -457,12 +460,14 @@ bool DiffRouter::summary(Summary summary, json_t** ppOutput)
     Stats stats = m_stats;
     guard.unlock();
 
-    std::string path = mxs::datadir();
-    path += "/";
-    path += MXB_MODULE_NAME;
-    path += "/";
-    path += m_config.service_name;
-    path += "/summary_";
+    std::string base = mxs::datadir();
+    base += "/";
+    base += MXB_MODULE_NAME;
+    base += "/";
+    base += m_config.service_name;
+    base += "/Summary_";
+
+    std::string path = base;
 
     time_t now = time(nullptr);
     std::stringstream time;
@@ -487,6 +492,16 @@ bool DiffRouter::summary(Summary summary, json_t** ppOutput)
         json_decref(pOutput);
     }
 
+    std::map<mxs::Target*, json_t*> data_by_target = stats.get_data();
+
+    for (const auto& kv : data_by_target)
+    {
+        std::string s = base + kv.first->name() + "_" + time.str() + ".json";
+
+        save_stats(s, kv.second);
+        json_decref(kv.second);
+    }
+
     return rv;
 }
 
@@ -495,6 +510,108 @@ void DiffRouter::collect(const DiffRouterSessionStats& stats)
     std::lock_guard<std::mutex> guard(m_stats_lock);
 
     m_stats.add(stats, m_config);
+}
+
+namespace
+{
+
+// https://en.wikipedia.org/wiki/Histogram#Freedman%E2%80%93Diaconis'_choice
+inline mxb::Duration calculate_delta_fd(const std::vector<mxb::Duration>& samples, size_t size)
+{
+    auto iqr = samples[size * 0.75] - samples[size * 0.25];
+    auto delta = 2 * iqr / std::cbrt(size);
+
+    return duration_cast<mxb::Duration>(delta);
+}
+
+// https://en.wikipedia.org/wiki/Histogram#Sturges'_formula
+inline mxb::Duration calculate_delta_sturges(mxb::Duration min, mxb::Duration max, size_t size)
+{
+    auto delta = (max - min) / (log2(size) + 1);
+
+    return duration_cast<mxb::Duration>(delta);
+}
+
+}
+
+std::shared_ptr<const DiffRouter::HSRegistry> DiffRouter::add_sample_for(std::string_view canonical,
+                                                                         const mxb::Duration& duration)
+{
+    std::shared_ptr<const HSRegistry> sHSRegistry;
+
+    std::shared_lock<std::shared_mutex> shared_guard(m_hsregistry_rwlock);
+
+    if (m_sHSRegistry->find(canonical) != m_sHSRegistry->end())
+    {
+        // The current m_sHSRegistry contains the bin specification for
+        // the canonical statement, so return it.
+        sHSRegistry = m_sHSRegistry;
+    }
+    else
+    {
+        shared_guard.unlock();
+
+        std::lock_guard<std::shared_mutex> guard(m_hsregistry_rwlock);
+
+        // Have to check again; something might have happened between the shared
+        // guard being unlocked and the guard being locked.
+
+        if (m_sHSRegistry->find(canonical) != m_sHSRegistry->end())
+        {
+            sHSRegistry = m_sHSRegistry;
+        }
+        else
+        {
+            auto it = m_samples_by_canonical.find(canonical);
+
+            if (it == m_samples_by_canonical.end())
+            {
+                // First sample, so add an entry.
+                it = m_samples_by_canonical.emplace(std::string(canonical), Samples()).first;
+                it->second.reserve(1000); // TODO: Make configurable.
+            }
+
+            Samples& samples = it->second;
+            samples.push_back(duration);
+
+            if (samples.size() >= 1000) // TODO: Make configurable.
+            {
+                // Enough samples collected.
+                std::sort(samples.begin(), samples.end());
+
+                auto begin = samples.begin();
+                auto end = begin;
+                size_t size = 0.99 * samples.size();
+                std::advance(end, size);
+
+                mxb::Duration min = *begin;
+                mxb::Duration max = *end;
+
+                mxb::Duration delta_fd = calculate_delta_fd(samples, size);
+                mxb::Duration delta_sturges = calculate_delta_sturges(min, max, size);
+
+                mxb::Duration delta = std::min(delta_fd, delta_sturges);
+                int n = (max - min) / delta + 1;
+
+                DiffHistogram::Specification specification { min, delta, n };
+
+                // Various DiffRouterSessions have a shared_ptr to the current
+                // m_sHSRegistry and hence it cannot be modified. Instead we create
+                // a new one. Eventually, when all canonical statements have been
+                // sampled, there will be just one DiffHistogram::Specification::Registry
+                // instance that everyone uses.
+                auto sNext = std::make_shared<HSRegistry>(*m_sHSRegistry);
+                sNext->add(canonical, specification);
+
+                m_sHSRegistry = sNext;
+                sHSRegistry = m_sHSRegistry;
+
+                m_samples_by_canonical.erase(it);
+            }
+        }
+    }
+
+    return sHSRegistry;
 }
 
 void DiffRouter::set_state(DiffState diff_state, SyncState sync_state)

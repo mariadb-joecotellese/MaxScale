@@ -30,7 +30,7 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     RepEvent revent;
     revent.can_id = qevent.can_id;
     revent.event_id = qevent.event_id;
-    revent.start_time = SimTime::sim_time().tick().now();
+    revent.start_time = SimTime::sim_time().real_now();
     revent.num_rows = 0;
     revent.rows_read = 0;
     revent.error = 0;
@@ -80,7 +80,7 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     }
     while (more_results);
 
-    revent.end_time = SimTime::sim_time().tick().now();
+    revent.end_time = SimTime::sim_time().real_now();
 
     if (is_real_event(qevent))
     {

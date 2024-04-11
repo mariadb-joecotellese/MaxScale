@@ -7,31 +7,28 @@
 
 #include "diffdefs.hh"
 #include <memory>
-#include <maxscale/response_distribution.hh>
 #include <maxscale/target.hh>
+#include "diffhistogram.hh"
 
 class SERVICE;
 
 class DiffConfig;
 class DiffOrdinaryOtherResult;
+class DiffRouterSession;
 
 class DiffStats
 {
 public:
-    using ResponseDistributions = std::map<std::string, mxs::ResponseDistribution>;
+    using Histograms = std::map<std::string, DiffHistogram, std::less<>>;
 
     std::chrono::nanoseconds total_duration() const
     {
         return m_total_duration;
     }
 
-    void add_canonical_result(std::string_view canonical, const std::chrono::nanoseconds& duration)
-    {
-        m_total_duration += duration;
-
-        m_response_distribution.add(duration);
-        m_response_distributions[std::string(canonical)].add(duration);
-    }
+    void add_canonical_result(DiffRouterSession& router_session,
+                              std::string_view canonical,
+                              const std::chrono::nanoseconds& duration);
 
     int64_t nRequest_packets() const
     {
@@ -138,9 +135,9 @@ public:
         ++m_nExplain_responses;
     }
 
-    const ResponseDistributions& response_distributions() const
+    const Histograms& histograms() const
     {
-        return m_response_distributions;
+        return m_histograms;
     }
 
     void add(const DiffStats& rhs)
@@ -154,15 +151,24 @@ public:
         m_explain_duration += rhs.m_explain_duration;
         m_nExplain_requests += rhs.m_nExplain_requests;
         m_nExplain_responses += rhs.m_nExplain_responses;
-        m_response_distribution += rhs.m_response_distribution;
 
-        for (const auto& kv : rhs.m_response_distributions)
+        for (const auto& kv : rhs.m_histograms)
         {
-            m_response_distributions[kv.first] += kv.second;
+            auto it = m_histograms.find(kv.first);
+
+            if (it != m_histograms.end())
+            {
+                it->second += kv.second;
+            }
+            else
+            {
+                m_histograms.emplace(kv.first, kv.second);
+            }
         }
     }
 
-    void fill_json(json_t* pJson) const;
+    json_t* get_statistics() const;
+    json_t* get_data() const;
 
 protected:
     std::chrono::nanoseconds  m_total_duration { 0 };
@@ -174,8 +180,7 @@ protected:
     std::chrono::nanoseconds  m_explain_duration { 0 };
     int64_t                   m_nExplain_requests { 0 };
     int64_t                   m_nExplain_responses { 0 };
-    mxs::ResponseDistribution m_response_distribution;
-    ResponseDistributions     m_response_distributions;
+    Histograms                m_histograms;
 };
 
 class DiffMainStats final : public DiffStats
@@ -275,17 +280,16 @@ public:
                 m_other_stats.insert(kv);
             }
         }
-
-        m_response_distribution += rhs.m_response_distribution;
     }
 
     json_t* to_json() const;
+
+    std::map<mxs::Target*, json_t*> get_data() const;
 
 private:
     mxs::Target*                           m_pMain { nullptr };
     DiffMainStats                          m_main_stats;
     std::map<mxs::Target*, DiffOtherStats> m_other_stats;
-    mxs::ResponseDistribution              m_response_distribution;
 };
 
 class DiffRouterStats
@@ -306,6 +310,11 @@ public:
     void post_configure(const DiffConfig& config);
 
     json_t* to_json() const;
+
+    std::map<mxs::Target*, json_t*> get_data() const
+    {
+        return m_router_session_stats.get_data();
+    }
 
 private:
     const SERVICE&         m_service;

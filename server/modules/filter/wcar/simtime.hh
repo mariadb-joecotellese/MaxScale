@@ -34,7 +34,12 @@ public:
 
     // Steady time since begin_time.
     // The returned time stays the same between tick() calls.
+    // If the `speed` argument is 1.0, the return value of tick().now() will be the same as real_now().
     wall_time::TimePoint now();
+
+    // The raw time since the start that does not take the simulation speed into account. This also updates on
+    // each call instead of only when tick() is called.
+    wall_time::TimePoint real_now();
 
     // Duration since begin_time
     wall_time::Duration delta();
@@ -82,6 +87,14 @@ inline DurationRep SimTime::speed_adjusted_delta()
 inline wall_time::TimePoint SimTime::now()
 {
     wall_time::Duration wall_dur{m_wall_start + speed_adjusted_delta()};
+    return wall_time::TimePoint{wall_dur};
+}
+
+inline wall_time::TimePoint SimTime::real_now()
+{
+    DurationRep steady_now = mxb::Clock::now().time_since_epoch().count();
+    DurationRep steady_delta = steady_now - m_steady_start;
+    wall_time::Duration wall_dur{m_wall_start + steady_delta};
     return wall_time::TimePoint{wall_dur};
 }
 

@@ -385,15 +385,8 @@ std::map<int64_t, std::shared_ptr<std::string>>  CapBoostStorage::canonicals() c
     return canonicals_by_id;
 }
 
-void CapBoostStorage::events_to_sql(fs::path path)
+void CapBoostStorage::events_to_sql(std::ostream& out)
 {
-    std::ofstream out(path);
-
-    if (!out)
-    {
-        MXB_THROW(WcarError, "Could not open file " << path << ": " << mxb_strerror(errno));
-    }
-
     for (const auto& qevent : *this)
     {
         if (is_session_close(qevent))
