@@ -518,6 +518,8 @@ namespace
 // https://en.wikipedia.org/wiki/Histogram#Freedman%E2%80%93Diaconis'_choice
 inline mxb::Duration calculate_delta_fd(const std::vector<mxb::Duration>& samples, size_t size)
 {
+    mxb_assert(size <= samples.size());
+
     auto iqr = samples[size * 0.75] - samples[size * 0.25];
     auto delta = 2 * iqr / std::cbrt(size);
 
@@ -564,24 +566,29 @@ std::shared_ptr<const DiffRouter::HSRegistry> DiffRouter::add_sample_for(std::st
         {
             auto it = m_samples_by_canonical.find(canonical);
 
+            size_t nRequired_samples = m_config.samples;
+
             if (it == m_samples_by_canonical.end())
             {
                 // First sample, so add an entry.
                 it = m_samples_by_canonical.emplace(std::string(canonical), Samples()).first;
-                it->second.reserve(1000); // TODO: Make configurable.
+                it->second.reserve(nRequired_samples);
             }
 
             Samples& samples = it->second;
             samples.push_back(duration);
 
-            if (samples.size() >= 1000) // TODO: Make configurable.
+            if (samples.size() >= nRequired_samples)
             {
                 // Enough samples collected.
                 std::sort(samples.begin(), samples.end());
 
                 auto begin = samples.begin();
                 auto end = begin;
-                size_t size = 0.99 * samples.size();
+                double percent = m_config.percentile / 100;
+                size_t size = percent * samples.size();
+                size = std::min(size + 1, samples.size()); // To ensure that size is [1, #samples].
+
                 std::advance(end, size);
 
                 mxb::Duration min = *begin;

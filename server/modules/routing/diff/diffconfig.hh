@@ -54,16 +54,18 @@ public:
     //
     // Optional, Runtime
     //
-    int64_t                         entries;
-    Explain                         explain;
-    int64_t                         max_execution_time_difference;
-    int64_t                         max_request_lag;
-    mxs::config::Enum<OnError>      on_error;
-    std::chrono::milliseconds       period;
-    mxs::config::Enum<Report>       report;
-    bool                            reset_replication;
-    int64_t                         retain_faster_statements;
-    int64_t                         retain_slower_statements;
+    int64_t                    entries;
+    Explain                    explain;
+    int64_t                    max_execution_time_difference;
+    int64_t                    max_request_lag;
+    mxs::config::Enum<OnError> on_error;
+    double                     percentile;
+    std::chrono::milliseconds  period;
+    mxs::config::Enum<Report>  report;
+    bool                       reset_replication;
+    int64_t                    retain_faster_statements;
+    int64_t                    retain_slower_statements;
+    int64_t                    samples;
 
 protected:
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;

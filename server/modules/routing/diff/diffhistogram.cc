@@ -9,7 +9,7 @@
 
 DiffHistogram::DiffHistogram(const Specification& specification)
 {
-    mxb_assert(specification.bins() >= 2);
+    mxb_assert(specification.bins() > 0);
 
     m_bins.reserve(specification.bins());
 

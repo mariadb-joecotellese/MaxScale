@@ -111,6 +111,16 @@ config::ParamEnum<OnError> on_error(
     OnError::IGNORE, // Default
     config::Param::AT_RUNTIME);
 
+config::ParamPercent percentile(
+    &specification,
+    "percentile",
+    "Specifies the percentile of sampels that will be considered when calculating the width "
+    "and number of bins of the histogram.",
+    99, // Default
+    1, // Min
+    100,  // Max
+    config::Param::AT_RUNTIME);
+
 config::ParamDuration<std::chrono::milliseconds> period(
     &specification,
     "period",
@@ -148,6 +158,16 @@ config::ParamCount retain_slower_statements(
     "retain_slower_statements",
     "How many of the slower statements should be retained so that they are available in the summary.",
     5, // Default
+    config::Param::AT_RUNTIME);
+
+config::ParamCount samples(
+    &specification,
+    "samples",
+    "How many samples per canonical statement should be collected before calculating the width "
+    "and number of bins of the histogram.",
+    1000, // Default
+    100,  // Min
+    std::numeric_limits<config::ParamCount::value_type>::max(), // Max
     config::Param::AT_RUNTIME);
 }
 
