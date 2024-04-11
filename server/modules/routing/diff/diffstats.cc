@@ -90,15 +90,16 @@ json_t* create_query(int id, const std::string& sql, const DiffHistogram& hist)
  */
 void DiffStats::add_canonical_result(DiffRouterSession& router_session,
                                      std::string_view canonical,
-                                     const std::chrono::nanoseconds& duration)
+                                     const std::chrono::nanoseconds& duration,
+                                     const mxs::Reply& reply)
 {
     m_total_duration += duration;
 
-    auto it = m_histograms.find(canonical);
+    auto it = m_datas.find(canonical);
 
-    if (it != m_histograms.end())
+    if (it != m_datas.end())
     {
-        it->second.add(duration);
+        it->second.add(duration, reply);
     }
     else
     {
@@ -110,9 +111,9 @@ void DiffStats::add_canonical_result(DiffRouterSession& router_session,
             // are now available so the histogram of that canonical statement can now
             // be created.
 
-            auto p = m_histograms.emplace(std::string(canonical), DiffHistogram(spec));
+            auto p = m_datas.emplace(std::string(canonical), DiffData(spec));
             it = p.first;
-            it->second.add(duration);
+            it->second.add(duration, reply);
         }
     }
 }
@@ -149,12 +150,12 @@ json_t* DiffStats::get_data() const
 
     int id = 1;
 
-    for (const auto& kv : m_histograms)
+    for (const auto& kv : m_datas)
     {
         auto& sql = kv.first;
-        auto& response_distribution = kv.second;
+        auto& data = kv.second;
 
-        json_array_append_new(pQueries, create_query(id++, sql, response_distribution));
+        json_array_append_new(pQueries, create_query(id++, sql, data.histogram()));
     }
 
     json_object_set_new(pData, "queries", pQueries);

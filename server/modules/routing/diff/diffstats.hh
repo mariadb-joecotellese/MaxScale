@@ -8,7 +8,7 @@
 #include "diffdefs.hh"
 #include <memory>
 #include <maxscale/target.hh>
-#include "diffhistogram.hh"
+#include "diffdata.hh"
 
 class SERVICE;
 
@@ -19,7 +19,7 @@ class DiffRouterSession;
 class DiffStats
 {
 public:
-    using Histograms = std::map<std::string, DiffHistogram, std::less<>>;
+    using Datas = std::map<std::string, DiffData, std::less<>>;
 
     std::chrono::nanoseconds total_duration() const
     {
@@ -28,7 +28,8 @@ public:
 
     void add_canonical_result(DiffRouterSession& router_session,
                               std::string_view canonical,
-                              const std::chrono::nanoseconds& duration);
+                              const std::chrono::nanoseconds& duration,
+                              const mxs::Reply& reply);
 
     int64_t nRequest_packets() const
     {
@@ -135,9 +136,9 @@ public:
         ++m_nExplain_responses;
     }
 
-    const Histograms& histograms() const
+    const Datas& datas() const
     {
-        return m_histograms;
+        return m_datas;
     }
 
     void add(const DiffStats& rhs)
@@ -152,17 +153,17 @@ public:
         m_nExplain_requests += rhs.m_nExplain_requests;
         m_nExplain_responses += rhs.m_nExplain_responses;
 
-        for (const auto& kv : rhs.m_histograms)
+        for (const auto& kv : rhs.m_datas)
         {
-            auto it = m_histograms.find(kv.first);
+            auto it = m_datas.find(kv.first);
 
-            if (it != m_histograms.end())
+            if (it != m_datas.end())
             {
                 it->second += kv.second;
             }
             else
             {
-                m_histograms.emplace(kv.first, kv.second);
+                m_datas.emplace(kv.first, kv.second);
             }
         }
     }
@@ -180,7 +181,7 @@ protected:
     std::chrono::nanoseconds  m_explain_duration { 0 };
     int64_t                   m_nExplain_requests { 0 };
     int64_t                   m_nExplain_responses { 0 };
-    Histograms                m_histograms;
+    Datas                     m_datas;
 };
 
 class DiffMainStats final : public DiffStats

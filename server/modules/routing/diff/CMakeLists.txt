@@ -3,6 +3,7 @@ add_library(diff SHARED
   diffbackend.cc
   diffcommands.cc
   diffconfig.cc
+  diffdata.cc
   diffexporter.cc
   diffhistogram.cc
   diffregistry.cc
