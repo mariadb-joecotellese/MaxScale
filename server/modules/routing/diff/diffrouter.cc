@@ -585,7 +585,7 @@ std::shared_ptr<const DiffRouter::HSRegistry> DiffRouter::add_sample_for(std::st
 
                 auto begin = samples.begin();
                 auto end = begin;
-                double percent = m_config.percentile / 100;
+                double percent = m_config.percentile / 100.0;
                 size_t size = percent * samples.size();
                 size = std::min(size + 1, samples.size()); // To ensure that size is [1, #samples].
 
@@ -598,7 +598,7 @@ std::shared_ptr<const DiffRouter::HSRegistry> DiffRouter::add_sample_for(std::st
                 mxb::Duration delta_sturges = calculate_delta_sturges(min, max, size);
 
                 mxb::Duration delta = std::min(delta_fd, delta_sturges);
-                int n = (max - min) / delta + 1;
+                int n = delta != mxb::Duration {0} ? (max - min) / delta + 1 : 1;
 
                 DiffHistogram::Specification specification { min, delta, n };
 

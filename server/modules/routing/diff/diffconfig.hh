@@ -59,7 +59,7 @@ public:
     int64_t                    max_execution_time_difference;
     int64_t                    max_request_lag;
     mxs::config::Enum<OnError> on_error;
-    double                     percentile;
+    int64_t                    percentile;
     std::chrono::milliseconds  period;
     mxs::config::Enum<Report>  report;
     bool                       reset_replication;
