@@ -50,23 +50,25 @@ void add_histogram(json_t* pDuration, const DiffHistogram& hist)
     json_object_set_new(pDuration, "hist_bin_edges", pHist_bin_edges);
 }
 
-json_t* create_query(int id, const std::string& sql, const DiffHistogram& hist)
+json_t* create_query(int id, const std::string& sql, const DiffData& data)
 {
     json_t* pQuery = json_object();
 
     json_object_set_new(pQuery, "id", json_integer(id));
     json_object_set_new(pQuery, "sql", json_string(sql.c_str()));
-    json_object_set_new(pQuery, "errors", json_integer(0)); // TODO
+    json_object_set_new(pQuery, "errors", json_integer(data.errors()));
 
     json_t* pRows_read = json_object();
-    json_object_set_new(pRows_read, "sum", json_real(0));
-    json_object_set_new(pRows_read, "min", json_real(0));
-    json_object_set_new(pRows_read, "max", json_real(0));
-    json_object_set_new(pRows_read, "mean", json_real(0));
-    json_object_set_new(pRows_read, "count", json_real(0));
+    json_object_set_new(pRows_read, "sum", json_integer(data.rr_sum()));
+    json_object_set_new(pRows_read, "min", json_integer(data.rr_min()));
+    json_object_set_new(pRows_read, "max", json_integer(data.rr_max()));
+    json_object_set_new(pRows_read, "mean", json_integer(data.rr_mean()));
+    json_object_set_new(pRows_read, "count", json_integer(data.rr_count()));
     json_object_set_new(pRows_read, "stddev", json_real(0));
 
     json_object_set_new(pQuery, "rows_read", pRows_read);
+
+    const auto& hist = data.histogram();
 
     json_t* pDuration = json_object();
     json_object_set_new(pDuration, "sum", json_real(mxb::to_secs(hist.sum())));
@@ -155,7 +157,7 @@ json_t* DiffStats::get_data() const
         auto& sql = kv.first;
         auto& data = kv.second;
 
-        json_array_append_new(pQueries, create_query(id++, sql, data.histogram()));
+        json_array_append_new(pQueries, create_query(id++, sql, data));
     }
 
     json_object_set_new(pData, "queries", pQueries);
