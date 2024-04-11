@@ -35,7 +35,7 @@ try
         RepPlayer player(&config);
         player.replay();
     }
-    else if (config.command == cmd::TRANSFORM)
+    else if (config.command == cmd::SUMMARY)
     {
         RepTransform transform(&config, RepTransform::TRANSFORM);
     }

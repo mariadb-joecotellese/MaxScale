@@ -17,8 +17,8 @@ class RepStorage;
 
 namespace cmd
 {
+static const char* SUMMARY = "summary";
 static const char* REPLAY = "replay";
-static const char* TRANSFORM = "transform";
 static const char* CONVERT = "convert";
 static const char* CANONICALS = "canonicals";
 static const char* DUMP_DATA = "dump-data";

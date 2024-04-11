@@ -99,6 +99,12 @@ void RepTransform::transform_events(const fs::path& path, Action action)
         capture.set_int("sessions", num_sessions);
         capture.set_int("max_parallel_sessions", m_max_parallel_sessions);
 
+        if (!m_trxs.empty())
+        {
+            capture.set_string("start_gtid", MAKE_STR(m_trxs.front().gtid));
+            capture.set_string("end_gtid", MAKE_STR(m_trxs.back().gtid));
+        }
+
         mxb::Json transform(mxb::Json::Type::OBJECT);
         transform.set_real("read", mxb::to_secs(report.read));
         transform.set_real("sort", mxb::to_secs(report.sort));
@@ -120,9 +126,12 @@ void RepTransform::transform_events(const fs::path& path, Action action)
         mxb_assert(m_max_parallel_sessions > 0);
     }
 
-    MXB_SNOTICE("Original sort time: " << tx_js.at("duration").get_real() << "s");
+    const char* sort_type = (needs_sorting ? "Sort" : "Original sort");
+    MXB_SNOTICE(sort_type << " time: " << tx_js.at("duration").get_real() << "s");
     MXB_SNOTICE("Events: " << tx_js.at("capture/events").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Transactions: " << tx_js.at("capture/transactions").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Sessions: " << tx_js.at("capture/sessions").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Expected runtime: " << tx_js.at("capture/duration").get_real() << "s");
+    MXB_SNOTICE("First GTID: " << tx_js.at("capture/start_gtid").to_string(mxb::Json::Format::COMPACT));
+    MXB_SNOTICE("Last GTID: " << tx_js.at("capture/end_gtid").to_string(mxb::Json::Format::COMPACT));
 }
