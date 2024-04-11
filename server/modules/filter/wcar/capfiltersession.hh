@@ -39,6 +39,13 @@ private:
     CapFilterSession(CapFilterSession&&) = delete;
 
 private:
+    enum class InitState
+    {
+        SEND_QUERY,
+        READ_RESULT,
+        INIT_DONE,
+    };
+
     /**
      * @brief generate_canonical_for - Fill *pQuery_event with canonical and args
      *                                 for a non-sql buffer, if possible.
@@ -62,6 +69,7 @@ private:
 
     CapSessionState m_session_state;
     bool            m_capture = false;
+    InitState       m_init_state = InitState::SEND_QUERY;
     QueryEvent      m_query_event;
 
     mariadb::PsTracker m_ps_tracker;

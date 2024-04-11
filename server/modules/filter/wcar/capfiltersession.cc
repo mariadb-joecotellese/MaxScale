@@ -12,6 +12,14 @@
 #include <maxscale/protocol/mariadb/mysql.hh>
 #include <maxscale/protocol/mariadb/protocol_classes.hh>
 
+namespace
+{
+const auto set_last_gtid = mariadb::create_query(
+    "SET @@session.session_track_system_variables = CASE @@session.session_track_system_variables "
+    "WHEN '*' THEN '*' WHEN '' THEN 'last_gtid' ELSE "
+    "CONCAT(@@session.session_track_system_variables, ',last_gtid') END;");
+}
+
 // static
 CapFilterSession* CapFilterSession::create(MXS_SESSION* pSession, SERVICE* pService,
                                            const CapFilter* pFilter)
@@ -200,6 +208,16 @@ QueryEvent CapFilterSession::make_closing_event()
 
 bool CapFilterSession::routeQuery(GWBUF&& buffer)
 {
+    if (m_init_state == InitState::SEND_QUERY)
+    {
+        m_init_state = InitState::READ_RESULT;
+
+        if (!mxs::FilterSession::routeQuery(set_last_gtid.shallow_clone()))
+        {
+            return false;
+        }
+    }
+
     SimTime::sim_time().tick();
 
     m_capture = m_state.load(std::memory_order_relaxed) != CapState::DISABLED;
@@ -242,6 +260,18 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
                                    const maxscale::ReplyRoute& down,
                                    const maxscale::Reply& reply)
 {
+    if (m_init_state == InitState::READ_RESULT)
+    {
+        if (reply.is_complete())
+        {
+            m_init_state = InitState::INIT_DONE;
+        }
+
+        // Ignore the response to the generated SET command. The protocol module guarantees that only one
+        // result per clientReply call is delivered.
+        return true;
+    }
+
     SimTime::sim_time().tick();
 
     m_ps_tracker.track_reply(reply);
