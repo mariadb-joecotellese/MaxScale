@@ -36,6 +36,20 @@ DiffHistogram::DiffHistogram(const Specification& specification)
 
 void DiffHistogram::add(mxb::Duration dur)
 {
+    ++m_count;
+
+    if (dur < m_min)
+    {
+        m_min = dur;
+    }
+
+    if (dur > m_max)
+    {
+        m_max = dur;
+    }
+
+    m_sum += dur;
+
     if (dur < m_smaller_outliers.right)
     {
         ++m_smaller_outliers.count;
@@ -66,6 +80,20 @@ void DiffHistogram::add(mxb::Duration dur)
 
 DiffHistogram& DiffHistogram::operator += (const DiffHistogram& rhs)
 {
+    m_count += rhs.m_count;
+
+    if (m_max < rhs.m_max)
+    {
+        m_max = rhs.m_max;
+    }
+
+    if (m_min < rhs.m_min)
+    {
+        m_min = rhs.m_min;
+    }
+
+    m_sum += rhs.m_sum;
+
     mxb_assert(m_bins.size() == rhs.m_bins.size());
 
     auto it = m_bins.begin();

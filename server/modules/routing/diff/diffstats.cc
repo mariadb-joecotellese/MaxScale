@@ -69,11 +69,11 @@ json_t* create_query(int id, const std::string& sql, const DiffHistogram& hist)
     json_object_set_new(pQuery, "rows_read", pRows_read);
 
     json_t* pDuration = json_object();
-    json_object_set_new(pDuration, "sum", json_real(0));
-    json_object_set_new(pDuration, "min", json_real(0));
-    json_object_set_new(pDuration, "max", json_real(0));
-    json_object_set_new(pDuration, "mean", json_real(0));
-    json_object_set_new(pDuration, "count", json_real(0));
+    json_object_set_new(pDuration, "sum", json_real(mxb::to_secs(hist.sum())));
+    json_object_set_new(pDuration, "min", json_real(mxb::to_secs(hist.min())));
+    json_object_set_new(pDuration, "max", json_real(mxb::to_secs(hist.max())));
+    json_object_set_new(pDuration, "mean", json_real(mxb::to_secs(hist.mean())));
+    json_object_set_new(pDuration, "count", json_real(hist.count()));
     json_object_set_new(pDuration, "stddev", json_real(0));
 
     add_histogram(pDuration, hist);
