@@ -65,8 +65,8 @@ void DiffBackend::lcall(std::function<bool()>&& fn)
 /**
  * DiffMainBackend
  */
-DiffMainBackend::DiffMainBackend(mxs::Endpoint* pEndpoint)
-    : Base(pEndpoint)
+DiffMainBackend::DiffMainBackend(mxs::Endpoint* pEndpoint, time_t start_time)
+    : Base(pEndpoint, start_time)
 {
 }
 
@@ -97,9 +97,10 @@ void DiffMainBackend::ready(const DiffExplainMainResult& explain_result)
  * DiffOtherBackend
  */
 DiffOtherBackend::DiffOtherBackend(mxs::Endpoint* pEndpoint,
+                                   time_t start_time,
                                    const DiffConfig* pConfig,
                                    std::shared_ptr<DiffExporter> sExporter)
-    : Base(pEndpoint)
+    : Base(pEndpoint, start_time)
     , m_config(*pConfig)
     , m_sExporter(std::move(sExporter))
 {
@@ -229,7 +230,8 @@ namespace diff
 {
 
 std::pair<SDiffMainBackend,SDiffOtherBackends>
-backends_from_endpoints(const mxs::Target& main_target,
+backends_from_endpoints(time_t start_time,
+                        const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
                         const DiffRouter& router)
 {
@@ -241,7 +243,7 @@ backends_from_endpoints(const mxs::Target& main_target,
     {
         if (pEndpoint->target() == &main_target)
         {
-            sMain.reset(new DiffMainBackend(pEndpoint));
+            sMain.reset(new DiffMainBackend(pEndpoint, start_time));
             break;
         }
     }
@@ -256,7 +258,7 @@ backends_from_endpoints(const mxs::Target& main_target,
         if (pTarget != &main_target)
         {
             auto sExporter = router.exporter_for(pTarget);
-            others.emplace_back(new DiffOtherBackend(pEndpoint, &router.config(), sExporter));
+            others.emplace_back(new DiffOtherBackend(pEndpoint, start_time, &router.config(), sExporter));
         }
     }
 

@@ -9,6 +9,7 @@
 #include <memory>
 #include <maxscale/target.hh>
 #include "diffdata.hh"
+#include "diffqps.hh"
 
 class SERVICE;
 
@@ -20,6 +21,11 @@ class DiffStats
 {
 public:
     using Datas = std::map<std::string, DiffData, std::less<>>;
+
+    time_t start_time() const
+    {
+        return m_qps.start_time();
+    }
 
     std::chrono::nanoseconds total_duration() const
     {
@@ -99,6 +105,8 @@ public:
     void inc_responses()
     {
         ++m_nResponses;
+
+        m_qps.inc();
     }
 
     void dec_responses()
@@ -141,6 +149,11 @@ public:
         return m_datas;
     }
 
+    const DiffQps& qps() const
+    {
+        return m_qps;
+    }
+
     void add(const DiffStats& rhs)
     {
         m_total_duration += rhs.m_total_duration;
@@ -152,6 +165,7 @@ public:
         m_explain_duration += rhs.m_explain_duration;
         m_nExplain_requests += rhs.m_nExplain_requests;
         m_nExplain_responses += rhs.m_nExplain_responses;
+        m_qps += rhs.m_qps;
 
         for (const auto& kv : rhs.m_datas)
         {
@@ -172,6 +186,11 @@ public:
     json_t* get_data() const;
 
 protected:
+    DiffStats(time_t start_time)
+        : m_qps(start_time)
+    {
+    }
+
     std::chrono::nanoseconds  m_total_duration { 0 };
     int64_t                   m_nRequest_packets { 0 };
     int64_t                   m_nRequests { 0 };
@@ -182,11 +201,17 @@ protected:
     int64_t                   m_nExplain_requests { 0 };
     int64_t                   m_nExplain_responses { 0 };
     Datas                     m_datas;
+    DiffQps                   m_qps;
 };
 
 class DiffMainStats final : public DiffStats
 {
 public:
+    DiffMainStats(time_t start_time)
+        : DiffStats(start_time)
+    {
+    }
+
     void add(const DiffMainStats& rhs)
     {
         DiffStats::add(rhs);
@@ -198,6 +223,11 @@ public:
 class DiffOtherStats final : public DiffStats
 {
 public:
+    DiffOtherStats(time_t start_time)
+        : DiffStats(start_time)
+    {
+    }
+
     int64_t requests_skipped() const
     {
         return m_nRequests_skipped;
@@ -247,8 +277,17 @@ private:
 class DiffRouterSessionStats
 {
 public:
-    DiffRouterSessionStats() = default;
+    DiffRouterSessionStats(time_t start_time)
+        : m_main_stats(start_time)
+    {
+    }
+
     DiffRouterSessionStats(mxs::Target* pMain, const DiffMainStats& main_stats);
+
+    time_t start_time() const
+    {
+        return m_main_stats.start_time();
+    }
 
     mxs::Target* main() const
     {
@@ -296,9 +335,15 @@ private:
 class DiffRouterStats
 {
 public:
-    DiffRouterStats(const SERVICE* pService)
+    DiffRouterStats(time_t start_time, const SERVICE* pService)
         : m_service(*pService)
+        , m_router_session_stats(start_time)
     {
+    }
+
+    time_t start_time() const
+    {
+        return m_router_session_stats.start_time();
     }
 
     void add(const DiffRouterSessionStats& rhs, const DiffConfig& config)

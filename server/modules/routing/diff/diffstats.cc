@@ -163,14 +163,18 @@ json_t* DiffStats::get_data() const
     json_object_set_new(pData, "queries", pQueries);
 
     json_t* pQps = json_object();
-    json_t* pZero = json_real(0.0);
 
     json_t* pTime = json_array();
-    json_array_append(pTime, pZero);
-    json_array_append(pTime, pZero);
-
     json_t* pCounts = json_array();
-    json_array_append_new(pCounts, pZero);
+
+    int second = start_time() - 1;
+    json_array_append_new(pTime, json_integer(second));
+
+    for (auto count : m_qps.values())
+    {
+        json_array_append_new(pTime, json_integer(++second));
+        json_array_append_new(pCounts, json_integer(count));
+    }
 
     json_object_set_new(pQps, "time", pTime);
     json_object_set_new(pQps, "counts", pCounts);

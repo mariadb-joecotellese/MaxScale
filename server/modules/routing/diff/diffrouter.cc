@@ -28,7 +28,7 @@ DiffRouter::DiffRouter(SERVICE* pService)
     : mxb::Worker::Callable(mxs::MainWorker::get())
     , m_config(pService->name(), this)
     , m_service(*pService)
-    , m_stats(pService)
+    , m_stats(time(nullptr), pService)
     , m_sHSRegistry(std::make_shared<HSRegistry>())
 {
 }
@@ -96,7 +96,8 @@ std::shared_ptr<mxs::RouterSession> DiffRouter::newSession(MXS_SESSION* pSession
         return nullptr;
     }
 
-    auto [ sMain, backends ] = diff::backends_from_endpoints(*m_config.pMain, endpoints, *this);
+    auto start = m_stats.start_time();
+    auto [sMain, backends] = diff::backends_from_endpoints(start, *m_config.pMain, endpoints, *this);
     bool connected = false;
 
     if (sMain->can_connect() && sMain->connect())
