@@ -60,8 +60,8 @@ WITH bin_sizes AS(
   FROM replay_results GROUP BY canonical
 ) SELECT a.canonical,
          FLOOR(((
-           CASE WHEN duration < b.high_value THEN duration else b.high_value END - b.low_value + 1.0
-         ) / (b.high_value - b.low_value + 1.0)) * b.bin_count) bin_num,
+           CASE WHEN duration < b.high_value THEN duration ELSE b.high_value END - b.low_value
+         ) / COALESCE(NULLIF(b.high_value - b.low_value, 0), 1)) * b.bin_count) bin_num,
          COUNT(duration) bin_count
 FROM replay_results a JOIN bin_sizes b ON (a.canonical = b.canonical)
 WHERE {NO_ERRORS_IN_a}
