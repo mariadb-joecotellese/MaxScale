@@ -19,6 +19,8 @@
 using BoostOArchive = boost::archive::binary_oarchive;
 using BoostIArchive = boost::archive::binary_iarchive;
 
+constexpr int64_t MAX_QUERY_EVENTS = 10'000;
+
 namespace fs = std::filesystem;
 
 enum class ReadWrite
