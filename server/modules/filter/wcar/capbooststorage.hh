@@ -81,26 +81,6 @@ public:
     // Return file size
     int64_t size() override;
 
-    struct SortReport
-    {
-        // Statistics about the sorting
-        mxb::Duration total {0};
-        mxb::Duration read {0};
-        mxb::Duration sort {0};
-        mxb::Duration write {0};
-
-        // Statistics about the capture itself
-        int64_t       events {0};
-        mxb::Duration capture_duration {0};
-    };
-
-    /**
-     * Sort query event file, write back and re-open.
-     * Call sort_cb() for each event in sorted order.
-     * @return A report on the sorting and capture statistics
-     */
-    using SortCallback = std::function<void (const QueryEvent&)>;
-    SortReport sort_query_event_file(const SortCallback& sort_cb);
     // Save an event
     static void save_query_event(BoostOFile& bof, const QueryEvent& qevent);
     // Save a canonical

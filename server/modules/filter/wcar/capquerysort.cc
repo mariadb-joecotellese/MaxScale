@@ -7,17 +7,16 @@
 #include <execution>
 
 QuerySort::QuerySort(fs::path file_path,
-                     CapBoostStorage::SortCallback sort_cb)
+                     SortCallback sort_cb)
     : m_file_path(file_path)
     , m_sort_cb(sort_cb)
 {
     auto trx_path = file_path.replace_extension("gx");
     BoostIFile trx_in{trx_path.string()};
-    std::vector<TrxEvent> tevents;
 
     while (!trx_in.at_end_of_stream())
     {
-        tevents.push_back(CapBoostStorage::load_trx_event(trx_in));
+        m_tevents.push_back(CapBoostStorage::load_trx_event(trx_in));
     }
 
     // Sort by gtid, which can lead to out of order end_time. The number of
@@ -35,7 +34,7 @@ QuerySort::QuerySort(fs::path file_path,
     });
 
     BoostOFile trx_out{trx_path.string()};
-    for (auto&& e : tevents)
+    for (auto& e : m_tevents)
     {
         CapBoostStorage::save_trx_event(trx_out, e);
     }
@@ -46,31 +45,31 @@ QuerySort::QuerySort(fs::path file_path,
     {
         m_qevents.push_back(CapBoostStorage::load_query_event(qevent_in));
     }
-}
 
-void QuerySort::finalize()
-{
     std::sort(std::execution::par, m_qevents.begin(), m_qevents.end(),
               [](const auto& lhs, const auto& rhs){
         return lhs.start_time < rhs.start_time;
     });
 
-    m_capture_duration = m_qevents.back().end_time - m_qevents.front().start_time;
-
+    int64_t num_events;
     BoostOFile qevent_out{m_file_path.replace_extension("ex")};
     for (auto&& qevent : m_qevents)
     {
+        ++num_events;
         m_sort_cb(qevent);
         CapBoostStorage::save_query_event(qevent_out, qevent);
     }
+
+    m_report.capture_duration = m_qevents.back().end_time - m_qevents.front().start_time;
+    m_report.events = num_events;
 }
 
-int64_t QuerySort::num_events()
+std::vector<TrxEvent> QuerySort::release_trx_events()
 {
-    return m_num_events;
+    return std::move(m_tevents);
 }
 
-mxb::Duration QuerySort::capture_duration()
+SortReport QuerySort::report()
 {
-    return m_capture_duration;
+    return m_report;
 }

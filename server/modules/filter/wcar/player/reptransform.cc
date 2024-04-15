@@ -1,5 +1,6 @@
 #include "reptransform.hh"
 #include "../capbooststorage.hh"
+#include "../capquerysort.hh"
 #include "maxbase/assert.hh"
 #include <maxbase/json.hh>
 #include <maxscale/parser.hh>
@@ -46,8 +47,7 @@ void RepTransform::transform_events(const fs::path& path, Action action)
     tx_path.replace_extension("tx");
     bool needs_sorting = !fs::exists(tx_path);
 
-    CapBoostStorage boost{path, ReadWrite::READ_ONLY};
-    CapBoostStorage::SortReport report;
+    SortReport report;
 
     mxb::StopWatch sw;
     int num_active_session = 0;
@@ -74,10 +74,16 @@ void RepTransform::transform_events(const fs::path& path, Action action)
             }
         };
 
-        report = boost.sort_query_event_file(sort_cb);
-    }
+        QuerySort sorter(path, sort_cb);
 
-    m_trxs = boost.load_trx_events();
+        m_trxs = sorter.release_trx_events();
+        report = sorter.report();
+    }
+    else
+    {
+        CapBoostStorage boost{path, ReadWrite::READ_ONLY};
+        m_trxs = boost.load_trx_events();
+    }
 
     // Create the mappings
     for (auto ite = begin(m_trxs); ite != end(m_trxs); ++ite)

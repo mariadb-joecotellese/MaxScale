@@ -238,31 +238,6 @@ void CapBoostStorage::preload_query_events(int64_t max_in_container)
     }
 }
 
-CapBoostStorage::SortReport CapBoostStorage::sort_query_event_file(const SortCallback& sort_cb)
-{
-    SortReport report;
-    mxb::StopWatch sw;
-    mxb::IntervalTimer read_interval;   /// the first preload_query_events() not counted
-
-    QuerySort sorter(m_query_event_path, sort_cb);
-    sorter.finalize();
-
-    // TODO: The report is now mostly garbage
-
-    report.read = read_interval.total();
-    report.sort = sw.lap() - report.read;
-    report.events = sorter.num_events();
-    report.capture_duration = sorter.capture_duration();
-    report.write = sw.lap();
-    report.total = sw.split();
-
-    m_sQuery_event_out.reset();
-    m_query_events.clear();
-    m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
-
-    return report;
-}
-
 std::shared_ptr<std::string> CapBoostStorage::find_canonical(int64_t can_id)
 {
     if (m_canonicals.empty())
