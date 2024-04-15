@@ -306,7 +306,6 @@ bool CapFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* p
     auto cmd = mariadb::get_command(buffer);
     bool generated = true;
 
-    // TODO add prepared statement handling (text and binary)
     switch (cmd)
     {
     case MXS_COM_CREATE_DB:
