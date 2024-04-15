@@ -32,8 +32,6 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
         m_sCanonical_in = std::make_unique<BoostIFile>(m_canonical_path);
         m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
         m_sTrx_in = std::make_unique<BoostIFile>(m_trx_path);
-        load_gtrx_events();
-        preload_query_events(MAX_QUERY_EVENTS);
     }
     else
     {
@@ -188,13 +186,15 @@ void CapBoostStorage::load_canonicals()
     }
 }
 
-void CapBoostStorage::load_gtrx_events()
+std::vector<TrxEvent> CapBoostStorage::load_trx_events()
 {
-    m_tevents.clear();
+    std::vector<TrxEvent> tevents;
     while (!m_sTrx_in->at_end_of_stream())
     {
-        m_tevents.push_back(load_trx_event(*m_sTrx_in));
+        tevents.push_back(load_trx_event(*m_sTrx_in));
     }
+
+    return tevents;
 }
 
 QueryEvent CapBoostStorage::load_query_event(BoostIFile& bif)
@@ -244,23 +244,10 @@ CapBoostStorage::SortReport CapBoostStorage::sort_query_event_file(const SortCal
     mxb::StopWatch sw;
     mxb::IntervalTimer read_interval;   /// the first preload_query_events() not counted
 
-    auto qevent_out = std::make_unique<BoostOFile>(m_query_event_path);
-    auto tevent_out = std::make_unique<BoostOFile>(m_trx_path);
-    QuerySort sorter(*this, *qevent_out, *tevent_out, sort_cb);
-
-    while (!m_query_events.empty())
-    {
-        sorter.add_query_event(m_query_events);
-        m_query_events.clear();
-
-        read_interval.start_interval();
-        preload_query_events(MAX_QUERY_EVENTS);
-        read_interval.end_interval();
-    }
-
+    QuerySort sorter(m_query_event_path, sort_cb);
     sorter.finalize();
 
-    // TODO: read, sort and write are now interleaved.
+    // TODO: The report is now mostly garbage
 
     report.read = read_interval.total();
     report.sort = sw.lap() - report.read;

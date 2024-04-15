@@ -6,17 +6,23 @@
 #include "capquerysort.hh"
 #include <execution>
 
-QuerySort::QuerySort(CapBoostStorage& storage,
-                     BoostOFile& qevent_out,
-                     BoostOFile& tevent_out,
+QuerySort::QuerySort(fs::path file_path,
                      CapBoostStorage::SortCallback sort_cb)
-    : m_storage(storage)
-    , m_qevent_out(qevent_out)
+    : m_file_path(file_path)
     , m_sort_cb(sort_cb)
 {
+    auto trx_path = file_path.replace_extension("gx");
+    BoostIFile trx_in{trx_path.string()};
+    std::vector<TrxEvent> tevents;
+
+    while (!trx_in.at_end_of_stream())
+    {
+        tevents.push_back(CapBoostStorage::load_trx_event(trx_in));
+    }
+
     // Sort by gtid, which can lead to out of order end_time. The number of
     // gtids is small relative to query events and fit in memory (TODO document).
-    std::sort(std::execution::par, storage.m_tevents.begin(), storage.m_tevents.end(), []
+    std::sort(std::execution::par, m_tevents.begin(), m_tevents.end(), []
               (const auto& lhs, const auto& rhs){
         if (lhs.gtid.domain_id == lhs.gtid.domain_id)
         {
@@ -28,16 +34,18 @@ QuerySort::QuerySort(CapBoostStorage& storage,
         }
     });
 
-    for (auto&& e : storage.m_tevents)
+    BoostOFile trx_out{trx_path.string()};
+    for (auto&& e : tevents)
     {
-        m_storage.save_trx_event(tevent_out, e);
+        CapBoostStorage::save_trx_event(trx_out, e);
     }
-}
 
-void QuerySort::add_query_event(std::deque<QueryEvent>& qevents)
-{
-    m_num_events += qevents.size();
-    std::move(qevents.begin(), qevents.end(), std::back_inserter(m_qevents));
+    auto qevent_path = file_path.replace_extension("ex");
+    BoostIFile qevent_in{qevent_path.string()};
+    while (!qevent_in.at_end_of_stream())
+    {
+        m_qevents.push_back(CapBoostStorage::load_query_event(qevent_in));
+    }
 }
 
 void QuerySort::finalize()
@@ -49,10 +57,11 @@ void QuerySort::finalize()
 
     m_capture_duration = m_qevents.back().end_time - m_qevents.front().start_time;
 
+    BoostOFile qevent_out{m_file_path.replace_extension("ex")};
     for (auto&& qevent : m_qevents)
     {
         m_sort_cb(qevent);
-        m_storage.save_query_event(m_qevent_out, qevent);
+        CapBoostStorage::save_query_event(qevent_out, qevent);
     }
 }
 

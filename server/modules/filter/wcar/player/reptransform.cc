@@ -1,11 +1,9 @@
 #include "reptransform.hh"
 #include "../capbooststorage.hh"
-#include "repbooststorage.hh"
-#include "repcsvstorage.hh"
 #include "maxbase/assert.hh"
 #include <maxbase/json.hh>
 #include <maxscale/parser.hh>
-#include <execution>
+#include <unordered_set>
 
 RepTransform::RepTransform(const RepConfig* pConfig, Action action)
     : m_config(*pConfig)
@@ -79,7 +77,7 @@ void RepTransform::transform_events(const fs::path& path, Action action)
         report = boost.sort_query_event_file(sort_cb);
     }
 
-    m_trxs = boost.release_trx_events();
+    m_trxs = boost.load_trx_events();
 
     // Create the mappings
     for (auto ite = begin(m_trxs); ite != end(m_trxs); ++ite)
