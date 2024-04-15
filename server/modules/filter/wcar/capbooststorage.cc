@@ -158,18 +158,18 @@ void CapBoostStorage::save_trx_event(BoostOFile& bof, const TrxEvent& tevent)
     *bof & tevent.gtid.sequence_nr;
 }
 
-TrxEvent CapBoostStorage::load_trx_event()
+TrxEvent CapBoostStorage::load_trx_event(BoostIFile& bif)
 {
     TrxEvent tevent;
     int64_t end_time_cnt;
 
-    (**m_sTrx_in) & tevent.session_id;
-    (**m_sTrx_in) & tevent.start_event_id;
-    (**m_sTrx_in) & tevent.end_event_id;
-    (**m_sTrx_in) & end_time_cnt;
-    (**m_sTrx_in) & tevent.gtid.domain_id;
-    (**m_sTrx_in) & tevent.gtid.server_id;
-    (**m_sTrx_in) & tevent.gtid.sequence_nr;
+    *bif & tevent.session_id;
+    *bif & tevent.start_event_id;
+    *bif & tevent.end_event_id;
+    *bif & end_time_cnt;
+    *bif & tevent.gtid.domain_id;
+    *bif & tevent.gtid.server_id;
+    *bif & tevent.gtid.sequence_nr;
 
     tevent.end_time = wall_time::TimePoint(mxb::Duration(end_time_cnt));
 
@@ -194,8 +194,38 @@ void CapBoostStorage::load_gtrx_events()
     m_tevents.clear();
     while (!m_sTrx_in->at_end_of_stream())
     {
-        m_tevents.push_back(load_trx_event());
+        m_tevents.push_back(load_trx_event(*m_sTrx_in));
     }
+}
+
+QueryEvent CapBoostStorage::load_query_event(BoostIFile& bif)
+{
+    QueryEvent qevent;
+
+    *bif & qevent.can_id;
+    *bif & qevent.event_id;
+    *bif & qevent.session_id;
+    *bif & qevent.flags;
+
+    int nargs;
+    *bif & nargs;
+    for (int i = 0; i < nargs; ++i)
+    {
+        int32_t pos;
+        std::string value;
+        *bif & pos;
+        *bif & value;
+        qevent.canonical_args.emplace_back(pos, std::move(value));
+    }
+
+    int64_t start_time_int;
+    int64_t end_time_int;
+    *bif & start_time_int;
+    *bif & end_time_int;
+    qevent.start_time = wall_time::TimePoint(mxb::Duration(start_time_int));
+    qevent.end_time = wall_time::TimePoint(mxb::Duration(end_time_int));
+
+    return qevent;
 }
 
 void CapBoostStorage::preload_query_events(int64_t max_in_container)
@@ -203,33 +233,8 @@ void CapBoostStorage::preload_query_events(int64_t max_in_container)
     int64_t nfetch = max_in_container - m_query_events.size();
     while (!m_sQuery_event_in->at_end_of_stream() && nfetch--)
     {
-        QueryEvent qevent;
-
-        (**m_sQuery_event_in) & qevent.can_id;
-        (**m_sQuery_event_in) & qevent.event_id;
-        (**m_sQuery_event_in) & qevent.session_id;
-        (**m_sQuery_event_in) & qevent.flags;
-
-        int nargs;
-        (**m_sQuery_event_in) & nargs;
-        for (int i = 0; i < nargs; ++i)
-        {
-            int32_t pos;
-            std::string value;
-            (**m_sQuery_event_in) & pos;
-            (**m_sQuery_event_in) & value;
-            qevent.canonical_args.emplace_back(pos, std::move(value));
-        }
-
-        int64_t start_time_int;
-        int64_t end_time_int;
-        (**m_sQuery_event_in) & start_time_int;
-        (**m_sQuery_event_in) & end_time_int;
-        qevent.start_time = wall_time::TimePoint(mxb::Duration(start_time_int));
-        qevent.end_time = wall_time::TimePoint(mxb::Duration(end_time_int));
-
+        auto qevent = load_query_event(*m_sQuery_event_in);
         qevent.sCanonical = find_canonical(qevent.can_id);
-
         m_query_events.push_back(std::move(qevent));
     }
 }

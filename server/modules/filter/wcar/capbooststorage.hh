@@ -101,6 +101,18 @@ public:
      */
     using SortCallback = std::function<void (const QueryEvent&)>;
     SortReport sort_query_event_file(const SortCallback& sort_cb);
+    // Save an event
+    static void save_query_event(BoostOFile& bof, const QueryEvent& qevent);
+    // Save a canonical
+    static void save_canonical(BoostOFile& bof, int64_t can_id, const std::string& canonical);
+    // Save trx event
+    static void save_trx_event(BoostOFile& bof, const TrxEvent& qevent);
+
+    // Load a  query event. The members sCanonical and sTrx
+    // are not populated.
+    static QueryEvent load_query_event(BoostIFile& bif);
+    // Load a trx event.
+    static TrxEvent load_trx_event(BoostIFile& bif);
 
     /**
      * Get all of the canonicals mapped to their IDs
@@ -125,16 +137,8 @@ private:
     friend class QuerySort;
 
     QueryEvent next_event() override;
-    // Save an event to m_canonical_path
-    void save_query_event(BoostOFile& bof, const QueryEvent& qevent);
-    // Save a canonical to m_canonical_path
-    void save_canonical(BoostOFile& bof, int64_t can_id, const std::string& canonical);
-    // Save trx event, along with identifiers
-    void save_trx_event(BoostOFile& bof, const TrxEvent& qevent);
     // Read all canonicals into memory
     void read_canonicals();
-    // Load and return all trx events.
-    TrxEvent load_trx_event();
     // Read all trx events to memory. Unlike canonicals,
     // these should always fit in memory.
     void load_gtrx_events();
