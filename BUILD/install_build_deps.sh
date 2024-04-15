@@ -180,6 +180,9 @@ then
         # EPEL is installed for GCOV report generation (lcov)
         sudo yum -d1 -y install epel-release
         sudo yum -d1 -y install lcov
+
+        # RHEL 8 needs this for boost-serialization
+        sudo yum -d1 -y install boost-devel
     fi
 fi
 
