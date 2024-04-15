@@ -93,7 +93,7 @@ def display_table(compared, value, metric, orderby, top, relative):
 
 
 def plot_query_table(compared):
-    value_w = widgets.Dropdown(options=["duration", "rows_read", "errors"], value="duration")
+    value_w = widgets.Dropdown(options=["duration", "rows_read", "result_rows", "errors"], value="duration")
     metric_w = widgets.Dropdown(options=["sum", "mean", "min", "max", "stddev"], value="sum")
     orderby_w = widgets.Dropdown(options=[("Improved", SORT_ASC), ("Degraded", SORT_DESC), ("ID", SORT_ID)], value=1)
     relative_w = widgets.Dropdown(options=[("Relative", True), ("Absolute", False)], value=True)
