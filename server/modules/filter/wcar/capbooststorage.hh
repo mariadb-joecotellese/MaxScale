@@ -119,7 +119,7 @@ public:
      *
      * @return The canonical form of the query strings mapped to their IDs
      */
-    std::map<int64_t, std::shared_ptr<std::string>> canonicals() const;
+    std::map<int64_t, std::shared_ptr<std::string>> canonicals();
 
     /**
      * Convert the events to SQL and write them into a file
@@ -138,7 +138,7 @@ private:
 
     QueryEvent next_event() override;
     // Read all canonicals into memory
-    void read_canonicals();
+    void load_canonicals();
     // Read all trx events to memory. Unlike canonicals,
     // these should always fit in memory.
     void load_gtrx_events();

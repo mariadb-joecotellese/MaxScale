@@ -32,7 +32,6 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
         m_sCanonical_in = std::make_unique<BoostIFile>(m_canonical_path);
         m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
         m_sTrx_in = std::make_unique<BoostIFile>(m_trx_path);
-        read_canonicals();
         load_gtrx_events();
         preload_query_events(MAX_QUERY_EVENTS);
     }
@@ -176,7 +175,7 @@ TrxEvent CapBoostStorage::load_trx_event(BoostIFile& bif)
     return tevent;
 }
 
-void CapBoostStorage::read_canonicals()
+void CapBoostStorage::load_canonicals()
 {
     int64_t can_id;
     std::string canonical;
@@ -279,6 +278,11 @@ CapBoostStorage::SortReport CapBoostStorage::sort_query_event_file(const SortCal
 
 std::shared_ptr<std::string> CapBoostStorage::find_canonical(int64_t can_id)
 {
+    if (m_canonicals.empty())
+    {
+        load_canonicals();
+    }
+
     // Linear search isn't that bad - there aren't that many canonicals,
     // and this is only called when loading events. If it becomes are
     // problem, create an index.
@@ -295,8 +299,13 @@ std::shared_ptr<std::string> CapBoostStorage::find_canonical(int64_t can_id)
     return ite->second.sCanonical;
 }
 
-std::map<int64_t, std::shared_ptr<std::string>>  CapBoostStorage::canonicals() const
+std::map<int64_t, std::shared_ptr<std::string>>  CapBoostStorage::canonicals()
 {
+    if (m_canonicals.empty())
+    {
+        load_canonicals();
+    }
+
     std::map<int64_t, std::shared_ptr<std::string>> canonicals_by_id;
 
     for (const auto& [k, v] : m_canonicals)
