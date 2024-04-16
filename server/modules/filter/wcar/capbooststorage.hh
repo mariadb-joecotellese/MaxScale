@@ -93,6 +93,8 @@ public:
     static QueryEvent load_query_event(BoostIFile& bif);
     // Load a trx event.
     static TrxEvent load_trx_event(BoostIFile& bif);
+    // Load all trx events
+    static std::vector<TrxEvent> load_trx_events(BoostIFile& bif);
 
     /**
      * Get all of the canonicals mapped to their IDs
@@ -107,8 +109,6 @@ public:
      * @param out The stream where the output is written
      */
     void events_to_sql(std::ostream& out);
-
-    std::vector<TrxEvent> load_trx_events();
 
 private:
 

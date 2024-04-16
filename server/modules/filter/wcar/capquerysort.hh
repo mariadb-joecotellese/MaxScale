@@ -30,6 +30,8 @@ public:
     std::vector<TrxEvent> release_trx_events();
     SortReport            report();
 private:
+    void sort_trx_events();
+
     fs::path                m_file_path;
     SortCallback            m_sort_cb;
     std::vector<QueryEvent> m_qevents;

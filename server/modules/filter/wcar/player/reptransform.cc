@@ -81,8 +81,10 @@ void RepTransform::transform_events(const fs::path& path, Action action)
     }
     else
     {
-        CapBoostStorage boost{path, ReadWrite::READ_ONLY};
-        m_trxs = boost.load_trx_events();
+        auto trx_path = path;
+        trx_path.replace_extension("gx");
+        BoostIFile trx_in{trx_path.string()};
+        m_trxs = CapBoostStorage::load_trx_events(trx_in);
     }
 
     // Create the mappings

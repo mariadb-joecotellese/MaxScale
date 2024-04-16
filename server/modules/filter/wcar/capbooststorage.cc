@@ -186,12 +186,12 @@ void CapBoostStorage::load_canonicals()
     }
 }
 
-std::vector<TrxEvent> CapBoostStorage::load_trx_events()
+std::vector<TrxEvent> CapBoostStorage::load_trx_events(BoostIFile& bif)
 {
     std::vector<TrxEvent> tevents;
-    while (!m_sTrx_in->at_end_of_stream())
+    while (!bif.at_end_of_stream())
     {
-        tevents.push_back(load_trx_event(*m_sTrx_in));
+        tevents.push_back(load_trx_event(bif));
     }
 
     return tevents;
