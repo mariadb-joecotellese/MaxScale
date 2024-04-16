@@ -58,12 +58,22 @@ json_t* create_query(int id, const std::string& sql, const DiffData& data)
     json_object_set_new(pQuery, "sql", json_string(sql.c_str()));
     json_object_set_new(pQuery, "errors", json_integer(data.errors()));
 
+    json_t* pResult_rows = json_object();
+    json_object_set_new(pResult_rows, "sum", json_integer(data.rr_sum()));
+    json_object_set_new(pResult_rows, "min", json_integer(data.rr_min()));
+    json_object_set_new(pResult_rows, "max", json_integer(data.rr_max()));
+    json_object_set_new(pResult_rows, "mean", json_integer(data.rr_mean()));
+    json_object_set_new(pResult_rows, "count", json_integer(data.rr_count()));
+    json_object_set_new(pResult_rows, "stddev", json_real(0));
+
+    json_object_set_new(pQuery, "result_rows", pResult_rows);
+
     json_t* pRows_read = json_object();
-    json_object_set_new(pRows_read, "sum", json_integer(data.rr_sum()));
-    json_object_set_new(pRows_read, "min", json_integer(data.rr_min()));
-    json_object_set_new(pRows_read, "max", json_integer(data.rr_max()));
-    json_object_set_new(pRows_read, "mean", json_integer(data.rr_mean()));
-    json_object_set_new(pRows_read, "count", json_integer(data.rr_count()));
+    json_object_set_new(pRows_read, "sum", json_integer(0));
+    json_object_set_new(pRows_read, "min", json_integer(0));
+    json_object_set_new(pRows_read, "max", json_integer(0));
+    json_object_set_new(pRows_read, "mean", json_real(0));
+    json_object_set_new(pRows_read, "count", json_integer(0));
     json_object_set_new(pRows_read, "stddev", json_real(0));
 
     json_object_set_new(pQuery, "rows_read", pRows_read);
