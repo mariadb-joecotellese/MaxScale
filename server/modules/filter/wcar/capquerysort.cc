@@ -11,9 +11,23 @@ QuerySort::QuerySort(fs::path file_path,
     : m_file_path(file_path)
     , m_sort_cb(sort_cb)
 {
+    sort_query_events();
     sort_trx_events();
+}
 
-    auto qevent_path = file_path.replace_extension("ex");
+std::vector<TrxEvent> QuerySort::release_trx_events()
+{
+    return std::move(m_tevents);
+}
+
+SortReport QuerySort::report()
+{
+    return m_report;
+}
+
+void QuerySort::sort_query_events()
+{
+    auto qevent_path = m_file_path.replace_extension("ex");
     BoostIFile qevent_in{qevent_path.string()};
     while (!qevent_in.at_end_of_stream())
     {
@@ -25,7 +39,7 @@ QuerySort::QuerySort(fs::path file_path,
         return lhs.start_time < rhs.start_time;
     });
 
-    int64_t num_events;
+    int64_t num_events = 0;
     BoostOFile qevent_out{m_file_path.replace_extension("ex")};
     for (auto&& qevent : m_qevents)
     {
@@ -36,16 +50,6 @@ QuerySort::QuerySort(fs::path file_path,
 
     m_report.capture_duration = m_qevents.back().end_time - m_qevents.front().start_time;
     m_report.events = num_events;
-}
-
-std::vector<TrxEvent> QuerySort::release_trx_events()
-{
-    return std::move(m_tevents);
-}
-
-SortReport QuerySort::report()
-{
-    return m_report;
 }
 
 void QuerySort::sort_trx_events()
