@@ -47,6 +47,34 @@ struct QueryKey : public SortKey
     std::unique_ptr<QueryEvent> sQuery_event;
 };
 
+/* A chunk of QueryKeys used for implementing
+ * merge-sort of QueryEvents
+ */
+class Chunk
+{
+public:
+    explicit Chunk(std::deque<QueryKey>&& qevents);
+    Chunk() = default;
+    Chunk(Chunk&&) = default;
+    Chunk& operator=(Chunk&&) = default;
+
+    [[nodiscard]] bool empty() const;
+    size_t             size() const;
+
+    const QueryKey& front() const;
+    const QueryKey& back() const;
+
+    void  push_back(QueryKey&& qkey);
+    void  sort();
+    void  pop_front();
+    void  append(Chunk&& rhs);
+    void  merge(Chunk&& rhs);
+    Chunk split();
+
+private:
+    std::deque<QueryKey> m_qkeys;
+};
+
 class QuerySort
 {
 public:

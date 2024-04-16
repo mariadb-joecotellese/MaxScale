@@ -17,6 +17,78 @@ static inline bool operator==(const SortKey& lhs, const SortKey& rhs)
     return lhs.event_id == rhs.event_id;
 }
 
+// Chunk implementation
+inline Chunk::Chunk(std::deque<QueryKey>&& qevents)
+    : m_qkeys{std::move(qevents)}
+{
+}
+
+inline bool Chunk::empty() const
+{
+    return m_qkeys.empty();
+}
+
+inline size_t Chunk::size() const
+{
+    return m_qkeys.size();
+}
+
+inline const QueryKey& Chunk::front() const
+{
+    mxb_assert(!m_qkeys.empty());
+    return m_qkeys.front();
+}
+
+inline const QueryKey& Chunk::back() const
+{
+    mxb_assert(!m_qkeys.empty());
+    return m_qkeys.back();
+}
+
+inline void Chunk::push_back(QueryKey&& qkey)
+{
+    m_qkeys.push_back(std::move(qkey));
+}
+
+inline void Chunk::sort()
+{
+    std::sort(std::execution::par, m_qkeys.begin(), m_qkeys.end());
+}
+
+inline void Chunk::pop_front()
+{
+    mxb_assert(!m_qkeys.empty());
+    m_qkeys.pop_front();
+}
+
+inline void Chunk::append(Chunk&& rhs)
+{
+    m_qkeys.insert(end(m_qkeys),
+                   std::make_move_iterator(begin(rhs.m_qkeys)),
+                   std::make_move_iterator(end(rhs.m_qkeys)));
+}
+
+inline Chunk Chunk::split()
+{
+    auto middle = m_qkeys.begin() + m_qkeys.size() / 2;
+    std::deque<QueryKey> split_qkeys {std::make_move_iterator(middle),
+                                      std::make_move_iterator(m_qkeys.end())};
+    m_qkeys.erase(middle, m_qkeys.end());
+
+    return Chunk{std::move(split_qkeys)};
+}
+
+inline void Chunk::merge(Chunk&& rhs)
+{
+    std::deque<QueryKey> res;
+    std::merge(std::execution::par,
+               std::make_move_iterator(m_qkeys.begin()), std::make_move_iterator(m_qkeys.end()),
+               std::make_move_iterator(rhs.m_qkeys.begin()), std::make_move_iterator(rhs.m_qkeys.end()),
+               std::back_inserter(res));
+    m_qkeys = std::move(res);
+}
+
+
 QuerySort::QuerySort(fs::path file_path,
                      SortCallback sort_cb)
     : m_file_path(file_path)
