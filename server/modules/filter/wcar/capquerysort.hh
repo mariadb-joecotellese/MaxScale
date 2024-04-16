@@ -22,6 +22,31 @@ struct SortReport
     mxb::Duration capture_duration {0};
 };
 
+struct SortKey
+{
+    SortKey(wall_time::TimePoint start_time, int64_t event_id)
+        : start_time(start_time)
+        , event_id(event_id)
+    {
+    }
+    wall_time::TimePoint start_time;
+    int64_t              event_id;
+};
+
+struct QueryKey : public SortKey
+{
+    explicit QueryKey(std::unique_ptr<QueryEvent> sQuery_event)
+        : SortKey{sQuery_event->start_time, sQuery_event->event_id}
+        , sQuery_event(std::move(sQuery_event))
+    {
+    }
+
+    QueryKey(QueryKey&&) = default;
+    QueryKey& operator=(QueryKey&&) = default;
+
+    std::unique_ptr<QueryEvent> sQuery_event;
+};
+
 class QuerySort
 {
 public:
@@ -30,11 +55,13 @@ public:
     std::vector<TrxEvent> release_trx_events();
     SortReport            report();
 private:
+    void load_sort_keys();
     void sort_query_events();
     void sort_trx_events();
 
     fs::path                m_file_path;
     SortCallback            m_sort_cb;
+    std::vector<SortKey>    m_keys;
     std::vector<QueryEvent> m_qevents;
     std::vector<TrxEvent>   m_tevents;
     SortReport              m_report;

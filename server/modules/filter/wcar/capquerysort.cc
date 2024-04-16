@@ -6,11 +6,23 @@
 #include "capquerysort.hh"
 #include <execution>
 
+static inline bool operator<(const SortKey& lhs, const SortKey& rhs)
+{
+    return lhs.start_time < rhs.start_time
+           || (lhs.start_time == rhs.start_time && lhs.event_id < rhs.event_id);
+}
+
+static inline bool operator==(const SortKey& lhs, const SortKey& rhs)
+{
+    return lhs.event_id == rhs.event_id;
+}
+
 QuerySort::QuerySort(fs::path file_path,
                      SortCallback sort_cb)
     : m_file_path(file_path)
     , m_sort_cb(sort_cb)
 {
+    load_sort_keys();
     sort_query_events();
     sort_trx_events();
 }
@@ -23,6 +35,20 @@ std::vector<TrxEvent> QuerySort::release_trx_events()
 SortReport QuerySort::report()
 {
     return m_report;
+}
+
+void QuerySort::load_sort_keys()
+{
+    auto qevent_path = m_file_path;
+    qevent_path.replace_extension("ex");
+    BoostIFile query_in{qevent_path.string()};
+    while (!query_in.at_end_of_stream())
+    {
+        auto qevent = CapBoostStorage::load_query_event(query_in);
+        m_keys.emplace_back(qevent.start_time, qevent.event_id);
+    }
+
+    std::sort(std::execution::par, m_keys.begin(), m_keys.end());
 }
 
 void QuerySort::sort_query_events()
