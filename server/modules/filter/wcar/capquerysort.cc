@@ -6,6 +6,12 @@
 #include "capquerysort.hh"
 #include <execution>
 
+// This should not really be a constant, but rather dynamic
+// based on available memory as a QueryEvent has a vector
+// of canonical arguments.
+
+constexpr size_t MAX_CHUNK_SIZE = 1'000'000;
+
 static inline bool operator<(const SortKey& lhs, const SortKey& rhs)
 {
     return lhs.start_time < rhs.start_time
@@ -175,4 +181,37 @@ void QuerySort::sort_trx_events()
     {
         CapBoostStorage::save_trx_event(trx_out, e);
     }
+}
+
+bool QuerySort::fill_chunk(Chunk& chunk, BoostIFile& query_in)
+{
+    auto n_existing_events = chunk.size();
+    Chunk new_chunk;
+    while (!query_in.at_end_of_stream() && new_chunk.size() + n_existing_events < MAX_CHUNK_SIZE)
+    {
+        auto qevent = CapBoostStorage::load_query_event(query_in);
+        new_chunk.push_back(QueryKey(std::make_unique<QueryEvent>(std::move(qevent))));
+    }
+
+    if (new_chunk.empty())
+    {
+        return true;
+    }
+
+    new_chunk.sort();
+
+    if (chunk.empty())
+    {
+        chunk = std::move(new_chunk);
+    }
+    else if (chunk.back() < new_chunk.front())
+    {
+        chunk.append(std::move(new_chunk));
+    }
+    else
+    {
+        chunk.merge(std::move(new_chunk));
+    }
+
+    return false;
 }

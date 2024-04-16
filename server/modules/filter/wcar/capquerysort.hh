@@ -86,6 +86,8 @@ private:
     void load_sort_keys();
     void sort_query_events();
     void sort_trx_events();
+    // Returns true when query_in has been all read
+    bool fill_chunk(Chunk& chunk, BoostIFile& query_in);
 
     fs::path                m_file_path;
     SortCallback            m_sort_cb;
