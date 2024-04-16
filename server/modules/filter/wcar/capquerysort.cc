@@ -131,29 +131,73 @@ void QuerySort::load_sort_keys()
 
 void QuerySort::sort_query_events()
 {
-    auto qevent_path = m_file_path.replace_extension("ex");
-    BoostIFile qevent_in{qevent_path.string()};
-    while (!qevent_in.at_end_of_stream())
+    auto key_ite = m_keys.begin();
+
+    auto qevent_path = m_file_path;
+    qevent_path.replace_extension("ex");
+    BoostIFile query_in{qevent_path.string()};
+    BoostOFile query_out{qevent_path.string()};
+
+    Chunk work_chunk;
+    fill_chunk(work_chunk, query_in);
+
+    int directly_out = 0;
+    while (key_ite != m_keys.end())
     {
-        m_qevents.push_back(CapBoostStorage::load_query_event(qevent_in));
+        while (!work_chunk.empty() && work_chunk.front() == *key_ite)
+        {
+            ++key_ite;
+            ++directly_out;
+            m_sort_cb(*work_chunk.front().sQuery_event);
+            CapBoostStorage::save_query_event(query_out, std::move(*work_chunk.front().sQuery_event));
+            work_chunk.pop_front();
+        }
+
+        if (work_chunk.size() == MAX_CHUNK_SIZE)
+        {
+            m_external_chunks.save(work_chunk.split());
+        }
+
+        if (fill_chunk(work_chunk, query_in))
+        {
+            break;
+        }
     }
 
-    std::sort(std::execution::par, m_qevents.begin(), m_qevents.end(),
-              [](const auto& lhs, const auto& rhs){
-        return lhs.start_time < rhs.start_time;
-    });
-
-    int64_t num_events = 0;
-    BoostOFile qevent_out{m_file_path.replace_extension("ex")};
-    for (auto&& qevent : m_qevents)
+    auto merge_chunks = m_external_chunks.load();
+    if (!work_chunk.empty())
     {
-        ++num_events;
-        m_sort_cb(qevent);
-        CapBoostStorage::save_query_event(qevent_out, qevent);
+        merge_chunks.push_back(std::move(work_chunk));
     }
 
-    m_report.capture_duration = m_qevents.back().end_time - m_qevents.front().start_time;
-    m_report.events = num_events;
+    // merge the chunks.
+    while (!merge_chunks.empty())
+    {
+        auto from_ite = merge_chunks.end();
+
+        for (auto ite = begin(merge_chunks); ite != end(merge_chunks); ++ite)
+        {
+            if (ite->front() == *key_ite)
+            {
+                from_ite = ite;
+                break;
+            }
+        }
+        mxb_assert(from_ite != merge_chunks.end());
+
+        while (from_ite->front() == *key_ite)
+        {
+            m_sort_cb(*from_ite->front().sQuery_event);
+            CapBoostStorage::save_query_event(query_out, std::move(*from_ite->front().sQuery_event));
+            from_ite->pop_front();
+            ++key_ite;
+            if (from_ite->empty())
+            {
+                merge_chunks.erase(from_ite);
+                break;
+            }
+        }
+    }
 }
 
 void QuerySort::sort_trx_events()
