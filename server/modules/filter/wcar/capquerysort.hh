@@ -6,6 +6,7 @@
 #pragma once
 
 #include "capbooststorage.hh"
+#include <iomanip>
 
 using SortCallback = std::function<void (const QueryEvent&)>;
 
@@ -75,6 +76,33 @@ private:
     std::deque<QueryKey> m_qkeys;
 };
 
+class ExternalChunks
+{
+public:
+    void save(Chunk&& chunk)
+    {
+        std::ostringstream os;
+        os << chunk_file_base_name << std::setfill('0') << std::setw(4) << m_chunk_ctr++;
+        m_chunk_files.emplace(os.str(), std::move(chunk));
+    }
+
+    std::vector<Chunk> load()
+    {
+        std::vector<Chunk> ret;
+        for (auto& p : m_chunk_files)
+        {
+            ret.push_back(std::move(p.second));
+        }
+        return ret;
+    }
+
+private:
+    static inline const std::string chunk_file_base_name = "/tmp/chunk-";
+    int                             m_chunk_ctr = 0;
+    // These would be read and written from boost
+    std::map<std::string, Chunk> m_chunk_files;
+};
+
 class QuerySort
 {
 public:
@@ -92,6 +120,7 @@ private:
     fs::path                m_file_path;
     SortCallback            m_sort_cb;
     std::vector<SortKey>    m_keys;
+    ExternalChunks          m_external_chunks;
     std::vector<QueryEvent> m_qevents;
     std::vector<TrxEvent>   m_tevents;
     SortReport              m_report;
