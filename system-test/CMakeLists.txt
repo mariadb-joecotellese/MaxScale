@@ -1098,6 +1098,15 @@ add_test_executable_notest(gui_demo.cc gui_demo gui_demo LABELS gui_demo REPL_BA
 # END: DUMMY test to create GUI demo setup   #
 ##############################################
 
+##############################################
+# BEGIN: Enterprise tests                    #
+##############################################
+
+add_subdirectory(enterprise)
+
+##############################################
+# End: Enterprise tests                      #
+##############################################
 
 ###############################
 # DO NOT ADD TESTS AFTER THIS #
