@@ -84,6 +84,16 @@ inline WorkChunk WorkChunk::split()
     return WorkChunk{std::move(split_qkeys)};
 }
 
+void WorkChunk::save(const std::string& file_name)
+{
+    BoostOFile query_out{file_name};
+
+    for (const auto& qkey : m_qkeys)
+    {
+        CapBoostStorage::save_query_event(query_out, *qkey.sQuery_event);
+    }
+}
+
 inline void WorkChunk::merge(WorkChunk&& rhs)
 {
     std::deque<QueryKey> res;
@@ -258,4 +268,49 @@ bool QuerySort::fill_chunk(WorkChunk& chunk, BoostIFile& query_in)
     }
 
     return false;
+}
+
+StreamChunk::StreamChunk(WorkChunk&& work_chunk)
+    : m_qkeys{std::move(work_chunk.m_qkeys)}
+{
+}
+
+StreamChunk::StreamChunk(const std::string& file_name)
+    : m_infile{std::make_unique<BoostIFile>(file_name)}
+{
+}
+
+inline bool StreamChunk::empty()
+{
+    if (m_qkeys.empty() && m_infile)
+    {
+        read_more();
+    }
+    return m_qkeys.empty();
+}
+
+inline const QueryKey& StreamChunk::front()
+{
+    if (m_qkeys.empty() && m_infile)
+    {
+        read_more();
+    }
+    mxb_assert(!m_qkeys.empty());
+    return m_qkeys.front();
+}
+
+void StreamChunk::pop_front()
+{
+    mxb_assert(!m_qkeys.empty());
+    m_qkeys.pop_front();
+}
+
+void StreamChunk::read_more()
+{
+    mxb_assert(m_infile);
+
+    while (m_qkeys.size() < 1000 && !m_infile->at_end_of_stream())
+    {
+        m_qkeys.emplace_back(std::make_unique<QueryEvent>(CapBoostStorage::load_query_event(*m_infile)));
+    }
 }

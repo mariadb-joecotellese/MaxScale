@@ -65,15 +65,37 @@ public:
     const QueryKey& front() const;
     const QueryKey& back() const;
 
-    void  push_back(QueryKey&& qkey);
-    void  sort();
-    void  pop_front();
-    void  append(WorkChunk&& rhs);
-    void  merge(WorkChunk&& rhs);
+    void      push_back(QueryKey&& qkey);
+    void      sort();
+    void      pop_front();
+    void      append(WorkChunk&& rhs);
+    void      merge(WorkChunk&& rhs);
     WorkChunk split();
 
+    void save(const std::string& file_name);
 private:
+    friend class StreamChunk;
     std::deque<QueryKey> m_qkeys;
+};
+
+/** A chunk of QueryKeys streamed from a file, or alternatively
+ *  created from a WorkChunk.
+ */
+class StreamChunk
+{
+public:
+    explicit StreamChunk(WorkChunk&& work_chunk);
+    explicit StreamChunk(const std::string& file_name);
+    StreamChunk(StreamChunk&&) = default;
+    StreamChunk& operator=(StreamChunk&&) = default;
+
+    [[nodiscard]] bool empty();
+    const QueryKey&    front();
+    void               pop_front();
+private:
+    void read_more();
+    std::deque<QueryKey>        m_qkeys;
+    std::unique_ptr<BoostIFile> m_infile;
 };
 
 class ExternalChunks
