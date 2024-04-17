@@ -23,68 +23,68 @@ static inline bool operator==(const SortKey& lhs, const SortKey& rhs)
     return lhs.event_id == rhs.event_id;
 }
 
-// Chunk implementation
-inline Chunk::Chunk(std::deque<QueryKey>&& qevents)
+// WorkChunk implementation
+inline WorkChunk::WorkChunk(std::deque<QueryKey>&& qevents)
     : m_qkeys{std::move(qevents)}
 {
 }
 
-inline bool Chunk::empty() const
+inline bool WorkChunk::empty() const
 {
     return m_qkeys.empty();
 }
 
-inline size_t Chunk::size() const
+inline size_t WorkChunk::size() const
 {
     return m_qkeys.size();
 }
 
-inline const QueryKey& Chunk::front() const
+inline const QueryKey& WorkChunk::front() const
 {
     mxb_assert(!m_qkeys.empty());
     return m_qkeys.front();
 }
 
-inline const QueryKey& Chunk::back() const
+inline const QueryKey& WorkChunk::back() const
 {
     mxb_assert(!m_qkeys.empty());
     return m_qkeys.back();
 }
 
-inline void Chunk::push_back(QueryKey&& qkey)
+inline void WorkChunk::push_back(QueryKey&& qkey)
 {
     m_qkeys.push_back(std::move(qkey));
 }
 
-inline void Chunk::sort()
+inline void WorkChunk::sort()
 {
     std::sort(std::execution::par, m_qkeys.begin(), m_qkeys.end());
 }
 
-inline void Chunk::pop_front()
+inline void WorkChunk::pop_front()
 {
     mxb_assert(!m_qkeys.empty());
     m_qkeys.pop_front();
 }
 
-inline void Chunk::append(Chunk&& rhs)
+inline void WorkChunk::append(WorkChunk&& rhs)
 {
     m_qkeys.insert(end(m_qkeys),
                    std::make_move_iterator(begin(rhs.m_qkeys)),
                    std::make_move_iterator(end(rhs.m_qkeys)));
 }
 
-inline Chunk Chunk::split()
+inline WorkChunk WorkChunk::split()
 {
     auto middle = m_qkeys.begin() + m_qkeys.size() / 2;
     std::deque<QueryKey> split_qkeys {std::make_move_iterator(middle),
                                       std::make_move_iterator(m_qkeys.end())};
     m_qkeys.erase(middle, m_qkeys.end());
 
-    return Chunk{std::move(split_qkeys)};
+    return WorkChunk{std::move(split_qkeys)};
 }
 
-inline void Chunk::merge(Chunk&& rhs)
+inline void WorkChunk::merge(WorkChunk&& rhs)
 {
     std::deque<QueryKey> res;
     std::merge(std::execution::par,
@@ -138,7 +138,7 @@ void QuerySort::sort_query_events()
     BoostIFile query_in{qevent_path.string()};
     BoostOFile query_out{qevent_path.string()};
 
-    Chunk work_chunk;
+    WorkChunk work_chunk;
     fill_chunk(work_chunk, query_in);
 
     int directly_out = 0;
@@ -227,10 +227,10 @@ void QuerySort::sort_trx_events()
     }
 }
 
-bool QuerySort::fill_chunk(Chunk& chunk, BoostIFile& query_in)
+bool QuerySort::fill_chunk(WorkChunk& chunk, BoostIFile& query_in)
 {
     auto n_existing_events = chunk.size();
-    Chunk new_chunk;
+    WorkChunk new_chunk;
     while (!query_in.at_end_of_stream() && new_chunk.size() + n_existing_events < MAX_CHUNK_SIZE)
     {
         auto qevent = CapBoostStorage::load_query_event(query_in);

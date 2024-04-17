@@ -51,13 +51,13 @@ struct QueryKey : public SortKey
 /* A chunk of QueryKeys used for implementing
  * merge-sort of QueryEvents
  */
-class Chunk
+class WorkChunk
 {
 public:
-    explicit Chunk(std::deque<QueryKey>&& qevents);
-    Chunk() = default;
-    Chunk(Chunk&&) = default;
-    Chunk& operator=(Chunk&&) = default;
+    explicit WorkChunk(std::deque<QueryKey>&& qevents);
+    WorkChunk() = default;
+    WorkChunk(WorkChunk&&) = default;
+    WorkChunk& operator=(WorkChunk&&) = default;
 
     [[nodiscard]] bool empty() const;
     size_t             size() const;
@@ -68,9 +68,9 @@ public:
     void  push_back(QueryKey&& qkey);
     void  sort();
     void  pop_front();
-    void  append(Chunk&& rhs);
-    void  merge(Chunk&& rhs);
-    Chunk split();
+    void  append(WorkChunk&& rhs);
+    void  merge(WorkChunk&& rhs);
+    WorkChunk split();
 
 private:
     std::deque<QueryKey> m_qkeys;
@@ -79,16 +79,16 @@ private:
 class ExternalChunks
 {
 public:
-    void save(Chunk&& chunk)
+    void save(WorkChunk&& chunk)
     {
         std::ostringstream os;
         os << chunk_file_base_name << std::setfill('0') << std::setw(4) << m_chunk_ctr++;
         m_chunk_files.emplace(os.str(), std::move(chunk));
     }
 
-    std::vector<Chunk> load()
+    std::vector<WorkChunk> load()
     {
-        std::vector<Chunk> ret;
+        std::vector<WorkChunk> ret;
         for (auto& p : m_chunk_files)
         {
             ret.push_back(std::move(p.second));
@@ -100,7 +100,7 @@ private:
     static inline const std::string chunk_file_base_name = "/tmp/chunk-";
     int                             m_chunk_ctr = 0;
     // These would be read and written from boost
-    std::map<std::string, Chunk> m_chunk_files;
+    std::map<std::string, WorkChunk> m_chunk_files;
 };
 
 class QuerySort
@@ -115,7 +115,7 @@ private:
     void sort_query_events();
     void sort_trx_events();
     // Returns true when query_in has been all read
-    bool fill_chunk(Chunk& chunk, BoostIFile& query_in);
+    bool fill_chunk(WorkChunk& chunk, BoostIFile& query_in);
 
     fs::path                m_file_path;
     SortCallback            m_sort_cb;
