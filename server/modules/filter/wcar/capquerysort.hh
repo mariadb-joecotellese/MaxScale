@@ -6,6 +6,7 @@
 #pragma once
 
 #include "capbooststorage.hh"
+#include <maxbase/temp_file.hh>
 #include <iomanip>
 
 using SortCallback = std::function<void (const QueryEvent&)>;
@@ -101,28 +102,16 @@ private:
 class ExternalChunks
 {
 public:
-    void save(WorkChunk&& chunk)
-    {
-        std::ostringstream os;
-        os << chunk_file_base_name << std::setfill('0') << std::setw(4) << m_chunk_ctr++;
-        m_chunk_files.emplace(os.str(), std::move(chunk));
-    }
-
-    std::vector<WorkChunk> load()
-    {
-        std::vector<WorkChunk> ret;
-        for (auto& p : m_chunk_files)
-        {
-            ret.push_back(std::move(p.second));
-        }
-        return ret;
-    }
+    ExternalChunks();
+    void                     save(WorkChunk&& chunk);
+    std::vector<StreamChunk> load();
 
 private:
-    static inline const std::string chunk_file_base_name = "/tmp/chunk-";
+    static inline const std::string m_dir_name = "/tmp/query-chunks";
+    static inline const std::string m_file_base_name = "chunk-";
     int                             m_chunk_ctr = 0;
-    // These would be read and written from boost
-    std::map<std::string, WorkChunk> m_chunk_files;
+    mxb::TempDirectory              m_chunk_dir;
+    std::vector<std::string>        m_file_names;
 };
 
 class QuerySort

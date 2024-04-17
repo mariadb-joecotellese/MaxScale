@@ -177,7 +177,7 @@ void QuerySort::sort_query_events()
     auto merge_chunks = m_external_chunks.load();
     if (!work_chunk.empty())
     {
-        merge_chunks.push_back(std::move(work_chunk));
+        merge_chunks.push_back(StreamChunk(std::move(work_chunk)));
     }
 
     // merge the chunks.
@@ -313,4 +313,27 @@ void StreamChunk::read_more()
     {
         m_qkeys.emplace_back(std::make_unique<QueryEvent>(CapBoostStorage::load_query_event(*m_infile)));
     }
+}
+
+ExternalChunks::ExternalChunks()
+    : m_chunk_dir(m_dir_name)
+{
+}
+
+void ExternalChunks::save(WorkChunk&& chunk)
+{
+    std::ostringstream os;
+    os << m_dir_name << '/' << m_file_base_name << std::setfill('0') << std::setw(4) << m_chunk_ctr++;
+    m_file_names.push_back(os.str());
+    chunk.save(os.str());
+}
+
+std::vector<StreamChunk> ExternalChunks::load()
+{
+    std::vector<StreamChunk> ret;
+    for (auto& file_name : m_file_names)
+    {
+        ret.push_back(StreamChunk {file_name});
+    }
+    return ret;
 }
