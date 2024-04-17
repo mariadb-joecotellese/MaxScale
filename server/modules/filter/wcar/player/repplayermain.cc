@@ -7,6 +7,7 @@
 #include "../capdefs.hh"
 #include "repplayer.hh"
 #include "repconverter.hh"
+#include "repshow.hh"
 #include <iostream>
 #include <maxbase/maxbase.hh>
 #include "../capbooststorage.hh"
@@ -35,7 +36,7 @@ try
         RepPlayer player(&config);
         player.replay();
     }
-    else if (config.command == cmd::TRANSFORM)
+    else if (config.command == cmd::SUMMARY)
     {
         RepTransform transform(&config, RepTransform::TRANSFORM);
     }
@@ -73,27 +74,7 @@ try
     }
     else if (config.command == cmd::SHOW)
     {
-        std::set<uint64_t> ids;
-
-        for (const auto& str : config.extra_args)
-        {
-            ids.insert(atol(str.c_str()));
-        }
-
-        for (auto&& qevent : CapBoostStorage(config.file_name, ReadWrite::READ_ONLY))
-        {
-            if (auto it = ids.find(qevent.event_id); it != ids.end())
-            {
-                std::cout << maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args)
-                          << ";\n";
-                ids.erase(it);
-
-                if (ids.empty())
-                {
-                    break;
-                }
-            }
-        }
+        RepShow(config).show(std::cout);
     }
     else
     {

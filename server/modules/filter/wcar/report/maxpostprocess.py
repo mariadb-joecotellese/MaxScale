@@ -60,8 +60,8 @@ WITH bin_sizes AS(
   FROM replay_results GROUP BY canonical
 ) SELECT a.canonical,
          FLOOR(((
-           CASE WHEN duration < b.high_value THEN duration else b.high_value END - b.low_value + 1.0
-         ) / (b.high_value - b.low_value + 1.0)) * b.bin_count) bin_num,
+           CASE WHEN duration < b.high_value THEN duration ELSE b.high_value END - b.low_value
+         ) / COALESCE(NULLIF(b.high_value - b.low_value, 0), 1)) * b.bin_count) bin_num,
          COUNT(duration) bin_count
 FROM replay_results a JOIN bin_sizes b ON (a.canonical = b.canonical)
 WHERE {NO_ERRORS_IN_a}
@@ -141,6 +141,7 @@ def process(replay, canonicals):
 
     dur_stats = get_statistics("duration")
     rr_stats = get_statistics("rows_read")
+    res_stats = get_statistics("result_rows")
     canonicals = get_canonicals()
     error_counts = get_error_counts()
     qps = get_qps()
@@ -152,6 +153,7 @@ def process(replay, canonicals):
           "id": can,
           "sql": canonicals[can],
           "errors": error_counts[can],
+          "result_rows" : res_stats[can] if can in res_stats else no_stats,
           "rows_read": rr_stats[can] if can in rr_stats else no_stats,
           "duration" : (dur_stats[can] if can in dur_stats else no_stats) | {
                "hist_bin_counts": h["hist_bin_counts"].tolist(),
@@ -185,7 +187,7 @@ def compare(res1: dict, res2: dict):
         diff = {
             k1: {
                 k2 : rhs[k][k1][k2] - lhs[k][k1][k2] for k2 in lhs[k][k1] if k2 not in ["hist_bin_counts", "hist_bin_edges"]
-            } for k1 in ["duration", "rows_read"]
+            } for k1 in ["duration", "rows_read", "result_rows"]
         }
         diff["errors"] = rhs[k]["errors"] - lhs[k]["errors"]
         result.append((lhs[k], rhs[k], diff))

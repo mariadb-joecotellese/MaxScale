@@ -1,11 +1,10 @@
 #include "reptransform.hh"
 #include "../capbooststorage.hh"
-#include "repbooststorage.hh"
-#include "repcsvstorage.hh"
+#include "../capquerysort.hh"
 #include "maxbase/assert.hh"
 #include <maxbase/json.hh>
 #include <maxscale/parser.hh>
-#include <execution>
+#include <unordered_set>
 
 RepTransform::RepTransform(const RepConfig* pConfig, Action action)
     : m_config(*pConfig)
@@ -48,8 +47,7 @@ void RepTransform::transform_events(const fs::path& path, Action action)
     tx_path.replace_extension("tx");
     bool needs_sorting = !fs::exists(tx_path);
 
-    CapBoostStorage boost{path, ReadWrite::READ_ONLY};
-    CapBoostStorage::SortReport report;
+    SortReport report;
 
     mxb::StopWatch sw;
     int num_active_session = 0;
@@ -76,10 +74,18 @@ void RepTransform::transform_events(const fs::path& path, Action action)
             }
         };
 
-        report = boost.sort_query_event_file(sort_cb);
-    }
+        QuerySort sorter(path, sort_cb);
 
-    m_trxs = boost.release_trx_events();
+        m_trxs = sorter.release_trx_events();
+        report = sorter.report();
+    }
+    else
+    {
+        auto trx_path = path;
+        trx_path.replace_extension("gx");
+        BoostIFile trx_in{trx_path.string()};
+        m_trxs = CapBoostStorage::load_trx_events(trx_in);
+    }
 
     // Create the mappings
     for (auto ite = begin(m_trxs); ite != end(m_trxs); ++ite)
@@ -99,10 +105,18 @@ void RepTransform::transform_events(const fs::path& path, Action action)
         capture.set_int("sessions", num_sessions);
         capture.set_int("max_parallel_sessions", m_max_parallel_sessions);
 
+        if (!m_trxs.empty())
+        {
+            capture.set_string("start_gtid", MAKE_STR(m_trxs.front().gtid));
+            capture.set_string("end_gtid", MAKE_STR(m_trxs.back().gtid));
+        }
+
         mxb::Json transform(mxb::Json::Type::OBJECT);
-        transform.set_real("read", mxb::to_secs(report.read));
-        transform.set_real("sort", mxb::to_secs(report.sort));
-        transform.set_real("write", mxb::to_secs(report.write));
+        transform.set_real("read_duration", mxb::to_secs(report.read_duration));
+        transform.set_real("sort_duration", mxb::to_secs(report.sort_duration));
+        transform.set_real("merge_duration", mxb::to_secs(report.merge_duration));
+        transform.set_int("direct_to_output", report.events_direct_to_output);
+        transform.set_int("merge_files", report.merge_files);
 
         mxb::Json js(mxb::Json::Type::OBJECT);
         js.set_real("duration", mxb::to_secs(sw.split()));
@@ -120,9 +134,12 @@ void RepTransform::transform_events(const fs::path& path, Action action)
         mxb_assert(m_max_parallel_sessions > 0);
     }
 
-    MXB_SNOTICE("Original sort time: " << tx_js.at("duration").get_real() << "s");
+    const char* sort_type = (needs_sorting ? "Sort" : "Original sort");
+    MXB_SNOTICE(sort_type << " time: " << tx_js.at("duration").get_real() << "s");
     MXB_SNOTICE("Events: " << tx_js.at("capture/events").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Transactions: " << tx_js.at("capture/transactions").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Sessions: " << tx_js.at("capture/sessions").to_string(mxb::Json::Format::COMPACT));
-    MXB_SNOTICE("Expected runtime: " << tx_js.at("capture/duration").get_real() << "s");
+    MXB_SNOTICE("Nominal runtime: " << tx_js.at("capture/duration").get_real() << "s");
+    MXB_SNOTICE("First GTID: " << tx_js.at("capture/start_gtid").to_string(mxb::Json::Format::COMPACT));
+    MXB_SNOTICE("Last GTID: " << tx_js.at("capture/end_gtid").to_string(mxb::Json::Format::COMPACT));
 }

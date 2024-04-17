@@ -35,6 +35,15 @@ cfg::ParamEnum<StorageMethod> s_storage_method(
 cfg::ParamBool s_start_capture(
     &s_spec, "start_capture", "Start capture on maxscale start", false);
 
+cfg::ParamEnum<CaptureStartMethod> s_capture_start_method(
+    &s_spec, "capture_start_method", "How capture deals with active transactions",
+{
+    {CaptureStartMethod::ABORT_ACTIVE_TRANSACTIONS, "abort_transactions"},
+    {CaptureStartMethod::IGNORE_ACTIVE_TRANSACTIONS, "ignore_transactions"},
+},
+    CaptureStartMethod::ABORT_ACTIVE_TRANSACTIONS);
+
+
 cfg::ParamDuration<wall_time::Duration> s_capture_duration(
     &s_spec, "capture_duration", "Limit capture to this duration", 0s);
 
@@ -48,6 +57,7 @@ CapConfig::CapConfig(const std::string& name, std::function<bool ()> filter_post
     add_native(&CapConfig::capture_dir, &s_capture_dir);
     add_native(&CapConfig::storage_method, &s_storage_method);
     add_native(&CapConfig::start_capture, &s_start_capture);
+    add_native(&CapConfig::capture_start_method, &s_capture_start_method);
     add_native(&CapConfig::capture_duration, &s_capture_duration);
     add_native(&CapConfig::capture_size, &s_capture_size);
 }

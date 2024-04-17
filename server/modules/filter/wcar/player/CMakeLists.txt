@@ -3,6 +3,7 @@ repplayermain.cc
 repplayer.cc
 repconfig.cc
 repsession.cc
+repshow.cc
 reptransform.cc
 reprecorder.cc
 repbooststorage.cc

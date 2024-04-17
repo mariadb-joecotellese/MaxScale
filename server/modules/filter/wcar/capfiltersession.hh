@@ -39,6 +39,13 @@ private:
     CapFilterSession(CapFilterSession&&) = delete;
 
 private:
+    enum class InitState
+    {
+        SEND_QUERY,
+        READ_RESULT,
+        INIT_DONE,
+    };
+
     /**
      * @brief generate_canonical_for - Fill *pQuery_event with canonical and args
      *                                 for a non-sql buffer, if possible.
@@ -53,6 +60,7 @@ private:
     enum Who {CURRENT_WORKER, MAIN_WORKER};
     void                    send_event(QueryEvent&& qevent, Who who = CURRENT_WORKER);
     std::vector<QueryEvent> make_opening_events(wall_time::TimePoint start_time);
+    QueryEvent              make_rollback_event();
     QueryEvent              make_closing_event();
 
     const CapFilter&             m_filter;
@@ -61,7 +69,9 @@ private:
     std::mutex                   m_state_mutex;
 
     CapSessionState m_session_state;
+    bool            m_inside_initial_trx = false;   // A trx was active when capture started
     bool            m_capture = false;
+    InitState       m_init_state = InitState::SEND_QUERY;
     QueryEvent      m_query_event;
 
     mariadb::PsTracker m_ps_tracker;

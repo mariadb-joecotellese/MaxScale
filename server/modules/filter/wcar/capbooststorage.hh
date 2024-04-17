@@ -19,6 +19,8 @@
 using BoostOArchive = boost::archive::binary_oarchive;
 using BoostIArchive = boost::archive::binary_iarchive;
 
+constexpr int64_t MAX_QUERY_EVENTS = 10'000;
+
 namespace fs = std::filesystem;
 
 enum class ReadWrite
@@ -79,33 +81,27 @@ public:
     // Return file size
     int64_t size() override;
 
-    struct SortReport
-    {
-        // Statistics about the sorting
-        mxb::Duration total {0};
-        mxb::Duration read {0};
-        mxb::Duration sort {0};
-        mxb::Duration write {0};
+    // Save an event
+    static void save_query_event(BoostOFile& bof, const QueryEvent& qevent);
+    // Save a canonical
+    static void save_canonical(BoostOFile& bof, int64_t can_id, const std::string& canonical);
+    // Save trx event
+    static void save_trx_event(BoostOFile& bof, const TrxEvent& qevent);
 
-        // Statistics about the capture itself
-        int64_t       events {0};
-        mxb::Duration capture_duration {0};
-    };
-
-    /**
-     * Sort query event file, write back and re-open.
-     * Call sort_cb() for each event in sorted order.
-     * @return A report on the sorting and capture statistics
-     */
-    using SortCallback = std::function<void (const QueryEvent&)>;
-    SortReport sort_query_event_file(const SortCallback& sort_cb);
+    // Load a  query event. The members sCanonical and sTrx
+    // are not populated.
+    static QueryEvent load_query_event(BoostIFile& bif);
+    // Load a trx event.
+    static TrxEvent load_trx_event(BoostIFile& bif);
+    // Load all trx events
+    static std::vector<TrxEvent> load_trx_events(BoostIFile& bif);
 
     /**
      * Get all of the canonicals mapped to their IDs
      *
      * @return The canonical form of the query strings mapped to their IDs
      */
-    std::map<int64_t, std::shared_ptr<std::string>> canonicals() const;
+    std::map<int64_t, std::shared_ptr<std::string>> canonicals();
 
     /**
      * Convert the events to SQL and write them into a file
@@ -114,28 +110,11 @@ public:
      */
     void events_to_sql(std::ostream& out);
 
-    std::vector<TrxEvent> release_trx_events()
-    {
-        return std::move(m_tevents);
-    }
-
 private:
-    friend class QuerySort;
 
     QueryEvent next_event() override;
-    // Save an event to m_canonical_path
-    void save_query_event(BoostOFile& bof, const QueryEvent& qevent);
-    // Save a canonical to m_canonical_path
-    void save_canonical(BoostOFile& bof, int64_t can_id, const std::string& canonical);
-    // Save trx event, along with identifiers
-    void save_trx_event(BoostOFile& bof, const TrxEvent& qevent);
     // Read all canonicals into memory
-    void read_canonicals();
-    // Load and return all trx events.
-    TrxEvent load_trx_event();
-    // Read all trx events to memory. Unlike canonicals,
-    // these should always fit in memory.
-    void load_gtrx_events();
+    void load_canonicals();
     // Preload QueryEvents.
     void preload_query_events(int64_t max_loaded);
 
@@ -159,9 +138,6 @@ private:
     using QueryEvents = std::deque<QueryEvent>;
     QueryEvents m_query_events;
 
-    using TrxEvents = std::vector<TrxEvent>;
-    TrxEvents m_tevents;
-
     fs::path  m_base_path;
     fs::path  m_canonical_path;
     fs::path  m_query_event_path;
@@ -174,8 +150,8 @@ private:
     std::unique_ptr<BoostOFile> m_sQuery_event_out;
     std::unique_ptr<BoostIFile> m_sQuery_event_in;
 
-    std::unique_ptr<BoostOFile> m_sGtid_out;
-    std::unique_ptr<BoostIFile> m_sGtid_in;
+    std::unique_ptr<BoostOFile> m_sTrx_out;
+    std::unique_ptr<BoostIFile> m_sTrx_in;
 };
 
 // Inline definitions

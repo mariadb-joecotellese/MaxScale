@@ -12,6 +12,14 @@
 #include <maxscale/protocol/mariadb/mysql.hh>
 #include <maxscale/protocol/mariadb/protocol_classes.hh>
 
+namespace
+{
+const auto set_last_gtid = mariadb::create_query(
+    "SET @@session.session_track_system_variables = CASE @@session.session_track_system_variables "
+    "WHEN '*' THEN '*' WHEN '' THEN 'last_gtid' ELSE "
+    "CONCAT(@@session.session_track_system_variables, ',last_gtid') END;");
+}
+
 // static
 CapFilterSession* CapFilterSession::create(MXS_SESSION* pSession, SERVICE* pService,
                                            const CapFilter* pFilter)
@@ -49,7 +57,8 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
             handled = true;
             break;
 
-        default:
+        case CapSignal::STOP:
+            // Bug, asserts in debug
             break;
         }
         break;
@@ -68,12 +77,14 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
             handled = true;
             break;
 
+        case CapSignal::STOP:
         case CapSignal::CLOSE_SESSION:
             m_state.store(CapState::DISABLED, std::memory_order_release);
             handled = true;
             break;
 
-        default:
+        case CapSignal::START:
+            // Bug, asserts in debug
             break;
         }
         break;
@@ -93,12 +104,17 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
             break;
 
         case CapSignal::STOP:
+            if (m_session_state.in_trx())
+            {
+                send_event(make_rollback_event(), MAIN_WORKER);
+            }
             send_event(make_closing_event(), MAIN_WORKER);
             m_state.store(CapState::DISABLED, std::memory_order_release);
             handled = true;
             break;
 
-        default:
+        case CapSignal::START:
+            // Bug, asserts in debug
             break;
         }
         break;
@@ -115,7 +131,8 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
 
 void CapFilterSession::start_capture(const std::shared_ptr<CapRecorder>& sRecorder)
 {
-    m_sRecorder = std::atomic_load_explicit(&sRecorder, std::memory_order_relaxed);
+    m_inside_initial_trx = m_session_state.in_trx();
+    m_sRecorder = sRecorder;
     handle_cap_state(CapSignal::START);
 }
 
@@ -157,7 +174,6 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(wall_time::TimePoi
     QueryEvent opening_event;
     opening_event.session_id = m_pSession->id();
     opening_event.flags = 0;
-    auto now = SimTime::sim_time().now();
     // The "- 1ns" is there to avoid having to take the flag into account in later sorting
     opening_event.start_time = start_time - 1ns;
     opening_event.end_time = start_time;
@@ -184,6 +200,20 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(wall_time::TimePoi
     return events;
 }
 
+QueryEvent CapFilterSession::make_rollback_event()
+{
+    QueryEvent rollback_event;
+    rollback_event.sCanonical = std::make_shared<std::string>("ROLLBACK -- Capture generated");
+    rollback_event.session_id = m_pSession->id();
+    rollback_event.flags = 0;
+    rollback_event.start_time = SimTime::sim_time().now();
+    rollback_event.end_time = rollback_event.start_time;
+    rollback_event.event_id = m_filter.get_next_event_id();
+    rollback_event.sTrx = m_session_state.make_fake_trx(rollback_event.event_id);
+
+    return rollback_event;
+}
+
 QueryEvent CapFilterSession::make_closing_event()
 {
     QueryEvent closing_event;
@@ -200,9 +230,19 @@ QueryEvent CapFilterSession::make_closing_event()
 
 bool CapFilterSession::routeQuery(GWBUF&& buffer)
 {
+    if (m_init_state == InitState::SEND_QUERY)
+    {
+        m_init_state = InitState::READ_RESULT;
+
+        if (!mxs::FilterSession::routeQuery(set_last_gtid.shallow_clone()))
+        {
+            return false;
+        }
+    }
+
     SimTime::sim_time().tick();
 
-    m_capture = m_state.load(std::memory_order_relaxed) != CapState::DISABLED;
+    m_capture = m_state.load(std::memory_order_acquire) != CapState::DISABLED;
 
     m_ps_tracker.track_query(buffer);
 
@@ -242,6 +282,18 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
                                    const maxscale::ReplyRoute& down,
                                    const maxscale::Reply& reply)
 {
+    if (m_init_state == InitState::READ_RESULT)
+    {
+        if (reply.is_complete())
+        {
+            m_init_state = InitState::INIT_DONE;
+        }
+
+        // Ignore the response to the generated SET command. The protocol module guarantees that only one
+        // result per clientReply call is delivered.
+        return true;
+    }
+
     SimTime::sim_time().tick();
 
     m_ps_tracker.track_reply(reply);
@@ -260,12 +312,21 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
             m_query_event.end_time = SimTime::sim_time().now();
             m_query_event.event_id = m_filter.get_next_event_id();
             m_query_event.sTrx = m_session_state.update(m_query_event.event_id, reply);
-            handle_cap_state(CapSignal::QEVENT);
+            // This implicitely implements CaptureStartMethod::IGNORE_ACTIVE_TRANSACTIONS
+            if (!m_inside_initial_trx)
+            {
+                handle_cap_state(CapSignal::QEVENT);
+            }
         }
         else
         {
-            m_session_state.update(-1, reply);  // maintain state
+            m_session_state.update(-1, reply);      // maintain state
         }
+    }
+
+    if (m_inside_initial_trx)
+    {
+        m_inside_initial_trx = m_session_state.in_trx();
     }
 
     return mxs::FilterSession::clientReply(std::move(buffer), down, reply);
@@ -276,7 +337,6 @@ bool CapFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* p
     auto cmd = mariadb::get_command(buffer);
     bool generated = true;
 
-    // TODO add prepared statement handling (text and binary)
     switch (cmd)
     {
     case MXS_COM_CREATE_DB:

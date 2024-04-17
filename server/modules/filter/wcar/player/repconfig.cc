@@ -20,8 +20,8 @@ namespace
 using Command = std::pair<std::string, std::string>;
 
 std::vector<Command> s_commands{
+    {cmd::SUMMARY, "Show a summary of the capture."},
     {cmd::REPLAY, "Replay the capture."},
-    {cmd::TRANSFORM, "Only transform the capture to make it ready for replay."},
     {cmd::CONVERT, "Converts the input file (either .cx or .rx) to a replay file (.rx or .csv)."},
     {cmd::CANONICALS, "List the canonical forms of the captured SQL as CSV."},
     {cmd::DUMP_DATA, "Dump capture data as SQL."},

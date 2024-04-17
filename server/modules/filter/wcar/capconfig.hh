@@ -18,17 +18,24 @@ enum class StorageMethod
     BATCH
 };
 
+enum class CaptureStartMethod
+{
+    ABORT_ACTIVE_TRANSACTIONS,
+    IGNORE_ACTIVE_TRANSACTIONS
+};
+
 class CapConfig : public mxs::config::Configuration
 {
 public:
     static mxs::config::Specification* specification();
     CapConfig(const std::string& name, std::function<bool()> filter_post_configure);
 
-    std::string   capture_dir;
-    StorageMethod storage_method;
-    bool          start_capture;
-    mxb::Duration capture_duration;
-    int64_t       capture_size;
+    std::string        capture_dir;
+    StorageMethod      storage_method;
+    bool               start_capture;
+    CaptureStartMethod capture_start_method;
+    mxb::Duration      capture_duration;
+    int64_t            capture_size;
 
 private:
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;

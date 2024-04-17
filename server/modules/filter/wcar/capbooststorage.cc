@@ -4,95 +4,17 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 #include "capbooststorage.hh"
+#include "capquerysort.hh"
 #include <maxbase/assert.hh>
 #include <algorithm>
 #include <type_traits>
+
+#if HAVE_STD_EXECUTION
 #include <execution>
-
-constexpr int64_t MAX_QUERY_EVENTS = 10'000;
-
-class QuerySort
-{
-public:
-    QuerySort(CapBoostStorage& storage,
-              BoostOFile& qevent_out,
-              BoostOFile& tevent_out,
-              CapBoostStorage::SortCallback sort_cb);
-
-    void add_query_event(std::deque<QueryEvent>& qevents);
-    void finalize();
-
-    int64_t       num_events();
-    mxb::Duration capture_duration();
-
-private:
-    CapBoostStorage&              m_storage;
-    BoostOFile&                   m_qevent_out;
-    CapBoostStorage::SortCallback m_sort_cb;
-    std::vector<QueryEvent>       m_qevents;
-    int64_t                       m_num_events = 0;
-    mxb::Duration                 m_capture_duration;
-};
-
-QuerySort::QuerySort(CapBoostStorage& storage,
-                     BoostOFile& qevent_out,
-                     BoostOFile& tevent_out,
-                     CapBoostStorage::SortCallback sort_cb)
-    : m_storage(storage)
-    , m_qevent_out(qevent_out)
-    , m_sort_cb(sort_cb)
-{
-    // Sort by gtid, which can lead to out of order end_time. The number of
-    // gtids is small relative to query events and fit in memory (TODO document).
-    std::sort(std::execution::par, storage.m_tevents.begin(), storage.m_tevents.end(), []
-              (const auto& lhs, const auto& rhs){
-        if (lhs.gtid.domain_id == lhs.gtid.domain_id)
-        {
-            return lhs.gtid.sequence_nr < rhs.gtid.sequence_nr;
-        }
-        else
-        {
-            return lhs.end_time < rhs.end_time;
-        }
-    });
-
-    for (auto&& e : storage.m_tevents)
-    {
-        m_storage.save_trx_event(tevent_out, e);
-    }
-}
-
-void QuerySort::add_query_event(std::deque<QueryEvent>& qevents)
-{
-    m_num_events += qevents.size();
-    std::move(qevents.begin(), qevents.end(), std::back_inserter(m_qevents));
-}
-
-void QuerySort::finalize()
-{
-    std::sort(std::execution::par, m_qevents.begin(), m_qevents.end(),
-              [](const auto& lhs, const auto& rhs){
-        return lhs.start_time < rhs.start_time;
-    });
-
-    m_capture_duration = m_qevents.back().end_time - m_qevents.front().start_time;
-
-    for (auto&& qevent : m_qevents)
-    {
-        m_sort_cb(qevent);
-        m_storage.save_query_event(m_qevent_out, qevent);
-    }
-}
-
-int64_t QuerySort::num_events()
-{
-    return m_num_events;
-}
-
-mxb::Duration QuerySort::capture_duration()
-{
-    return m_capture_duration;
-}
+#define sort_par(...) std::sort(std::execution::par, __VA_ARGS__)
+#else
+#define sort_par(...) std::sort(__VA_ARGS__)
+#endif
 
 CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
@@ -109,16 +31,13 @@ CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     {
         m_sCanonical_in = std::make_unique<BoostIFile>(m_canonical_path);
         m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
-        m_sGtid_in = std::make_unique<BoostIFile>(m_trx_path);
-        read_canonicals();
-        load_gtrx_events();
-        preload_query_events(MAX_QUERY_EVENTS);
+        m_sTrx_in = std::make_unique<BoostIFile>(m_trx_path);
     }
     else
     {
         m_sCanonical_out = std::make_unique<BoostOFile>(m_canonical_path);
         m_sQuery_event_out = std::make_unique<BoostOFile>(m_query_event_path);
-        m_sGtid_out = std::make_unique<BoostOFile>(m_trx_path);
+        m_sTrx_out = std::make_unique<BoostOFile>(m_trx_path);
     }
 }
 
@@ -147,7 +66,7 @@ void CapBoostStorage::add_query_event(QueryEvent&& qevent)
                         qevent.event_id,
                         qevent.end_time,
                         qevent.sTrx->gtid};
-        save_trx_event(*m_sGtid_out, gevent);
+        save_trx_event(*m_sTrx_out, gevent);
     }
 }
 
@@ -221,44 +140,40 @@ void CapBoostStorage::save_query_event(BoostOFile& bof, const QueryEvent& qevent
         *bof & a.value;
     }
 
-    mxb::Duration start_time_dur = qevent.start_time.time_since_epoch();
-    mxb::Duration end_time_dur = qevent.end_time.time_since_epoch();
-    *bof & *reinterpret_cast<const int64_t*>(&start_time_dur);
-    *bof & *reinterpret_cast<const int64_t*>(&end_time_dur);
+    *bof& qevent.start_time.time_since_epoch().count();
+    *bof& qevent.end_time.time_since_epoch().count();
 }
 
 void CapBoostStorage::save_trx_event(BoostOFile& bof, const TrxEvent& tevent)
 {
-    int64_t end_time_cnt = tevent.end_time.time_since_epoch().count();
-
     *bof & tevent.session_id;
     *bof & tevent.start_event_id;
     *bof & tevent.end_event_id;
-    *bof & end_time_cnt;
+    *bof& tevent.end_time.time_since_epoch().count();
     *bof & tevent.gtid.domain_id;
     *bof & tevent.gtid.server_id;
     *bof & tevent.gtid.sequence_nr;
 }
 
-TrxEvent CapBoostStorage::load_trx_event()
+TrxEvent CapBoostStorage::load_trx_event(BoostIFile& bif)
 {
     TrxEvent tevent;
     int64_t end_time_cnt;
 
-    (**m_sGtid_in) & tevent.session_id;
-    (**m_sGtid_in) & tevent.start_event_id;
-    (**m_sGtid_in) & tevent.end_event_id;
-    (**m_sGtid_in) & end_time_cnt;
-    (**m_sGtid_in) & tevent.gtid.domain_id;
-    (**m_sGtid_in) & tevent.gtid.server_id;
-    (**m_sGtid_in) & tevent.gtid.sequence_nr;
+    *bif & tevent.session_id;
+    *bif & tevent.start_event_id;
+    *bif & tevent.end_event_id;
+    *bif & end_time_cnt;
+    *bif & tevent.gtid.domain_id;
+    *bif & tevent.gtid.server_id;
+    *bif & tevent.gtid.sequence_nr;
 
     tevent.end_time = wall_time::TimePoint(mxb::Duration(end_time_cnt));
 
     return tevent;
 }
 
-void CapBoostStorage::read_canonicals()
+void CapBoostStorage::load_canonicals()
 {
     int64_t can_id;
     std::string canonical;
@@ -266,19 +181,50 @@ void CapBoostStorage::read_canonicals()
     {
         (**m_sCanonical_in) & can_id;
         (**m_sCanonical_in) & canonical;
-        auto hash = std::hash<std::string> {}(canonical);
         auto shared = std::make_shared<std::string>(canonical);
         m_canonicals.emplace(std::string_view {*shared}, CanonicalEntry {can_id, shared});
     }
 }
 
-void CapBoostStorage::load_gtrx_events()
+std::vector<TrxEvent> CapBoostStorage::load_trx_events(BoostIFile& bif)
 {
-    m_tevents.clear();
-    while (!m_sGtid_in->at_end_of_stream())
+    std::vector<TrxEvent> tevents;
+    while (!bif.at_end_of_stream())
     {
-        m_tevents.push_back(load_trx_event());
+        tevents.push_back(load_trx_event(bif));
     }
+
+    return tevents;
+}
+
+QueryEvent CapBoostStorage::load_query_event(BoostIFile& bif)
+{
+    QueryEvent qevent;
+
+    *bif & qevent.can_id;
+    *bif & qevent.event_id;
+    *bif & qevent.session_id;
+    *bif & qevent.flags;
+
+    int nargs;
+    *bif & nargs;
+    for (int i = 0; i < nargs; ++i)
+    {
+        int32_t pos;
+        std::string value;
+        *bif & pos;
+        *bif & value;
+        qevent.canonical_args.emplace_back(pos, std::move(value));
+    }
+
+    int64_t start_time_int;
+    int64_t end_time_int;
+    *bif & start_time_int;
+    *bif & end_time_int;
+    qevent.start_time = wall_time::TimePoint(mxb::Duration(start_time_int));
+    qevent.end_time = wall_time::TimePoint(mxb::Duration(end_time_int));
+
+    return qevent;
 }
 
 void CapBoostStorage::preload_query_events(int64_t max_in_container)
@@ -286,77 +232,19 @@ void CapBoostStorage::preload_query_events(int64_t max_in_container)
     int64_t nfetch = max_in_container - m_query_events.size();
     while (!m_sQuery_event_in->at_end_of_stream() && nfetch--)
     {
-        QueryEvent qevent;
-
-        (**m_sQuery_event_in) & qevent.can_id;
-        (**m_sQuery_event_in) & qevent.event_id;
-        (**m_sQuery_event_in) & qevent.session_id;
-        (**m_sQuery_event_in) & qevent.flags;
-
-        int nargs;
-        (**m_sQuery_event_in) & nargs;
-        for (int i = 0; i < nargs; ++i)
-        {
-            int32_t pos;
-            std::string value;
-            (**m_sQuery_event_in) & pos;
-            (**m_sQuery_event_in) & value;
-            qevent.canonical_args.emplace_back(pos, std::move(value));
-        }
-
-        int64_t start_time_int;
-        int64_t end_time_int;
-        (**m_sQuery_event_in) & start_time_int;
-        (**m_sQuery_event_in) & end_time_int;
-        qevent.start_time = wall_time::TimePoint(mxb::Duration(start_time_int));
-        qevent.end_time = wall_time::TimePoint(mxb::Duration(end_time_int));
-
+        auto qevent = load_query_event(*m_sQuery_event_in);
         qevent.sCanonical = find_canonical(qevent.can_id);
-
         m_query_events.push_back(std::move(qevent));
     }
 }
 
-CapBoostStorage::SortReport CapBoostStorage::sort_query_event_file(const SortCallback& sort_cb)
-{
-    SortReport report;
-    mxb::StopWatch sw;
-    mxb::IntervalTimer read_interval;   /// the first preload_query_events() not counted
-
-    auto qevent_out = std::make_unique<BoostOFile>(m_query_event_path);
-    auto tevent_out = std::make_unique<BoostOFile>(m_trx_path);
-    QuerySort sorter(*this, *qevent_out, *tevent_out, sort_cb);
-
-    while (!m_query_events.empty())
-    {
-        sorter.add_query_event(m_query_events);
-        m_query_events.clear();
-
-        read_interval.start_interval();
-        preload_query_events(MAX_QUERY_EVENTS);
-        read_interval.end_interval();
-    }
-
-    sorter.finalize();
-
-    // TODO: read, sort and write are now interleaved.
-
-    report.read = read_interval.total();
-    report.sort = sw.lap() - report.read;
-    report.events = sorter.num_events();
-    report.capture_duration = sorter.capture_duration();
-    report.write = sw.lap();
-    report.total = sw.split();
-
-    m_sQuery_event_out.reset();
-    m_query_events.clear();
-    m_sQuery_event_in = std::make_unique<BoostIFile>(m_query_event_path);
-
-    return report;
-}
-
 std::shared_ptr<std::string> CapBoostStorage::find_canonical(int64_t can_id)
 {
+    if (m_canonicals.empty())
+    {
+        load_canonicals();
+    }
+
     // Linear search isn't that bad - there aren't that many canonicals,
     // and this is only called when loading events. If it becomes are
     // problem, create an index.
@@ -373,8 +261,13 @@ std::shared_ptr<std::string> CapBoostStorage::find_canonical(int64_t can_id)
     return ite->second.sCanonical;
 }
 
-std::map<int64_t, std::shared_ptr<std::string>>  CapBoostStorage::canonicals() const
+std::map<int64_t, std::shared_ptr<std::string>>  CapBoostStorage::canonicals()
 {
+    if (m_canonicals.empty())
+    {
+        load_canonicals();
+    }
+
     std::map<int64_t, std::shared_ptr<std::string>> canonicals_by_id;
 
     for (const auto& [k, v] : m_canonicals)
