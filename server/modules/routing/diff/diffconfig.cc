@@ -128,6 +128,13 @@ config::ParamDuration<std::chrono::milliseconds> period(
     std::chrono::milliseconds { 15 * 60 * 1000 }, // Default, 15 minutes
     config::Param::AT_RUNTIME);
 
+config::ParamDuration<std::chrono::seconds> qps_window(
+    &specification,
+    "qps_window",
+    "Specifies the size of the sliding window during which QPS is calculated.",
+    std::chrono::seconds { 15 * 60 }, // Default, 15 minutes
+    config::Param::AT_STARTUP);
+
 config::ParamEnum<Report> report(
     &specification,
     "report",
@@ -193,6 +200,7 @@ DiffConfig::DiffConfig(const char* zName, DiffRouter* pInstance)
     add_native(&DiffConfig::max_request_lag, &diff::max_request_lag);
     add_native(&DiffConfig::percentile, &diff::percentile);
     add_native(&DiffConfig::period, &diff::period);
+    add_native(&DiffConfig::qps_window, &diff::qps_window);
     add_native(&DiffConfig::reset_replication, &diff::reset_replication);
     add_native(&DiffConfig::retain_faster_statements, &diff::retain_faster_statements);
     add_native(&DiffConfig::retain_slower_statements, &diff::retain_slower_statements);

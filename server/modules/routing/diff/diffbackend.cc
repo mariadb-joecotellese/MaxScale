@@ -65,8 +65,8 @@ void DiffBackend::lcall(std::function<bool()>&& fn)
 /**
  * DiffMainBackend
  */
-DiffMainBackend::DiffMainBackend(mxs::Endpoint* pEndpoint, time_t start_time)
-    : Base(pEndpoint, start_time)
+DiffMainBackend::DiffMainBackend(mxs::Endpoint* pEndpoint, std::chrono::seconds qps_window)
+    : Base(pEndpoint, qps_window)
 {
 }
 
@@ -97,10 +97,9 @@ void DiffMainBackend::ready(const DiffExplainMainResult& explain_result)
  * DiffOtherBackend
  */
 DiffOtherBackend::DiffOtherBackend(mxs::Endpoint* pEndpoint,
-                                   time_t start_time,
                                    const DiffConfig* pConfig,
                                    std::shared_ptr<DiffExporter> sExporter)
-    : Base(pEndpoint, start_time)
+    : Base(pEndpoint, pConfig->qps_window)
     , m_config(*pConfig)
     , m_sExporter(std::move(sExporter))
 {
@@ -230,8 +229,7 @@ namespace diff
 {
 
 std::pair<SDiffMainBackend,SDiffOtherBackends>
-backends_from_endpoints(time_t start_time,
-                        const mxs::Target& main_target,
+backends_from_endpoints(const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
                         const DiffRouter& router)
 {
@@ -243,7 +241,7 @@ backends_from_endpoints(time_t start_time,
     {
         if (pEndpoint->target() == &main_target)
         {
-            sMain.reset(new DiffMainBackend(pEndpoint, start_time));
+            sMain.reset(new DiffMainBackend(pEndpoint, router.config().qps_window));
             break;
         }
     }
@@ -258,7 +256,7 @@ backends_from_endpoints(time_t start_time,
         if (pTarget != &main_target)
         {
             auto sExporter = router.exporter_for(pTarget);
-            others.emplace_back(new DiffOtherBackend(pEndpoint, start_time, &router.config(), sExporter));
+            others.emplace_back(new DiffOtherBackend(pEndpoint, &router.config(), sExporter));
         }
     }
 

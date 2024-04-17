@@ -61,6 +61,7 @@ public:
     mxs::config::Enum<OnError> on_error;
     int64_t                    percentile;
     std::chrono::milliseconds  period;
+    std::chrono::seconds       qps_window;
     mxs::config::Enum<Report>  report;
     bool                       reset_replication;
     int64_t                    retain_faster_statements;

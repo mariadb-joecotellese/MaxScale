@@ -6,58 +6,60 @@
 #pragma once
 
 #include "diffdefs.hh"
-#include <vector>
+#include <boost/circular_buffer.hpp>
 
 class DiffQps
 {
 public:
-    using Values = std::vector<uint32_t>;
+    // TODO: circular_buffer_space_optimized would be better with qps calculated
+    // TODO: separately for each session, but that does not compile and a session
+    // TODO: specific calculation will be removed anyway.
+    using Values = boost::circular_buffer<uint32_t>;
+    using iterator = Values::iterator;
 
-    DiffQps(time_t start_time)
-        : m_start_time(start_time)
+    DiffQps(std::chrono::seconds qps_window)
+        : m_capacity(qps_window.count())
+        , m_values(m_capacity)
     {
+        mxb_assert(m_values.capacity() > 0);
+    }
+
+    iterator begin()
+    {
+        return m_values.begin();
+    }
+
+    iterator end()
+    {
+        return m_values.end();
     }
 
     time_t start_time() const
     {
-        return m_start_time;
+        return m_end_time - m_values.size();
     }
 
-    void inc()
+    time_t end_time() const
     {
-        auto now = time(nullptr);
-
-        auto index = now - m_start_time;
-
-        m_values.resize(index + 1);
-
-        ++m_values[index];
+        return m_end_time;
     }
+
+    size_t size() const
+    {
+        return m_values.size();
+    }
+
+    void inc();
 
     const Values& values() const
     {
         return m_values;
     }
 
-    DiffQps& operator += (const DiffQps& rhs)
-    {
-        mxb_assert(m_start_time == rhs.m_start_time);
-
-        if (m_values.size() < rhs.m_values.size())
-        {
-            m_values.resize(rhs.m_values.size());
-        }
-
-        auto it = m_values.begin();
-        for (auto value : rhs.m_values)
-        {
-            *it++ += value;
-        }
-
-        return *this;
-    }
+    DiffQps& operator += (const DiffQps& rhs);
 
 private:
-    time_t                m_start_time;
-    std::vector<uint32_t> m_values;
+    const size_t m_capacity;
+    Values       m_values;
+    time_t       m_end_time {0};
 };

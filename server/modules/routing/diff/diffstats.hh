@@ -186,8 +186,8 @@ public:
     json_t* get_data() const;
 
 protected:
-    DiffStats(time_t start_time)
-        : m_qps(start_time)
+    DiffStats(std::chrono::seconds qps_window)
+        : m_qps(qps_window)
     {
     }
 
@@ -207,8 +207,8 @@ protected:
 class DiffMainStats final : public DiffStats
 {
 public:
-    DiffMainStats(time_t start_time)
-        : DiffStats(start_time)
+    DiffMainStats(std::chrono::seconds qps_window)
+        : DiffStats(qps_window)
     {
     }
 
@@ -223,10 +223,12 @@ public:
 class DiffOtherStats final : public DiffStats
 {
 public:
-    DiffOtherStats(time_t start_time)
-        : DiffStats(start_time)
+    DiffOtherStats(std::chrono::seconds qps_window)
+        : DiffStats(qps_window)
     {
     }
+
+    DiffOtherStats(const DiffOtherStats& other) = default;
 
     int64_t requests_skipped() const
     {
@@ -277,8 +279,8 @@ private:
 class DiffRouterSessionStats
 {
 public:
-    DiffRouterSessionStats(time_t start_time)
-        : m_main_stats(start_time)
+    DiffRouterSessionStats(std::chrono::seconds qps_window)
+        : m_main_stats(qps_window)
     {
     }
 
@@ -335,9 +337,9 @@ private:
 class DiffRouterStats
 {
 public:
-    DiffRouterStats(time_t start_time, const SERVICE* pService)
+    DiffRouterStats(std::chrono::seconds qps_window, const SERVICE* pService)
         : m_service(*pService)
-        , m_router_session_stats(start_time)
+        , m_router_session_stats(qps_window)
     {
     }
 

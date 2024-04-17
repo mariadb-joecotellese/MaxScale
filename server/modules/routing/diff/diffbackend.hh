@@ -115,7 +115,7 @@ public:
     void schedule_explain(SExplainResult&&);
 
 protected:
-    DiffConcreteBackend(mxs::Endpoint* pEndpoint, time_t start_time);
+    DiffConcreteBackend(mxs::Endpoint* pEndpoint, std::chrono::seconds qps_window);
 
     DiffResult* front() override;
 
@@ -133,9 +133,9 @@ private:
 
 template<class Stats, class Result, class ExplainResult>
 DiffConcreteBackend<Stats, Result, ExplainResult>::DiffConcreteBackend(mxs::Endpoint* pEndpoint,
-                                                                       time_t start_time)
+                                                                       std::chrono::seconds qps_window)
     : DiffBackend(pEndpoint)
-    , m_stats(start_time)
+    , m_stats(qps_window)
 {
 }
 
@@ -271,7 +271,7 @@ class DiffMainBackend final : public DiffConcreteBackend<DiffMainStats, DiffResu
 public:
     using Base = DiffConcreteBackend<DiffMainStats, DiffResult, DiffExplainMainResult>;
 
-    DiffMainBackend(mxs::Endpoint* pEndpoint, time_t start_time);
+    DiffMainBackend(mxs::Endpoint* pEndpoint, std::chrono::seconds qps_window);
 
     std::shared_ptr<DiffOrdinaryMainResult> prepare(const GWBUF& packet);
 
@@ -308,7 +308,6 @@ public:
     };
 
     DiffOtherBackend(mxs::Endpoint* pEndpoint,
-                     time_t start_time,
                      const DiffConfig* pConfig,
                      std::shared_ptr<DiffExporter> sExporter);
     ~DiffOtherBackend();
@@ -353,8 +352,7 @@ namespace diff
 {
 
 std::pair<SDiffMainBackend, SDiffOtherBackends>
-backends_from_endpoints(time_t start_time,
-                        const mxs::Target& main_target,
+backends_from_endpoints(const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
                         const DiffRouter& router);
 

@@ -1,3 +1,5 @@
+include(${CMAKE_SOURCE_DIR}/cmake/BuildBoost.cmake)
+
 add_library(diff SHARED
   diff.cc
   diffbackend.cc
@@ -6,6 +8,7 @@ add_library(diff SHARED
   diffdata.cc
   diffexporter.cc
   diffhistogram.cc
+  diffqps.cc
   diffregistry.cc
   diffresult.cc
   diffrouter.cc
