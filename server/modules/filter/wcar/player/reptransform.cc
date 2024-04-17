@@ -112,9 +112,11 @@ void RepTransform::transform_events(const fs::path& path, Action action)
         }
 
         mxb::Json transform(mxb::Json::Type::OBJECT);
-        transform.set_real("read", mxb::to_secs(report.read));
-        transform.set_real("sort", mxb::to_secs(report.sort));
-        transform.set_real("write", mxb::to_secs(report.write));
+        transform.set_real("read_duration", mxb::to_secs(report.read_duration));
+        transform.set_real("sort_duration", mxb::to_secs(report.sort_duration));
+        transform.set_real("merge_duration", mxb::to_secs(report.merge_duration));
+        transform.set_int("direct_to_output", report.events_direct_to_output);
+        transform.set_int("merge_files", report.merge_files);
 
         mxb::Json js(mxb::Json::Type::OBJECT);
         js.set_real("duration", mxb::to_secs(sw.split()));
@@ -137,7 +139,7 @@ void RepTransform::transform_events(const fs::path& path, Action action)
     MXB_SNOTICE("Events: " << tx_js.at("capture/events").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Transactions: " << tx_js.at("capture/transactions").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Sessions: " << tx_js.at("capture/sessions").to_string(mxb::Json::Format::COMPACT));
-    MXB_SNOTICE("Expected runtime: " << tx_js.at("capture/duration").get_real() << "s");
+    MXB_SNOTICE("Nominal runtime: " << tx_js.at("capture/duration").get_real() << "s");
     MXB_SNOTICE("First GTID: " << tx_js.at("capture/start_gtid").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Last GTID: " << tx_js.at("capture/end_gtid").to_string(mxb::Json::Format::COMPACT));
 }

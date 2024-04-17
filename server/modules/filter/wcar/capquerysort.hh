@@ -14,10 +14,12 @@ using SortCallback = std::function<void (const QueryEvent&)>;
 struct SortReport
 {
     // Statistics about the sorting
-    mxb::Duration total {0};
-    mxb::Duration read {0};
-    mxb::Duration sort {0};
-    mxb::Duration write {0};
+    mxb::Duration total_duration {0};
+    mxb::Duration read_duration {0};
+    mxb::Duration sort_duration {0};
+    mxb::Duration merge_duration {0};
+    int           events_direct_to_output {0};
+    int           merge_files {0};
 
     // Statistics about the capture itself
     int64_t       events {0};
@@ -135,4 +137,7 @@ private:
     std::vector<QueryEvent> m_qevents;
     std::vector<TrxEvent>   m_tevents;
     SortReport              m_report;
+    mxb::IntervalTimer      m_read_time;
+    mxb::IntervalTimer      m_sort_time;
+    mxb::IntervalTimer      m_merge_time;
 };

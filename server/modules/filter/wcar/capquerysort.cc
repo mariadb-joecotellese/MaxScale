@@ -110,9 +110,16 @@ QuerySort::QuerySort(fs::path file_path,
     : m_file_path(file_path)
     , m_sort_cb(sort_cb)
 {
+    mxb::StopWatch total_time;
+
     load_sort_keys();
     sort_query_events();
     sort_trx_events();
+
+    m_report.read_duration = m_read_time.total();
+    m_report.sort_duration = m_sort_time.total();
+    m_report.merge_duration = m_merge_time.total();
+    m_report.total_duration = total_time.split();
 }
 
 std::vector<TrxEvent> QuerySort::release_trx_events()
@@ -127,16 +134,26 @@ SortReport QuerySort::report()
 
 void QuerySort::load_sort_keys()
 {
+    m_read_time.start_interval();
     auto qevent_path = m_file_path;
     qevent_path.replace_extension("ex");
     BoostIFile query_in{qevent_path.string()};
+    wall_time::TimePoint end_time;
+
     while (!query_in.at_end_of_stream())
     {
         auto qevent = CapBoostStorage::load_query_event(query_in);
+        end_time = qevent.end_time;
         m_keys.emplace_back(qevent.start_time, qevent.event_id);
     }
+    m_read_time.end_interval();
 
+    m_sort_time.start_interval();
     std::sort(std::execution::par, m_keys.begin(), m_keys.end());
+    m_sort_time.end_interval();
+
+    m_report.events = m_keys.size();
+    m_report.capture_duration = end_time - m_keys.front().start_time;
 }
 
 void QuerySort::sort_query_events()
@@ -148,16 +165,18 @@ void QuerySort::sort_query_events()
     BoostIFile query_in{qevent_path.string()};
     BoostOFile query_out{qevent_path.string()};
 
-    WorkChunk work_chunk;
-    fill_chunk(work_chunk, query_in);
+    m_sort_time.start_interval();
 
-    int directly_out = 0;
+    WorkChunk work_chunk;
+    fill_chunk(work_chunk, query_in);   // also manipulates m_sort_time
+
     while (key_ite != m_keys.end())
     {
+
         while (!work_chunk.empty() && work_chunk.front() == *key_ite)
         {
             ++key_ite;
-            ++directly_out;
+            ++m_report.events_direct_to_output;
             m_sort_cb(*work_chunk.front().sQuery_event);
             CapBoostStorage::save_query_event(query_out, std::move(*work_chunk.front().sQuery_event));
             work_chunk.pop_front();
@@ -174,7 +193,12 @@ void QuerySort::sort_query_events()
         }
     }
 
+    m_sort_time.end_interval();
+    m_merge_time.start_interval();
+
     auto merge_chunks = m_external_chunks.load();
+    m_report.merge_files = merge_chunks.size();
+
     if (!work_chunk.empty())
     {
         merge_chunks.push_back(StreamChunk(std::move(work_chunk)));
@@ -208,6 +232,7 @@ void QuerySort::sort_query_events()
             }
         }
     }
+    m_merge_time.end_interval();
 }
 
 void QuerySort::sort_trx_events()
@@ -239,6 +264,8 @@ void QuerySort::sort_trx_events()
 
 bool QuerySort::fill_chunk(WorkChunk& chunk, BoostIFile& query_in)
 {
+    m_sort_time.end_interval();
+    m_read_time.start_interval();
     auto n_existing_events = chunk.size();
     WorkChunk new_chunk;
     while (!query_in.at_end_of_stream() && new_chunk.size() + n_existing_events < MAX_CHUNK_SIZE)
@@ -247,12 +274,16 @@ bool QuerySort::fill_chunk(WorkChunk& chunk, BoostIFile& query_in)
         new_chunk.push_back(QueryKey(std::make_unique<QueryEvent>(std::move(qevent))));
     }
 
+    m_read_time.end_interval();
+
     if (new_chunk.empty())
     {
         return true;
     }
 
+    m_sort_time.start_interval();
     new_chunk.sort();
+    m_sort_time.end_interval();
 
     if (chunk.empty())
     {
@@ -266,6 +297,8 @@ bool QuerySort::fill_chunk(WorkChunk& chunk, BoostIFile& query_in)
     {
         chunk.merge(std::move(new_chunk));
     }
+
+    m_sort_time.start_interval();
 
     return false;
 }
