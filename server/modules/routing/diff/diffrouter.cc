@@ -471,7 +471,7 @@ bool DiffRouter::summary(Summary summary, json_t** ppOutput)
 
     time_t now = time(nullptr);
     std::stringstream time;
-    time << std::put_time(std::localtime(&now),"%Y-%m-%dT%H-%M-%S");
+    time << std::put_time(std::localtime(&now),"%Y-%m-%d_%H%M%S");
     path += time.str();
     path += ".json";
 
