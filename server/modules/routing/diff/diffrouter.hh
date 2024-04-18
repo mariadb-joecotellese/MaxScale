@@ -89,6 +89,16 @@ public:
         BOTH
     };
 
+    static bool should_return(Summary summary)
+    {
+        return summary == Summary::RETURN || summary == Summary::BOTH;
+    }
+
+    static bool should_save(Summary summary)
+    {
+        return summary == Summary::SAVE || summary == Summary::BOTH;
+    }
+
     bool start(json_t** ppOutput);
     bool status(json_t** ppOutput);
     bool stop(json_t** ppOutput);
@@ -117,7 +127,27 @@ public:
     std::shared_ptr<const HSRegistry> add_sample_for(std::string_view canonical,
                                                      const mxb::Duration& duration);
 
+    std::vector<SDiffQps> get_qpses_for(const std::vector<const mxs::Target*>& targets);
+
 private:
+    struct QpsEntry
+    {
+        QpsEntry(const mxs::Target* p, SDiffQps s)
+            : pTarget(p)
+            , sQps(s)
+        {
+        }
+
+        const mxs::Target* pTarget {nullptr};
+        SDiffQps           sQps; // Shared pointer to DiffQps of pTarget.
+    };
+
+    using QpsEntries = std::vector<QpsEntry>;
+    using SQpsEntries = std::shared_ptr<std::vector<QpsEntry>>;
+
+    SQpsEntries lookup_qps_entries(int routing_worker_index);
+    SQpsEntries get_qps_entries(int routing_worker_index);
+
     void set_state(DiffState diff_state,
                    SyncState sync_state = SyncState::NOT_APPLICABLE);
     void set_sync_state(SyncState sync_state);
@@ -194,4 +224,6 @@ private:
     SamplesByCanonical                      m_samples_by_canonical;
     std::shared_ptr<const HSRegistry>       m_sHSRegistry;
     std::shared_mutex                       m_hsregistry_rwlock;
+    std::vector<SQpsEntries>                m_rw_sQps_entries;
+    std::shared_mutex                       m_rw_sQps_entries_rwlock;
 };

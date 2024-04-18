@@ -6,6 +6,7 @@
 #pragma once
 
 #include "diffdefs.hh"
+#include <memory>
 #include <boost/circular_buffer.hpp>
 
 class DiffQps
@@ -22,6 +23,11 @@ public:
         , m_values(m_capacity)
     {
         mxb_assert(m_values.capacity() > 0);
+    }
+
+    void clear()
+    {
+        m_values.clear();
     }
 
     iterator begin()
@@ -63,3 +69,5 @@ private:
     Values       m_values;
     time_t       m_end_time {0};
 };
+
+using SDiffQps = std::shared_ptr<DiffQps>;

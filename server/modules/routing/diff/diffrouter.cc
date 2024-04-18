@@ -28,7 +28,7 @@ DiffRouter::DiffRouter(SERVICE* pService)
     : mxb::Worker::Callable(mxs::MainWorker::get())
     , m_config(pService->name(), this)
     , m_service(*pService)
-    , m_stats(m_config.qps_window, pService)
+    , m_stats(m_config.qps_window)
     , m_sHSRegistry(std::make_shared<HSRegistry>())
 {
 }
@@ -467,39 +467,53 @@ bool DiffRouter::summary(Summary summary, json_t** ppOutput)
     base += m_config.service_name;
     base += "/Summary_";
 
-    std::string path = base;
-
     time_t now = time(nullptr);
     std::stringstream time;
     time << std::put_time(std::localtime(&now),"%Y-%m-%d_%H%M%S");
-    path += time.str();
-    path += ".json";
 
-    json_t* pOutput = stats.to_json();
+    json_t* pOutput = should_return(summary) ? json_object() : nullptr;
+    json_t* pMain = nullptr;
+    json_t* pOthers = nullptr;
 
-    if (summary == Summary::SAVE || summary == Summary::BOTH)
+    if (pOutput)
     {
-        rv = save_stats(path, pOutput);
+        pMain = json_object();
+        pOthers = json_object();
+
+        json_object_set_new(pOutput, "main", pMain);
+        json_object_set_new(pOutput, "others", pOthers);
     }
 
-    if (summary == Summary::RETURN)
-    {
-        *ppOutput = pOutput;
-        rv = true;
-    }
-    else
-    {
-        json_decref(pOutput);
-    }
+    std::map<mxs::Target*, json_t*> jsons_by_target = stats.get_jsons();
 
-    std::map<mxs::Target*, json_t*> data_by_target = stats.get_data();
-
-    for (const auto& kv : data_by_target)
+    for (const auto& kv : jsons_by_target)
     {
         std::string s = base + kv.first->name() + "_" + time.str() + ".json";
 
         save_stats(s, kv.second);
-        json_decref(kv.second);
+
+        if (pOutput)
+        {
+            mxb_assert(pMain && pOthers);
+
+            if (kv.first == m_config.pMain)
+            {
+                json_object_set_new(pMain, kv.first->name(), kv.second);
+            }
+            else
+            {
+                json_object_set_new(pOthers,  kv.first->name(), kv.second);
+            }
+        }
+        else
+        {
+            json_decref(kv.second);
+        }
+    }
+
+    if (pOutput)
+    {
+        *ppOutput = pOutput;
     }
 
     return rv;
@@ -619,6 +633,81 @@ std::shared_ptr<const DiffRouter::HSRegistry> DiffRouter::add_sample_for(std::st
     }
 
     return sHSRegistry;
+}
+
+std::shared_ptr<std::vector<DiffRouter::QpsEntry>> DiffRouter::lookup_qps_entries(int rwi)
+{
+    SQpsEntries sQps_entries;
+
+    std::shared_lock<std::shared_mutex> shared_guard(m_rw_sQps_entries_rwlock);
+
+    if (rwi < (int)m_rw_sQps_entries.size())
+    {
+        sQps_entries = m_rw_sQps_entries[rwi];
+    }
+
+    return sQps_entries;
+}
+
+std::shared_ptr<std::vector<DiffRouter::QpsEntry>> DiffRouter::get_qps_entries(int rwi)
+{
+    SQpsEntries sQps_entries;
+
+    std::lock_guard<std::shared_mutex> guard(m_rw_sQps_entries_rwlock);
+
+    if (rwi < (int)m_rw_sQps_entries.size())
+    {
+        sQps_entries = m_rw_sQps_entries[rwi];
+    }
+    else
+    {
+        for (int i = m_rw_sQps_entries.size(); i <= rwi; ++i)
+        {
+            m_rw_sQps_entries.push_back(std::make_shared<QpsEntries>());
+        }
+
+        sQps_entries = m_rw_sQps_entries[rwi];
+    }
+
+    return sQps_entries;
+}
+
+std::vector<std::shared_ptr<DiffQps>>
+DiffRouter::get_qpses_for(const std::vector<const mxs::Target*>& targets)
+{
+    std::vector<SDiffQps> rv;
+
+    size_t rwi = RoutingWorker::get_current()->index();
+
+    SQpsEntries sQps_entries = lookup_qps_entries(rwi);
+
+    if (!sQps_entries)
+    {
+        sQps_entries = get_qps_entries(rwi);
+    }
+
+    mxb_assert(sQps_entries);
+
+    for (const mxs::Target* pTarget : targets)
+    {
+        auto end = sQps_entries->end();
+        auto it = std::find_if(sQps_entries->begin(), end, [pTarget](const QpsEntry& entry) {
+                return entry.pTarget == pTarget;
+            });
+
+        if (it != end)
+        {
+            mxb_assert(it->sQps);
+            rv.push_back(it->sQps);
+        }
+        else
+        {
+            sQps_entries->emplace_back(pTarget, std::make_shared<DiffQps>(m_config.qps_window));
+            rv.push_back(sQps_entries->back().sQps);
+        }
+    }
+
+    return rv;
 }
 
 void DiffRouter::set_state(DiffState diff_state, SyncState sync_state)

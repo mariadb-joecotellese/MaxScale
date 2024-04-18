@@ -66,8 +66,19 @@ public:
         return *m_pParser_helper;
     }
 
+    DiffQps& qps()
+    {
+        mxb_assert(m_sQps);
+        return *m_sQps;
+    }
+
+    const DiffQps& qps() const
+    {
+        return const_cast<DiffBackend*>(this)->qps();
+    }
+
 protected:
-    DiffBackend(mxs::Endpoint* pEndpoint);
+    DiffBackend(mxs::Endpoint* pEndpoint, const SDiffQps& sQps);
 
     virtual DiffResult* front() = 0;
 
@@ -81,6 +92,7 @@ protected:
 
 protected:
     DiffRouterSession* m_pRouter_session { nullptr };
+    SDiffQps           m_sQps;
 };
 
 
@@ -115,7 +127,7 @@ public:
     void schedule_explain(SExplainResult&&);
 
 protected:
-    DiffConcreteBackend(mxs::Endpoint* pEndpoint, std::chrono::seconds qps_window);
+    DiffConcreteBackend(mxs::Endpoint* pEndpoint, const SDiffQps& sQps);
 
     DiffResult* front() override;
 
@@ -133,9 +145,8 @@ private:
 
 template<class Stats, class Result, class ExplainResult>
 DiffConcreteBackend<Stats, Result, ExplainResult>::DiffConcreteBackend(mxs::Endpoint* pEndpoint,
-                                                                       std::chrono::seconds qps_window)
-    : DiffBackend(pEndpoint)
-    , m_stats(qps_window)
+                                                                       const SDiffQps& sQps)
+    : DiffBackend(pEndpoint, sQps)
 {
 }
 
@@ -192,6 +203,7 @@ DiffBackend::Routing DiffConcreteBackend<Stats, Result, ExplainResult>::finish_r
     auto kind = sResult->kind();
 
     m_stats.inc_responses();
+    m_sQps->inc();
 
     auto canonical = sResult->canonical();
     auto duration = sResult->close(reply);
@@ -271,7 +283,7 @@ class DiffMainBackend final : public DiffConcreteBackend<DiffMainStats, DiffResu
 public:
     using Base = DiffConcreteBackend<DiffMainStats, DiffResult, DiffExplainMainResult>;
 
-    DiffMainBackend(mxs::Endpoint* pEndpoint, std::chrono::seconds qps_window);
+    DiffMainBackend(mxs::Endpoint* pEndpoint, const SDiffQps& sQps);
 
     std::shared_ptr<DiffOrdinaryMainResult> prepare(const GWBUF& packet);
 
@@ -308,6 +320,7 @@ public:
     };
 
     DiffOtherBackend(mxs::Endpoint* pEndpoint,
+                     const SDiffQps& sQps,
                      const DiffConfig* pConfig,
                      std::shared_ptr<DiffExporter> sExporter);
     ~DiffOtherBackend();
@@ -354,6 +367,6 @@ namespace diff
 std::pair<SDiffMainBackend, SDiffOtherBackends>
 backends_from_endpoints(const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
-                        const DiffRouter& router);
+                        DiffRouter& router);
 
 }
