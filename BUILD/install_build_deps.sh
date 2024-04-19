@@ -129,7 +129,7 @@ then
          sqlite sqlite-devel pkgconfig rpm-build createrepo yum-utils \
          gnutls-devel libgcrypt-devel pam-devel libcurl-devel libatomic \
          cyrus-sasl-devel krb5-devel libicu-devel unixODBC-devel \
-         boost-serialization tbb-devel
+         boost-serialization tbb-devel boost-devel
 
     # The Postgres C driver has different names in different distros. For
     # example CentOS 7 uses postgresql-devel whereas RHEL 8 goes with libpq-devel.
@@ -180,9 +180,6 @@ then
         # EPEL is installed for GCOV report generation (lcov)
         sudo yum -d1 -y install epel-release
         sudo yum -d1 -y install lcov
-
-        # RHEL 8 needs this for boost-serialization
-        sudo yum -d1 -y install boost-devel
     fi
 fi
 
