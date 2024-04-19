@@ -9,13 +9,6 @@
 #include <algorithm>
 #include <type_traits>
 
-#if HAVE_STD_EXECUTION
-#include <execution>
-#define sort_par(...) std::sort(std::execution::par, __VA_ARGS__)
-#else
-#define sort_par(...) std::sort(__VA_ARGS__)
-#endif
-
 CapBoostStorage::CapBoostStorage(const fs::path& base_path, ReadWrite access)
     : m_base_path(base_path)
     , m_canonical_path(base_path)
