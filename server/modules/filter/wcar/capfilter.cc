@@ -181,7 +181,20 @@ bool CapFilter::stop_capture()
 
 json_t* CapFilter::diagnostics() const
 {
-    return m_config.to_json();
+    mxb::Json js;
+
+    if (m_sRecorder)
+    {
+        js.set_bool("capturing", true);
+        js.set_real("duration", mxb::to_secs(mxb::Clock::now() - m_start_time));
+        js.set_int("size", m_sRecorder->context().bytes_processed());
+    }
+    else
+    {
+        js.set_bool("capturing", false);
+    }
+
+    return js.release();
 }
 
 int64_t CapFilter::get_next_event_id() const
