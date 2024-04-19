@@ -28,17 +28,19 @@ struct SortReport
 
 struct SortKey
 {
+    SortKey() = default;
     SortKey(wall_time::TimePoint start_time, int64_t event_id)
         : start_time(start_time)
         , event_id(event_id)
     {
     }
-    wall_time::TimePoint start_time;
-    int64_t              event_id;
+    wall_time::TimePoint start_time {wall_time::Duration{0}};
+    int64_t              event_id {0};
 };
 
 struct QueryKey : public SortKey
 {
+    QueryKey() = default;
     explicit QueryKey(std::unique_ptr<QueryEvent> sQuery_event)
         : SortKey{sQuery_event->start_time, sQuery_event->event_id}
         , sQuery_event(std::move(sQuery_event))
