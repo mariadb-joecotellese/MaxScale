@@ -14,8 +14,9 @@
 /**
  * DiffBackend
  */
-DiffBackend::DiffBackend(mxs::Endpoint* pEndpoint)
+DiffBackend::DiffBackend(mxs::Endpoint* pEndpoint, const SDiffQps& sQps)
     : mxs::Backend(pEndpoint)
+    , m_sQps(sQps)
 {
 }
 
@@ -65,8 +66,8 @@ void DiffBackend::lcall(std::function<bool()>&& fn)
 /**
  * DiffMainBackend
  */
-DiffMainBackend::DiffMainBackend(mxs::Endpoint* pEndpoint)
-    : Base(pEndpoint)
+DiffMainBackend::DiffMainBackend(mxs::Endpoint* pEndpoint, const SDiffQps& sQps)
+    : Base(pEndpoint, sQps)
 {
 }
 
@@ -97,9 +98,10 @@ void DiffMainBackend::ready(const DiffExplainMainResult& explain_result)
  * DiffOtherBackend
  */
 DiffOtherBackend::DiffOtherBackend(mxs::Endpoint* pEndpoint,
+                                   const SDiffQps& sQps,
                                    const DiffConfig* pConfig,
                                    std::shared_ptr<DiffExporter> sExporter)
-    : Base(pEndpoint)
+    : Base(pEndpoint, sQps)
     , m_config(*pConfig)
     , m_sExporter(std::move(sExporter))
 {
@@ -231,9 +233,26 @@ namespace diff
 std::pair<SDiffMainBackend,SDiffOtherBackends>
 backends_from_endpoints(const mxs::Target& main_target,
                         const mxs::Endpoints& endpoints,
-                        const DiffRouter& router)
+                        DiffRouter& router)
 {
     mxb_assert(endpoints.size() > 1);
+
+    std::vector<const mxs::Target*> targets;
+
+    targets.push_back(&main_target);
+
+    for (auto* pEndpoint : endpoints)
+    {
+        if (pEndpoint->target() != &main_target)
+        {
+            targets.push_back(pEndpoint->target());
+        }
+    }
+
+    std::vector<SDiffQps> qpses = router.get_qpses_for(targets);
+    mxb_assert(qpses.size() == targets.size());
+
+    auto it = qpses.begin();
 
     SDiffMainBackend sMain;
 
@@ -241,7 +260,7 @@ backends_from_endpoints(const mxs::Target& main_target,
     {
         if (pEndpoint->target() == &main_target)
         {
-            sMain.reset(new DiffMainBackend(pEndpoint));
+            sMain.reset(new DiffMainBackend(pEndpoint, *it++));
             break;
         }
     }
@@ -256,7 +275,7 @@ backends_from_endpoints(const mxs::Target& main_target,
         if (pTarget != &main_target)
         {
             auto sExporter = router.exporter_for(pTarget);
-            others.emplace_back(new DiffOtherBackend(pEndpoint, &router.config(), sExporter));
+            others.emplace_back(new DiffOtherBackend(pEndpoint, *it++, &router.config(), sExporter));
         }
     }
 

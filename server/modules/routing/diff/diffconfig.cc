@@ -111,12 +111,29 @@ config::ParamEnum<OnError> on_error(
     OnError::IGNORE, // Default
     config::Param::AT_RUNTIME);
 
+config::ParamPercent percentile(
+    &specification,
+    "percentile",
+    "Specifies the percentile of sampels that will be considered when calculating the width "
+    "and number of bins of the histogram.",
+    99, // Default
+    1, // Min
+    100,  // Max
+    config::Param::AT_RUNTIME);
+
 config::ParamDuration<std::chrono::milliseconds> period(
     &specification,
     "period",
     "Specifies the period during which at most 'entries' number of entries are logged.",
     std::chrono::milliseconds { 15 * 60 * 1000 }, // Default, 15 minutes
     config::Param::AT_RUNTIME);
+
+config::ParamDuration<std::chrono::seconds> qps_window(
+    &specification,
+    "qps_window",
+    "Specifies the size of the sliding window during which QPS is calculated.",
+    std::chrono::seconds { 15 * 60 }, // Default, 15 minutes
+    config::Param::AT_STARTUP);
 
 config::ParamEnum<Report> report(
     &specification,
@@ -149,6 +166,16 @@ config::ParamCount retain_slower_statements(
     "How many of the slower statements should be retained so that they are available in the summary.",
     5, // Default
     config::Param::AT_RUNTIME);
+
+config::ParamCount samples(
+    &specification,
+    "samples",
+    "How many samples per canonical statement should be collected before calculating the width "
+    "and number of bins of the histogram.",
+    1000, // Default
+    100,  // Min
+    std::numeric_limits<config::ParamCount::value_type>::max(), // Max
+    config::Param::AT_RUNTIME);
 }
 
 template<class Params>
@@ -171,10 +198,13 @@ DiffConfig::DiffConfig(const char* zName, DiffRouter* pInstance)
     add_native(&DiffConfig::explain, &diff::explain);
     add_native(&DiffConfig::max_execution_time_difference, &diff::max_execution_time_difference);
     add_native(&DiffConfig::max_request_lag, &diff::max_request_lag);
+    add_native(&DiffConfig::percentile, &diff::percentile);
     add_native(&DiffConfig::period, &diff::period);
+    add_native(&DiffConfig::qps_window, &diff::qps_window);
     add_native(&DiffConfig::reset_replication, &diff::reset_replication);
     add_native(&DiffConfig::retain_faster_statements, &diff::retain_faster_statements);
     add_native(&DiffConfig::retain_slower_statements, &diff::retain_slower_statements);
+    add_native(&DiffConfig::samples, &diff::samples);
 }
 
 //static

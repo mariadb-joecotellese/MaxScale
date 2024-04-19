@@ -50,14 +50,26 @@ DiffRouterSession::DiffRouterSession(MXS_SESSION* pSession,
 
 DiffRouterSession::~DiffRouterSession()
 {
-    Stats stats { m_sMain->backend()->target(), m_sMain->stats() };
+    Stats stats { m_sMain->backend()->target(), m_sMain->stats(), m_sMain->qps() };
 
     for (auto& sOther : m_others)
     {
-        stats.add_other(sOther->target(), sOther->stats());
+        stats.add_other(sOther->target(), sOther->stats(), sOther->qps());
     }
 
     m_router.collect(stats);
+
+    // The qps is calculated per routing worker thread. I.e. the reported qps
+    // contains not just the qps of this session, but of all sessions running
+    // in the same routing worker as this. Hence, the qps can and must be
+    // cleared now.
+
+    m_sMain->qps().clear();
+
+    for (auto& sOther : m_others)
+    {
+        sOther->qps().clear();
+    }
 }
 
 bool DiffRouterSession::routeQuery(GWBUF&& packet)

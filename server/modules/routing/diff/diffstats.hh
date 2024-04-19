@@ -8,7 +8,8 @@
 #include "diffdefs.hh"
 #include <memory>
 #include <maxscale/target.hh>
-#include "diffhistogram.hh"
+#include "diffdata.hh"
+#include "diffqps.hh"
 
 class SERVICE;
 
@@ -19,7 +20,7 @@ class DiffRouterSession;
 class DiffStats
 {
 public:
-    using Histograms = std::map<std::string, DiffHistogram, std::less<>>;
+    using Datas = std::map<std::string, DiffData, std::less<>>;
 
     std::chrono::nanoseconds total_duration() const
     {
@@ -28,7 +29,8 @@ public:
 
     void add_canonical_result(DiffRouterSession& router_session,
                               std::string_view canonical,
-                              const std::chrono::nanoseconds& duration);
+                              const std::chrono::nanoseconds& duration,
+                              const mxs::Reply& reply);
 
     int64_t nRequest_packets() const
     {
@@ -135,9 +137,9 @@ public:
         ++m_nExplain_responses;
     }
 
-    const Histograms& histograms() const
+    const Datas& datas() const
     {
-        return m_histograms;
+        return m_datas;
     }
 
     void add(const DiffStats& rhs)
@@ -152,25 +154,28 @@ public:
         m_nExplain_requests += rhs.m_nExplain_requests;
         m_nExplain_responses += rhs.m_nExplain_responses;
 
-        for (const auto& kv : rhs.m_histograms)
+        for (const auto& kv : rhs.m_datas)
         {
-            auto it = m_histograms.find(kv.first);
+            auto it = m_datas.find(kv.first);
 
-            if (it != m_histograms.end())
+            if (it != m_datas.end())
             {
                 it->second += kv.second;
             }
             else
             {
-                m_histograms.emplace(kv.first, kv.second);
+                m_datas.emplace(kv.first, kv.second);
             }
         }
     }
 
-    json_t* get_statistics() const;
-    json_t* get_data() const;
+    virtual json_t* to_json() const;
 
 protected:
+    DiffStats() = default;
+
+    virtual json_t* get_statistics() const;
+
     std::chrono::nanoseconds  m_total_duration { 0 };
     int64_t                   m_nRequest_packets { 0 };
     int64_t                   m_nRequests { 0 };
@@ -180,23 +185,26 @@ protected:
     std::chrono::nanoseconds  m_explain_duration { 0 };
     int64_t                   m_nExplain_requests { 0 };
     int64_t                   m_nExplain_responses { 0 };
-    Histograms                m_histograms;
+    Datas                     m_datas;
+
+private:
 };
+
 
 class DiffMainStats final : public DiffStats
 {
 public:
-    void add(const DiffMainStats& rhs)
-    {
-        DiffStats::add(rhs);
-    }
-
-    json_t* to_json() const;
+    DiffMainStats() = default;
 };
+
 
 class DiffOtherStats final : public DiffStats
 {
 public:
+    DiffOtherStats() = default;
+
+    DiffOtherStats(const DiffOtherStats& other) = default;
+
     int64_t requests_skipped() const
     {
         return m_nRequests_skipped;
@@ -233,9 +241,12 @@ public:
 
     void add(const DiffOtherStats& stats, const DiffConfig& config);
 
-    json_t* to_json() const;
+    json_t* to_json() const override;
 
 private:
+    json_t* get_statistics() const override;
+    json_t* get_verdict() const;
+
     int64_t           m_nRequests_skipped { 0 };
     int64_t           m_nFaster { 0 };
     int64_t           m_nSlower { 0 };
@@ -243,80 +254,112 @@ private:
     ResultsByPermille m_slower_requests;
 };
 
+
 class DiffRouterSessionStats
 {
 public:
-    DiffRouterSessionStats() = default;
-    DiffRouterSessionStats(mxs::Target* pMain, const DiffMainStats& main_stats);
+    DiffRouterSessionStats(mxs::Target* pMain,
+                           const DiffMainStats& main_stats,
+                           const DiffQps& main_qps);
+
+    void add_other(mxs::Target* pOther,
+                   const DiffOtherStats& other_stats,
+                   const DiffQps& other_qps);
 
     mxs::Target* main() const
     {
         return m_pMain;
     }
 
-    void set_main(mxs::Target* pMain)
+    const DiffMainStats& main_stats() const
     {
-        mxb_assert(!m_pMain);
-
-        m_pMain = pMain;
+        return m_main_stats;
     }
 
-    void add_other(mxs::Target* pOther, const DiffOtherStats& other_stats);
-
-    void add(const DiffRouterSessionStats& rhs, const DiffConfig& config)
+    const DiffQps& main_qps() const
     {
-        m_main_stats.add(rhs.m_main_stats);
+        return m_main_qps;
+    }
 
-        for (const auto& kv : rhs.m_other_stats)
+    class Other
+    {
+    public:
+        Other(const DiffOtherStats& s, const DiffQps& q)
+            : stats(s)
+            , qps(q)
         {
-            auto it = m_other_stats.find(kv.first);
-
-            if (it != m_other_stats.end())
-            {
-                it->second.add(kv.second, config);
-            }
-            else
-            {
-                m_other_stats.insert(kv);
-            }
         }
+
+        const DiffOtherStats& stats;
+        const DiffQps& qps;
+    };
+
+    using Others = std::map<mxs::Target*, Other>;
+
+    const Others& others() const
+    {
+        return m_others;
     }
-
-    json_t* to_json() const;
-
-    std::map<mxs::Target*, json_t*> get_data() const;
 
 private:
-    mxs::Target*                           m_pMain { nullptr };
-    DiffMainStats                          m_main_stats;
-    std::map<mxs::Target*, DiffOtherStats> m_other_stats;
+    mxs::Target*         m_pMain { nullptr };
+    const DiffMainStats& m_main_stats;
+    const DiffQps&       m_main_qps;
+    Others               m_others;
 };
+
 
 class DiffRouterStats
 {
 public:
-    DiffRouterStats(const SERVICE* pService)
-        : m_service(*pService)
+    DiffRouterStats(std::chrono::seconds qps_window)
+        : m_main_qps(qps_window)
     {
     }
 
-    void add(const DiffRouterSessionStats& rhs, const DiffConfig& config)
+    void add(const DiffRouterSessionStats& rss, const DiffConfig& config)
     {
-        mxb_assert(m_router_session_stats.main() == rhs.main());
+        m_main_stats.add(rss.main_stats());
+        m_main_qps += rss.main_qps();
 
-        m_router_session_stats.add(rhs, config);
+        for (const auto& kv : rss.others())
+        {
+            auto it = m_others.find(kv.first);
+
+            if (it != m_others.end())
+            {
+                it->second.stats.add(kv.second.stats, config);
+                it->second.qps += kv.second.qps;
+            }
+            else
+            {
+                m_others.insert(std::make_pair(kv.first, Other(kv.second.stats, kv.second.qps)));
+            }
+        }
     }
 
     void post_configure(const DiffConfig& config);
 
-    json_t* to_json() const;
-
-    std::map<mxs::Target*, json_t*> get_data() const
-    {
-        return m_router_session_stats.get_data();
-    }
+    std::map<mxs::Target*, json_t*> get_jsons() const;
 
 private:
-    const SERVICE&         m_service;
-    DiffRouterSessionStats m_router_session_stats;
+    class Other
+    {
+    public:
+        Other(const DiffOtherStats& s, const DiffQps& q)
+            : stats(s)
+            , qps(q)
+        {
+        }
+
+        DiffOtherStats stats;
+        DiffQps        qps;
+    };
+
+    using Others = std::map<mxs::Target*, Other>;
+
+    mxs::Target*   m_pMain { nullptr };
+    DiffMainStats  m_main_stats;
+    DiffQps        m_main_qps;
+    Others         m_others;
 };

@@ -50,30 +50,42 @@ void add_histogram(json_t* pDuration, const DiffHistogram& hist)
     json_object_set_new(pDuration, "hist_bin_edges", pHist_bin_edges);
 }
 
-json_t* create_query(int id, const std::string& sql, const DiffHistogram& hist)
+json_t* create_query(int id, const std::string& sql, const DiffData& data)
 {
     json_t* pQuery = json_object();
 
     json_object_set_new(pQuery, "id", json_integer(id));
     json_object_set_new(pQuery, "sql", json_string(sql.c_str()));
-    json_object_set_new(pQuery, "errors", json_integer(0)); // TODO
+    json_object_set_new(pQuery, "errors", json_integer(data.errors()));
+
+    json_t* pResult_rows = json_object();
+    json_object_set_new(pResult_rows, "sum", json_integer(data.rr_sum()));
+    json_object_set_new(pResult_rows, "min", json_integer(data.rr_min()));
+    json_object_set_new(pResult_rows, "max", json_integer(data.rr_max()));
+    json_object_set_new(pResult_rows, "mean", json_integer(data.rr_mean()));
+    json_object_set_new(pResult_rows, "count", json_integer(data.rr_count()));
+    json_object_set_new(pResult_rows, "stddev", json_real(0));
+
+    json_object_set_new(pQuery, "result_rows", pResult_rows);
 
     json_t* pRows_read = json_object();
-    json_object_set_new(pRows_read, "sum", json_real(0));
-    json_object_set_new(pRows_read, "min", json_real(0));
-    json_object_set_new(pRows_read, "max", json_real(0));
+    json_object_set_new(pRows_read, "sum", json_integer(0));
+    json_object_set_new(pRows_read, "min", json_integer(0));
+    json_object_set_new(pRows_read, "max", json_integer(0));
     json_object_set_new(pRows_read, "mean", json_real(0));
-    json_object_set_new(pRows_read, "count", json_real(0));
+    json_object_set_new(pRows_read, "count", json_integer(0));
     json_object_set_new(pRows_read, "stddev", json_real(0));
 
     json_object_set_new(pQuery, "rows_read", pRows_read);
 
+    const auto& hist = data.histogram();
+
     json_t* pDuration = json_object();
-    json_object_set_new(pDuration, "sum", json_real(0));
-    json_object_set_new(pDuration, "min", json_real(0));
-    json_object_set_new(pDuration, "max", json_real(0));
-    json_object_set_new(pDuration, "mean", json_real(0));
-    json_object_set_new(pDuration, "count", json_real(0));
+    json_object_set_new(pDuration, "sum", json_real(mxb::to_secs(hist.sum())));
+    json_object_set_new(pDuration, "min", json_real(mxb::to_secs(hist.min())));
+    json_object_set_new(pDuration, "max", json_real(mxb::to_secs(hist.max())));
+    json_object_set_new(pDuration, "mean", json_real(mxb::to_secs(hist.mean())));
+    json_object_set_new(pDuration, "count", json_real(hist.count()));
     json_object_set_new(pDuration, "stddev", json_real(0));
 
     add_histogram(pDuration, hist);
@@ -90,15 +102,16 @@ json_t* create_query(int id, const std::string& sql, const DiffHistogram& hist)
  */
 void DiffStats::add_canonical_result(DiffRouterSession& router_session,
                                      std::string_view canonical,
-                                     const std::chrono::nanoseconds& duration)
+                                     const std::chrono::nanoseconds& duration,
+                                     const mxs::Reply& reply)
 {
     m_total_duration += duration;
 
-    auto it = m_histograms.find(canonical);
+    auto it = m_datas.find(canonical);
 
-    if (it != m_histograms.end())
+    if (it != m_datas.end())
     {
-        it->second.add(duration);
+        it->second.add(duration, reply);
     }
     else
     {
@@ -110,9 +123,9 @@ void DiffStats::add_canonical_result(DiffRouterSession& router_session,
             // are now available so the histogram of that canonical statement can now
             // be created.
 
-            auto p = m_histograms.emplace(std::string(canonical), DiffHistogram(spec));
+            auto p = m_datas.emplace(std::string(canonical), DiffData(spec));
             it = p.first;
-            it->second.add(duration);
+            it->second.add(duration, reply);
         }
     }
 }
@@ -142,54 +155,26 @@ json_t* DiffStats::get_statistics() const
     return pStatistics;
 }
 
-json_t* DiffStats::get_data() const
+json_t* DiffStats::to_json() const
 {
     json_t* pData = json_object();
     json_t* pQueries = json_array();
 
     int id = 1;
 
-    for (const auto& kv : m_histograms)
+    for (const auto& kv : m_datas)
     {
         auto& sql = kv.first;
-        auto& response_distribution = kv.second;
+        auto& data = kv.second;
 
-        json_array_append_new(pQueries, create_query(id++, sql, response_distribution));
+        json_array_append_new(pQueries, create_query(id++, sql, data));
     }
 
     json_object_set_new(pData, "queries", pQueries);
-
-    json_t* pQps = json_object();
-    json_t* pZero = json_real(0.0);
-
-    json_t* pTime = json_array();
-    json_array_append(pTime, pZero);
-    json_array_append(pTime, pZero);
-
-    json_t* pCounts = json_array();
-    json_array_append_new(pCounts, pZero);
-
-    json_object_set_new(pQps, "time", pTime);
-    json_object_set_new(pQps, "counts", pCounts);
-
-    json_object_set_new(pData, "qps", pQps);
+    json_object_set_new(pData, "statistics", get_statistics());
 
     return pData;
 }
-
-/**
- * DiffMainStats
- */
-json_t* DiffMainStats::to_json() const
-{
-    json_t* pJson = json_object();
-
-    json_object_set_new(pJson, "statistics", get_statistics());
-    json_object_set_new(pJson, "data", get_data());
-
-    return pJson;
-}
-
 
 /**
  * DiffOtherStats
@@ -293,14 +278,24 @@ void DiffOtherStats::add(const DiffOtherStats& rhs, const DiffConfig& config)
 
 json_t* DiffOtherStats::to_json() const
 {
-    json_t* pJson = json_object();
+    json_t* pJson = DiffStats::to_json();
 
-    json_t* pStatistics = get_statistics();
+    json_object_set_new(pJson, "verdict", get_verdict());
+
+    return pJson;
+}
+
+json_t* DiffOtherStats::get_statistics() const
+{
+    json_t* pStatistics = DiffStats::get_statistics();
+
     json_object_set_new(pStatistics, "requests_skipped", json_integer(m_nRequests_skipped));
 
-    json_object_set_new(pJson, "statistics", pStatistics);
-    json_object_set_new(pJson, "data", get_data());
+    return pStatistics;
+}
 
+json_t* DiffOtherStats::get_verdict() const
+{
     json_t* pVerdict = json_object();
     json_object_set_new(pVerdict, "faster", json_integer(m_nFaster));
     json_object_set_new(pVerdict, "slower", json_integer(m_nSlower));
@@ -341,62 +336,28 @@ json_t* DiffOtherStats::to_json() const
     json_object_set_new(pVerdict, "fastest", create_result_array(m_faster_requests));
     json_object_set_new(pVerdict, "slowest", create_result_array(m_slower_requests));
 
-    json_object_set_new(pJson, "verdict", pVerdict);
-
-    return pJson;
+    return pVerdict;
 }
-
 
 /**
  * DiffRouterSessionStats
  */
-DiffRouterSessionStats::DiffRouterSessionStats(mxs::Target* pMain, const DiffMainStats& main_stats)
+DiffRouterSessionStats::DiffRouterSessionStats(mxs::Target* pMain,
+                                               const DiffMainStats& main_stats,
+                                               const DiffQps& main_qps)
     : m_pMain(pMain)
     , m_main_stats(main_stats)
+    , m_main_qps(main_qps)
 {
 }
 
-void DiffRouterSessionStats::add_other(mxs::Target* pOther, const DiffOtherStats& other_stats)
+void DiffRouterSessionStats::add_other(mxs::Target* pOther,
+                                       const DiffOtherStats& other_stats,
+                                       const DiffQps& other_qps)
 {
-    mxb_assert(m_other_stats.find(pOther) == m_other_stats.end());
+    mxb_assert(m_others.find(pOther) == m_others.end());
 
-    m_other_stats.insert(std::make_pair(pOther, other_stats));
-}
-
-json_t* DiffRouterSessionStats::to_json() const
-{
-    json_t* pJson = json_object();
-
-    json_t* pMain = json_object();
-    const char* zKey = m_pMain ? m_pMain->name() : "unknown";
-    json_object_set_new(pMain, zKey, m_main_stats.to_json());
-
-    json_t* pOthers = json_object();
-    for (const auto& kv : m_other_stats)
-    {
-        json_t* pOther = kv.second.to_json();
-
-        json_object_set_new(pOthers, kv.first->name(), pOther);
-    }
-
-    json_object_set_new(pJson, "main", pMain);
-    json_object_set_new(pJson, "others", pOthers);
-
-    return pJson;
-}
-
-std::map<mxs::Target*, json_t*> DiffRouterSessionStats::get_data() const
-{
-    std::map<mxs::Target*, json_t*> rv;
-
-    rv.emplace(m_pMain, m_main_stats.get_data());
-
-    for (const auto& kv : m_other_stats)
-    {
-        rv.emplace(kv.first, kv.second.get_data());
-    }
-
-    return rv;
+    m_others.insert(std::make_pair(pOther, Other { other_stats, other_qps }));
 }
 
 /**
@@ -404,25 +365,50 @@ std::map<mxs::Target*, json_t*> DiffRouterSessionStats::get_data() const
  */
 void DiffRouterStats::post_configure(const DiffConfig& config)
 {
-    mxb_assert(!m_router_session_stats.main());
+    mxb_assert(!m_pMain);
 
-    m_router_session_stats.set_main(config.pMain);
+    m_pMain = config.pMain;
 }
 
-json_t* DiffRouterStats::to_json() const
+namespace
 {
-    json_t* pJson = json_object();
 
-    auto nTotal = m_service.stats().n_total_conns();
-    auto nCurrent = m_service.stats().n_current_conns();
+json_t* add_qps(json_t* pData, const DiffQps& qps)
+{
+    json_t* pQps = json_object();
 
-    json_t* pSessions = json_object();
-    json_object_set_new(pSessions, "total", json_integer(nTotal));
-    json_object_set_new(pSessions, "current", json_integer(nCurrent));
-    json_object_set_new(pJson, "sessions", pSessions);
+    json_t* pTime = json_array();
+    json_t* pCounts = json_array();
 
-    json_object_set_new(pJson, "summary", this->m_router_session_stats.to_json());
+    int second = qps.start_time() - 1;
+    json_array_append_new(pTime, json_integer(second));
 
-    return pJson;
+    for (auto count : qps.values())
+    {
+        json_array_append_new(pTime, json_integer(++second));
+        json_array_append_new(pCounts, json_integer(count));
+    }
+
+    json_object_set_new(pQps, "time", pTime);
+    json_object_set_new(pQps, "counts", pCounts);
+
+    json_object_set_new(pData, "qps", pQps);
+
+    return pData;
 }
 
+}
+
+std::map<mxs::Target*, json_t*> DiffRouterStats::get_jsons() const
+{
+    std::map<mxs::Target*, json_t*> rv;
+
+    rv.emplace(m_pMain, add_qps(m_main_stats.to_json(), m_main_qps));
+
+    for (const auto& kv : m_others)
+    {
+        rv.emplace(kv.first, add_qps(kv.second.stats.to_json(), kv.second.qps));
+    }
+
+    return rv;
+}

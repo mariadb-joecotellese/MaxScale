@@ -121,6 +121,31 @@ public:
 
     void add(mxb::Duration dur);
 
+    int64_t count() const
+    {
+        return m_count;
+    }
+
+    const mxb::Duration& max() const
+    {
+        return m_max;
+    }
+
+    mxb::Duration mean() const
+    {
+        return m_count != 0 ? m_sum / m_count : mxb::Duration {0};
+    }
+
+    const mxb::Duration& min() const
+    {
+        return m_min;
+    }
+
+    const mxb::Duration& sum() const
+    {
+        return m_sum;
+    }
+
     const std::vector<Bin>& bins() const
     {
         return m_bins;
@@ -133,4 +158,9 @@ private:
     Bin              m_smaller_outliers;
     Bin              m_larger_outliers;
     double           m_range;
+
+    int64_t          m_count { 0 };
+    mxb::Duration    m_max { 0 };
+    mxb::Duration    m_min { std::numeric_limits<mxb::Duration::rep>::max() };
+    mxb::Duration    m_sum { 0 };
 };
