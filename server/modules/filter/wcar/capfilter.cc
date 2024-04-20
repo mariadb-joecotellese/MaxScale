@@ -95,6 +95,11 @@ bool CapFilter::post_configure()
 
 CapFilter::~CapFilter()
 {
+    if (m_dc_supervisor != mxb::Worker::NO_CALL)
+    {
+        cancel_dcall(m_dc_supervisor);
+    }
+
     if (m_sRecorder)
     {
         m_sRecorder->stop();
