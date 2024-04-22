@@ -275,19 +275,6 @@ void CapBoostStorage::events_to_sql(std::ostream& out)
 {
     for (const auto& qevent : *this)
     {
-        if (is_session_close(qevent))
-        {
-            out << "/** Session: " << qevent.session_id << " quit */;\n";
-        }
-        else
-        {
-            out << "/**"
-                << " Session: " << qevent.session_id
-                << " Event: " << qevent.event_id
-                << " Duration: " << mxb::to_string(qevent.end_time - qevent.start_time)
-                << " */ "
-                << maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args)
-                << ";\n";
-        }
+       out << qevent << "\n";
     }
 }

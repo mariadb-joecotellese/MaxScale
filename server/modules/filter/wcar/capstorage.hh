@@ -71,6 +71,25 @@ inline bool is_real_event(const QueryEvent& qevent)
     return (qevent.flags & (CAP_ARTIFICIAL | CAP_SESSION_CLOSE)) == 0;
 }
 
+inline std::ostream& operator<<(std::ostream& os, const QueryEvent& qevent)
+{
+    if (is_session_close(qevent))
+    {
+        os << "/** Session: " << qevent.session_id << " quit */;";
+    }
+    else
+    {
+        os << "/**"
+           << " Session: " << qevent.session_id
+           << " Event: " << qevent.event_id
+           << " Duration: " << mxb::to_string(qevent.end_time - qevent.start_time)
+           << " */ "
+           << maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args)
+           << ";";
+    }
+    return os;
+}
+
 /** Abstract Storage for QueryEvents.
  *
  *  The Storage class is also a container with input iterators. As the iterators
