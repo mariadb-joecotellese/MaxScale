@@ -197,6 +197,30 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(wall_time::TimePoi
         events.push_back(std::move(opening_event));
     }
 
+    // If the session was started before the capture was started and there were session commands that were
+    // executed, they must be inject as events into the capture so that the session state in the replay is
+    // consistent with what it was during capture.
+    for (const GWBUF& buffer : maria_ses.history())
+    {
+        if (auto [canonical, args] = m_ps_tracker.get_args(buffer); !canonical.empty())
+        {
+            opening_event.sCanonical = std::make_shared<std::string>(std::move(canonical));
+            opening_event.canonical_args = std::move(args);
+            opening_event.event_id = m_filter.get_next_event_id();
+
+            events.push_back(std::move(opening_event));
+        }
+        else if (generate_canonical_for(buffer, &opening_event))
+        {
+            events.push_back(std::move(opening_event));
+        }
+        else
+        {
+            mxb_assert_message(false, "Unhandled command: %s.",
+                               mariadb::cmd_to_string(mariadb::get_command(buffer)));
+        }
+    }
+
     return events;
 }
 
