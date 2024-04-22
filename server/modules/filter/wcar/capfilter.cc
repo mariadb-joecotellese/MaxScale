@@ -44,7 +44,7 @@ CapFilter::CapFilter(const std::string& name)
 
 std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_prefix)
 {
-    auto base_path = m_config.capture_dir;
+    auto base_path = m_config.capture_directory();
     base_path += '/' + generate_file_base_name(file_prefix);
 
     m_sStorage = std::make_unique<CapBoostStorage>(base_path, ReadWrite::WRITE_ONLY);

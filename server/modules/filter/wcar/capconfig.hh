@@ -37,6 +37,9 @@ public:
     mxb::Duration      capture_duration;
     int64_t            capture_size;
 
+    // The capture directory with the filter name as the suffix
+    std::string capture_directory() const;
+
 private:
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;
     std::function<bool()> m_filter_post_configure;

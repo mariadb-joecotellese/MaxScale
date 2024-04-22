@@ -22,7 +22,7 @@ mxs::config::Specification* CapConfig::specification()
 cfg::ParamPath s_capture_dir(
     &s_spec, "capture_dir", "Directory where capture files are stored",
     cfg::ParamPath::C | cfg::ParamPath::W | cfg::ParamPath::R | cfg::ParamPath::X,
-    mxs::datadir() + std::string("/capture"));
+    mxs::datadir() + std::string("/wcar/"));
 
 cfg::ParamEnum<StorageMethod> s_storage_method(
     &s_spec, "storage_method", "Type of persistent storage",
@@ -65,7 +65,12 @@ CapConfig::CapConfig(const std::string& name, std::function<bool ()> filter_post
 bool CapConfig::post_configure(const std::map<std::string, maxscale::ConfigParameters>& nested_params)
 {
     // TODO fix ParamPath, it does not create the dir when the default value is used.
-    std::filesystem::create_directories(capture_dir);
+    std::filesystem::create_directories(capture_directory());
 
     return m_filter_post_configure();
+}
+
+std::string CapConfig::capture_directory() const
+{
+    return capture_dir + "/" + name();
 }
