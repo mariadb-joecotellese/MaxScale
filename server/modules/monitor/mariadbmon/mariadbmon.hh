@@ -435,6 +435,7 @@ private:
                                              * on disk space to maintenance. */
         bool enforce_read_only_slaves;      /* If true, the monitor checks and enforces every tick
                                              * that all slaves are in read-only-mode. */
+        bool enforce_read_only_servers;     /* Same as above, extended to all non-primary servers */
         bool enforce_writable_master;       /* If true, set master writable if it's read-only. */
         bool enforce_simple_topology;       /* Can the monitor assume and enforce a simple, 1-master
                                              * and N slaves topology? Also allows unsafe failover */
@@ -614,9 +615,14 @@ private:
     bool     server_is_rejoin_suspect(GeneralOpData& op, MariaDBServer* rejoin_cand);
     uint32_t do_rejoin(GeneralOpData& op, const ServerArray& joinable_servers);
 
-    void enforce_read_only_on_slaves();
+    void enforce_read_only();
     void enforce_writable_on_master();
     void set_low_disk_slaves_maintenance();
+
+    void calc_standard_wait_timeout();
+    int  calc_operation_wait_timeout(std::chrono::seconds base_op_timeout);
+    void maybe_set_wait_timeout_all_servers(std::chrono::seconds base_op_timeout);
+    void reset_wait_timeout_all_servers();
 
     bool        post_configure();
     friend bool Settings::post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params);

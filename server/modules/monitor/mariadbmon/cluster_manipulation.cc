@@ -312,6 +312,11 @@ mon_op::Result MariaDBMonitor::manual_reset_replication(SERVER* master_server)
                 targets.push_back(server);
             }
         }
+
+        // reset-replication has no specific timeout setting as it's a manual operation. Base the guess
+        // on switchover_timeout.
+        maybe_set_wait_timeout_all_servers(targets.size() * m_settings.shared.switchover_timeout);
+
         // The 'targets'-array cannot be empty, at least 'new_master' is there.
         MXB_NOTICE("Reseting replication on the following servers: %s. '%s' will be the new primary.",
                    monitored_servers_to_string(targets).c_str(), new_master->name());
@@ -477,6 +482,8 @@ mon_op::Result MariaDBMonitor::manual_reset_replication(SERVER* master_server)
                                         "Server cluster may be in an invalid state for replication.");
         }
         success = !error;
+
+        reset_wait_timeout_all_servers();
     }
     m_state = State::IDLE;
     rval.success = success;
@@ -639,6 +646,11 @@ uint32_t MariaDBMonitor::do_rejoin(GeneralOpData& op, const ServerArray& joinabl
     m_state = State::REJOIN;
     if (!joinable_servers.empty())
     {
+        // Usually rejoin should be fast, just a "change master to ...", so changing wait_timeouts would not
+        // be required. However, old master demotion may contain custom commands that take some time, so
+        // be on the safe side here.
+        maybe_set_wait_timeout_all_servers(joinable_servers.size() * m_settings.shared.switchover_timeout);
+
         for (MariaDBServer* joinable : joinable_servers)
         {
             const char* name = joinable->name();
@@ -697,6 +709,8 @@ uint32_t MariaDBMonitor::do_rejoin(GeneralOpData& op, const ServerArray& joinabl
                 rejoin_error = true;
             }
         }
+
+        reset_wait_timeout_all_servers();
     }
 
     m_state = State::IDLE;
@@ -863,6 +877,8 @@ bool MariaDBMonitor::switchover_perform(SwitchoverParams& op)
     using std::chrono::seconds;
     using std::chrono::duration_cast;
     mxb_assert(op.demotion.target && op.promotion.target);
+    maybe_set_wait_timeout_all_servers(m_settings.shared.switchover_timeout);
+
     const OperationType type = (op.type == SwitchoverType::NORMAL || op.type == SwitchoverType::AUTO) ?
         OperationType::SWITCHOVER : OperationType::SWITCHOVER_FORCE;
     MariaDBServer* const promotion_target = op.promotion.target;
@@ -970,6 +986,7 @@ bool MariaDBMonitor::switchover_perform(SwitchoverParams& op)
 
     demotion_target->restore_connector_timeouts();
     m_state = State::IDLE;
+    reset_wait_timeout_all_servers();
     return rval;
 }
 
@@ -982,6 +999,8 @@ bool MariaDBMonitor::switchover_perform(SwitchoverParams& op)
 bool MariaDBMonitor::failover_perform(FailoverParams& op)
 {
     mxb_assert(op.promotion.target && op.demotion_target);
+    maybe_set_wait_timeout_all_servers(m_settings.failover_timeout);
+
     const OperationType type = OperationType::FAILOVER;
     MariaDBServer* const promotion_target = op.promotion.target;
     auto const demotion_target = op.demotion_target;
@@ -1019,6 +1038,7 @@ bool MariaDBMonitor::failover_perform(FailoverParams& op)
         }
     }
     m_state = State::IDLE;
+    reset_wait_timeout_all_servers();
     return rval;
 }
 
@@ -1818,24 +1838,36 @@ MariaDBMonitor::switchover_prepare(SwitchoverType type, SERVER* promotion_server
     return rval;
 }
 
-void MariaDBMonitor::enforce_read_only_on_slaves()
+void MariaDBMonitor::enforce_read_only()
 {
+    if (!m_master || (!m_settings.enforce_read_only_slaves && !m_settings.enforce_read_only_servers))
+    {
+        // If primary is not known, do nothing. Don't want to set read_only on a server that may be selected
+        // primary next tick.
+        return;
+    }
+
     const char QUERY[] = "SET GLOBAL read_only=1;";
     bool error = false;
     for (MariaDBServer* server : m_servers)
     {
-        if (server != m_master && server->is_slave() && !server->is_read_only()
-            && (server->server_type() == ServerType::MARIADB))
+        if (server != m_master && !server->is_read_only() && (server->server_type() == ServerType::MARIADB))
         {
-            MYSQL* conn = server->con;
-            if (mxs_mysql_query(conn, QUERY) == 0)
+            bool is_slave = server->is_slave();
+            if (is_slave || (m_settings.enforce_read_only_servers && server->is_usable()))
             {
-                MXB_NOTICE("read_only set to ON on '%s'.", server->name());
-            }
-            else
-            {
-                MXB_ERROR("Setting read_only on '%s' failed: '%s'.", server->name(), mysql_error(conn));
-                error = true;
+                MYSQL* conn = server->con;
+                if (mxs_mysql_query(conn, QUERY) == 0)
+                {
+                    const char* type = is_slave ? "replica" : "server";
+                    MXB_NOTICE("read_only set to ON on %s %s.", type, server->name());
+                }
+                else
+                {
+                    MXB_ERROR("Setting read_only on server %s failed. Error %i: '%s'.",
+                              server->name(), mysql_errno(conn), mysql_error(conn));
+                    error = true;
+                }
             }
         }
     }
