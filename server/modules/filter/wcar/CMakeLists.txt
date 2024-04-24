@@ -32,7 +32,10 @@ add_library(wcar SHARED
   caprecorder.cc
 )
 
-target_link_libraries(wcar wcar-core maxscale-common boost_serialization tbb)
+target_link_libraries(wcar wcar-core maxscale-common boost_serialization)
+if (HAVE_STD_EXECUTION)
+  target_link_libraries(wcar tbb)
+endif()
 set_target_properties(wcar PROPERTIES VERSION "1.0.0" LINK_FLAGS -Wl,-z,defs)
 install_module(wcar enterprise)
 

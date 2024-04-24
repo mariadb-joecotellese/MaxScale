@@ -196,7 +196,7 @@ then
          xz-devel sqlite3 sqlite3-devel pkg-config lua lua-devel \
          gnutls-devel libgcrypt-devel pam-devel systemd-devel libcurl-devel libatomic1 \
          cyrus-sasl-devel krb5-devel libicu-devel unixODBC-devel postgresql-devel \
-         boost-serialization libtbb-dev
+         libboost_serialization1_66_0-devel
     sudo zypper -n install rpm-build
     cat /etc/*-release | grep "SUSE Linux Enterprise Server 11"
 
