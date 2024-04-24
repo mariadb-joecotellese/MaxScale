@@ -14,17 +14,16 @@ RepPlayer::RepPlayer(const RepConfig* pConfig)
                  m_transform.max_parallel_sessions())
     , m_threadpool(m_transform.max_parallel_sessions())
 {
-    m_recorder.start();
 }
 
 RepPlayer::~RepPlayer()
 {
-    m_recorder.stop();
 }
 
 void RepPlayer::replay()
 {
     bool once = true;
+    m_recorder.start();
 
     // TODO: add throttling. This loop will now schedule all events, i.e. everything
     // that cannot be executed now, will go to pending, potentially consuming all memory.
@@ -55,6 +54,8 @@ void RepPlayer::replay()
     MXB_SNOTICE("Main loop: " << mxb::to_string(m_stopwatch.restart()));
     wait_for_sessions_to_finish();
     MXB_SNOTICE("Final wait: " << mxb::to_string(m_stopwatch.restart()));
+
+    m_recorder.stop();
     m_transform.finalize();
     MXB_SNOTICE("Transform finalize: " << mxb::to_string(m_stopwatch.restart()));
 
