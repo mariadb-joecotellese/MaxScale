@@ -260,12 +260,12 @@ void DiffRouterSession::ready(const DiffExplainOtherResult& explain_result)
 
     if (!error.empty())
     {
-        auto& main_result = explain_result.other_result().main_result();
+        auto& main_result = explain_result.origin_result().main_result();
 
         auto sql = main_result.sql();
         MXB_WARNING("EXPLAIN of '%.*s' failed: %s", (int)sql.length(), sql.data(), error.c_str());
 
-        generate_report(explain_result.other_result());
+        generate_report(explain_result.origin_result());
     }
     else
     {
@@ -356,7 +356,7 @@ void DiffRouterSession::generate_report(const DiffExplainOtherResult& result)
         }
     }
 
-    generate_report(result.other_result(), pExplain_other, pExplain_main);
+    generate_report(result.origin_result(), pExplain_other, pExplain_main);
 }
 
 void DiffRouterSession::generate_report(const DiffOrdinaryOtherResult& other_result,

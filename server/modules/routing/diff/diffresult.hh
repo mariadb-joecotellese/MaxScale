@@ -433,6 +433,11 @@ public:
         return m_sMain_result->sql();
     }
 
+    const DiffOrdinaryMainResult& origin_result() const
+    {
+        return *m_sMain_result.get();
+    }
+
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 
 private:
@@ -467,7 +472,7 @@ public:
         return m_sOther_result->sql();
     }
 
-    const DiffOrdinaryOtherResult& other_result() const
+    const DiffOrdinaryOtherResult& origin_result() const
     {
         return *m_sOther_result.get();
     }
