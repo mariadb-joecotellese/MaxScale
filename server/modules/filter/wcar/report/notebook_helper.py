@@ -6,6 +6,7 @@ from os import environ as env
 import maxpostprocess as pp
 import math
 import json
+import copy
 from hashlib import sha1
 from IPython.display import Markdown, HTML, display
 import ipywidgets as widgets
@@ -122,12 +123,24 @@ def plot_query_table(compared):
     display(out)
 
 
-def show_histogram(compared, sql):
+def show_one_histogram(ax, label, value, exclude_last, exclude_first):
+    counts = value["hist_bin_counts"]
+    if exclude_last or exclude_first:
+        counts = copy.deepcopy(counts)
+        if exclude_last:
+            counts[-1] = 0
+        if exclude_first:
+            counts[0] = 0
+
+    ax.stairs(counts, value["hist_bin_edges"], label=label, alpha=0.5, fill=True)
+
+
+def show_histogram(compared, sql, exclude_last, exclude_first):
     lhs, rhs = [(v[0]["duration"], v[1]["duration"]) for v in compared if v[0]["sql"] == sql][0]
     fig, ax = plt.subplots()
     fig.set_size_inches(8, 8)
-    ax.stairs(lhs["hist_bin_counts"], lhs["hist_bin_edges"], label="Baseline", alpha=0.5, fill=True)
-    ax.stairs(rhs["hist_bin_counts"], rhs["hist_bin_edges"], label="Comparison", alpha=0.5, fill=True)
+    show_one_histogram(ax, "Baseline", lhs, exclude_last, exclude_first)
+    show_one_histogram(ax, "Comparison", rhs, exclude_last, exclude_first)
     ax.set_xlabel("Time (s)")
     ax.legend()
 
@@ -135,7 +148,10 @@ def show_histogram(compared, sql):
 def plot_histogram(compared):
     id_list = [(f"{q[0]['id']}: {q[0]['sql'][:100]}", q[0]["sql"]) for q in sorted(compared, key=lambda x: x[0]["id"])]
     # Using `interactive` avoids having the window jump around when toggling the ID
-    ia = widgets.interactive(show_histogram, sql = widgets.Dropdown(options=id_list, value=id_list[0][1]),
+    ia = widgets.interactive(show_histogram,
+                             sql = widgets.Dropdown(options=id_list, value=id_list[0][1]),
+                             exclude_last=widgets.Checkbox(value=False, description="Exclude large outliers"),
+                             exclude_first = widgets.Checkbox(value=False, description="Exclude small outliers"),
                              compared = widgets.fixed(compared))
     ia.layout.height = '1000px'
     display(ia)
