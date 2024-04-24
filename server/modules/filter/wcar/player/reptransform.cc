@@ -6,6 +6,8 @@
 #include <maxscale/parser.hh>
 #include <unordered_set>
 
+using namespace std::chrono;
+
 RepTransform::RepTransform(const RepConfig* pConfig, Action action)
     : m_config(*pConfig)
 {
@@ -134,12 +136,25 @@ void RepTransform::transform_events(const fs::path& path, Action action)
         mxb_assert(m_max_parallel_sessions > 0);
     }
 
+    duration<double> nominal_runtime {tx_js.at("capture/duration").get_real()};
+    duration<double> sim_runtime = nominal_runtime;
+
+    if (m_config.sim_speed > 0)
+    {
+        sim_runtime /= m_config.sim_speed;
+    }
+    else
+    {
+        sim_runtime = 0s;
+    }
+
     const char* sort_type = (needs_sorting ? "Sort" : "Original sort");
     MXB_SNOTICE(sort_type << " time: " << tx_js.at("duration").get_real() << "s");
     MXB_SNOTICE("Events: " << tx_js.at("capture/events").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Transactions: " << tx_js.at("capture/transactions").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Sessions: " << tx_js.at("capture/sessions").to_string(mxb::Json::Format::COMPACT));
-    MXB_SNOTICE("Nominal runtime: " << tx_js.at("capture/duration").get_real() << "s");
+    MXB_SNOTICE("Nominal runtime: " << mxb::to_string(duration_cast<mxb::Duration>(nominal_runtime)) << "s");
+    MXB_SNOTICE("Simulation runtime: " << mxb::to_string(duration_cast<mxb::Duration>(sim_runtime)) << "s");
     MXB_SNOTICE("First GTID: " << tx_js.at("capture/start_gtid").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Last GTID: " << tx_js.at("capture/end_gtid").to_string(mxb::Json::Format::COMPACT));
 }
