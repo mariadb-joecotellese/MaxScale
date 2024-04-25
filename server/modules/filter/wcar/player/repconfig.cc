@@ -285,9 +285,24 @@ RepConfig::RepConfig(int argc, char** argv)
 std::unique_ptr<RepStorage> RepConfig::build_rep_storage() const
 {
     fs::path path = output_file;
-    path.replace_extension(csv != RepConfig::CsvType::NONE ? "csv" : "rx");
+    bool file_exists = false;
 
-    if (fs::exists(path))
+    if (csv == RepConfig::CsvType::NONE)
+    {
+        path.replace_extension("rx");
+    }
+
+    try
+    {
+        file_exists = fs::exists(path) && fs::file_size(path) > 0;
+    }
+    catch (const std::exception& e)
+    {
+        // If the output path exists but is not a real file (e.g. /dev/null or a FIFO) the call to
+        // fs::file_size will throw an exception.
+    }
+
+    if (file_exists)
     {
         MXB_THROW(WcarError, "The replay file already exists, will not overwrite replay: " << path);
     }
