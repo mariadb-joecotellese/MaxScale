@@ -81,15 +81,19 @@ Storage::Iterator CapBoostStorage::end() const
     return Storage::Iterator(nullptr, QueryEvent {});
 }
 
-int64_t CapBoostStorage::size()
+int64_t CapBoostStorage::tell()
 {
     if (m_access == ReadWrite::WRITE_ONLY)
     {
-        return m_sCanonical_out->tell() + m_sQuery_event_out->tell();
+        return m_sCanonical_out->tell()
+               + m_sQuery_event_out->tell()
+               + m_sTrx_out->tell();
     }
     else
     {
-        return m_sCanonical_in->tell() + m_sQuery_event_in->tell();
+        return m_sCanonical_in->tell()
+               + m_sQuery_event_in->tell()
+               + m_sTrx_in->tell();
     }
 }
 
@@ -287,7 +291,6 @@ void CapBoostStorage::events_to_sql(std::ostream& out)
             qevent.sTrx = std::move(it->second);
             trxs.erase(it);
         }
-
         out << qevent << "\n";
     }
 }

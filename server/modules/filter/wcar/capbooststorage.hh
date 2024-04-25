@@ -78,8 +78,7 @@ public:
 
     Iterator begin() override;
     Iterator end() const override;
-    // Return file size
-    int64_t size() override;
+    int64_t  tell() override;
 
     // Save an event
     static void save_query_event(BoostOFile& bof, const QueryEvent& qevent);

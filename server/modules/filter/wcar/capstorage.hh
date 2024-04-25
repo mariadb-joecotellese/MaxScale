@@ -157,10 +157,11 @@ public:
     virtual Iterator begin() = 0;
     virtual Iterator end() const = 0;
 
-    // Return a meaningful size for a Storage. Currently there only
-    // is boost storage, but it is not impossible that in-memory
-    // storage is revived.
-    virtual int64_t size() = 0;
+    // The purpose of this function is to control in-memory usage of
+    // the application using a storage. It is an approximation of how
+    // many bytes have been written or read, much like tellg() or tellp()
+    // on a simple file.
+    virtual int64_t tell() = 0;
 
 protected:
     int64_t            next_can_id();
