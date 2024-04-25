@@ -32,6 +32,12 @@ public:
                               const std::chrono::nanoseconds& duration,
                               const mxs::Reply& reply);
 
+    void add_explain_result(std::string_view canonical,
+                            const std::chrono::nanoseconds& duration,
+                            const mxb::TimePoint& now,
+                            std::string_view sql,
+                            json_t* pExplain);
+
     int64_t nRequest_packets() const
     {
         return m_nRequest_packets;

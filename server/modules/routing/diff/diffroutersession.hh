@@ -52,6 +52,15 @@ public:
     DiffHistogram::Specification get_specification_for(std::string_view canonical,
                                                        const mxb::Duration& duration);
 
+    /**
+     * Does a histogram specification exist for a particular canonical statement.
+     *
+     * @param canonical  A canonical statements.
+     *
+     * @return True, if a canonical specification exists, false otherwise.
+     */
+    bool has_specification_for(std::string_view canonical) const;
+
 private:
     // DiffOtherBackend::Handler
     Explain ready(DiffOrdinaryOtherResult& other_result) override;

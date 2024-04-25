@@ -92,6 +92,22 @@ json_t* create_query(int id, const std::string& sql, const DiffData& data)
 
     json_object_set_new(pQuery, "duration", pDuration);
 
+    json_t* pExplains = json_array();
+    for (const auto& kv : data.explains())
+    {
+        json_t* pExplain = json_object();
+        const auto& sExplain = kv.second;
+        std::string when = mxb::to_string(sExplain->when(), "%Y-%m-%dT%H:%M:%S");
+        json_object_set_new(pExplain, "when", json_string(when.c_str()));
+        json_object_set_new(pExplain, "sql", json_string(sExplain->sql().c_str()));
+        json_object_set_new(pExplain, "duration", json_real(mxb::to_secs(kv.first)));
+        json_object_set(pExplain, "json", kv.second->json());
+
+        json_array_append_new(pExplains, pExplain);
+    }
+
+    json_object_set_new(pQuery, "explain", pExplains);
+
     return pQuery;
 }
 
@@ -128,6 +144,20 @@ void DiffStats::add_canonical_result(DiffRouterSession& router_session,
             it->second.add(duration, reply);
         }
     }
+}
+
+void DiffStats::add_explain_result(std::string_view canonical,
+                                   const std::chrono::nanoseconds& duration,
+                                   const mxb::TimePoint& now,
+                                   std::string_view sql,
+                                   json_t* pExplain)
+{
+    // This function should not be called before enough samples have been collected
+    // and at that point, there should be an entry in m_data.
+    auto it = m_datas.find(canonical);
+    mxb_assert(it != m_datas.end());
+
+    it->second.add_explain(duration, now, sql, pExplain);
 }
 
 json_t* DiffStats::get_statistics() const

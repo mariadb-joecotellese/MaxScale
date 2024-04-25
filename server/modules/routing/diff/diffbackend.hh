@@ -133,6 +133,8 @@ protected:
 
     void book_explain() override;
 
+    void store_explain(const ExplainResult& explain_result);
+
 protected:
     Stats                      m_stats;
     std::deque<SResult>        m_results;
@@ -161,6 +163,37 @@ void DiffConcreteBackend<Stats, Result, ExplainResult>::book_explain()
     m_stats.dec_requests();
     m_stats.dec_requests_explainable();
     m_stats.dec_requests_responding();
+}
+
+template<class Stats, class Result, class ExplainResult>
+void DiffConcreteBackend<Stats, Result, ExplainResult>::store_explain(const ExplainResult& explain_result)
+{
+    m_stats.add_explain_duration(explain_result.duration());
+
+    std::string_view json = explain_result.json();
+
+    if (!json.empty())
+    {
+        json_error_t error;
+        json_t* pExplain = json_loadb(json.data(), json.length(), 0, &error);
+
+        if (pExplain)
+        {
+            const auto& origin_result = explain_result.origin_result();
+
+            auto canonical = origin_result.canonical();
+            auto duration = origin_result.duration();
+            auto when = origin_result.start();
+            auto sql = origin_result.sql();
+
+            m_stats.add_explain_result(canonical, duration, when, sql, pExplain);
+        }
+        else
+        {
+            MXB_WARNING("Could not parse EXPLAIN result '%.*s' returned by server: %s",
+                        (int)json.length(), json.data(), error.text);
+        }
+    }
 }
 
 template<class Stats, class Result, class ExplainResult>

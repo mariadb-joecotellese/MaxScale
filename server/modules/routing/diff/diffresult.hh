@@ -43,6 +43,11 @@ public:
         return Kind::INTERNAL;
     }
 
+    Clock::time_point start() const
+    {
+        return m_start;
+    }
+
     bool closed() const
     {
         return m_end != Clock::time_point::max();

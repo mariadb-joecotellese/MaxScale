@@ -88,7 +88,7 @@ void DiffMainBackend::ready(const DiffExplainMainResult& explain_result)
     // excluded from the general book-keeping.
     m_stats.dec_responses();
 
-    m_stats.add_explain_duration(explain_result.duration());
+    store_explain(explain_result);
 
     execute_pending_explains();
 }
@@ -216,7 +216,7 @@ void DiffOtherBackend::ready(DiffExplainOtherResult& explain_result)
     // excluded from the general book-keeping.
     m_stats.dec_responses();
 
-    m_stats.add_explain_duration(explain_result.duration());
+    store_explain(explain_result);
 
     m_pHandler->ready(explain_result);
 

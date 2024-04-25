@@ -217,36 +217,45 @@ DiffHistogram::Specification DiffRouterSession::get_specification_for(std::strin
     return rv;
 }
 
+bool DiffRouterSession::has_specification_for(std::string_view canonical) const
+{
+    return m_sHSRegistry->find(canonical) != m_sHSRegistry->end();
+}
+
 Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)
 {
     Explain rv = Explain::NONE;
 
-    if (should_report(other_result))
+    // We'll ignore all results until enough samples have been collected.
+    if (has_specification_for(other_result.canonical()))
     {
-        auto now = m_pSession->worker()->epoll_tick_now();
-        auto canonical_hash = other_result.canonical_hash();
-        auto id = other_result.id();
-        DiffRegistry::Entries explainers;
-
-        bool is_explained = m_router.registry().is_explained(now, canonical_hash, id, &explainers);
-        other_result.set_explainers(explainers);
-
-        if (m_router.config().entries == 0)
+        if (should_report(other_result))
         {
-            is_explained = false;
-        }
+            auto now = m_pSession->worker()->epoll_tick_now();
+            auto canonical_hash = other_result.canonical_hash();
+            auto id = other_result.id();
+            DiffRegistry::Entries explainers;
 
-        if (!is_explained)
-        {
-            auto explain = m_router.config().explain;
+            bool is_explained = m_router.registry().is_explained(now, canonical_hash, id, &explainers);
+            other_result.set_explainers(explainers);
 
-            if (other_result.is_explainable() && explain != Explain::NONE)
+            if (m_router.config().entries == 0)
             {
-                rv = explain;
+                is_explained = false;
             }
-            else
+
+            if (!is_explained)
             {
-                generate_report(other_result);
+                auto explain = m_router.config().explain;
+
+                if (other_result.is_explainable() && explain != Explain::NONE)
+                {
+                    rv = explain;
+                }
+                else
+                {
+                    generate_report(other_result);
+                }
             }
         }
     }
