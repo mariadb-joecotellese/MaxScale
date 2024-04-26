@@ -153,8 +153,8 @@ void RepTransform::transform_events(const fs::path& path, Action action)
     MXB_SNOTICE("Events: " << tx_js.at("capture/events").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Transactions: " << tx_js.at("capture/transactions").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Sessions: " << tx_js.at("capture/sessions").to_string(mxb::Json::Format::COMPACT));
-    MXB_SNOTICE("Nominal runtime: " << mxb::to_string(duration_cast<mxb::Duration>(nominal_runtime)) << "s");
-    MXB_SNOTICE("Simulation runtime: " << mxb::to_string(duration_cast<mxb::Duration>(sim_runtime)) << "s");
+    MXB_SNOTICE("Nominal runtime: " << mxb::to_string(duration_cast<mxb::Duration>(nominal_runtime)));
+    MXB_SNOTICE("Simulation runtime: " << mxb::to_string(duration_cast<mxb::Duration>(sim_runtime)));
     MXB_SNOTICE("First GTID: " << tx_js.at("capture/start_gtid").to_string(mxb::Json::Format::COMPACT));
     MXB_SNOTICE("Last GTID: " << tx_js.at("capture/end_gtid").to_string(mxb::Json::Format::COMPACT));
 }
