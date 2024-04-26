@@ -606,7 +606,7 @@ std::shared_ptr<const DiffRouter::HSRegistry> DiffRouter::add_sample_for(std::st
                 std::advance(end, size);
 
                 mxb::Duration min = *begin;
-                mxb::Duration max = *end;
+                mxb::Duration max = *(end == samples.end() ? end - 1 : end);
 
                 mxb::Duration delta_fd = calculate_delta_fd(samples, size);
                 mxb::Duration delta_sturges = calculate_delta_sturges(min, max, size);
