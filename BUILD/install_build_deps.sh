@@ -128,7 +128,7 @@ then
          gnupg flex rpmdevtools git wget tcl tcl-devel openssl libuuid-devel xz-devel \
          sqlite sqlite-devel pkgconfig rpm-build createrepo yum-utils \
          gnutls-devel libgcrypt-devel pam-devel libcurl-devel libatomic \
-         cyrus-sasl-devel krb5-devel libicu-devel unixODBC-devel \
+         cyrus-sasl-devel krb5-devel libicu-devel systemd-devel unixODBC-devel \
          boost-serialization tbb-devel
 
     # The Postgres C driver has different names in different distros. For
@@ -139,9 +139,6 @@ then
     done
 
     sudo yum install -d1 -y --nogpgcheck ${enable_power_tools} lua lua-devel libedit-devel
-
-    # Attempt to install systemd-devel, doesn't work on CentOS 6
-    sudo yum install -d1 -y systemd-devel
 
     if is_arm
     then
@@ -159,8 +156,8 @@ then
     sudo yum -d1 -y install centos-release-scl || \
         sudo yum-config-manager --enable rhui-REGION-rhel-server-rhscl
 
-    # Install newer compiler for CentOS 7 and 6
-    grep "release [67]" /etc/redhat-release
+    # Install newer compiler for CentOS 7
+    grep "release 7" /etc/redhat-release
     if [ $? -eq 0 ]
     then
         sudo yum -d1 -y install devtoolset-9-gcc-c++
@@ -201,12 +198,6 @@ then
          cyrus-sasl-devel krb5-devel libicu-devel unixODBC-devel postgresql-devel \
          boost-serialization libtbb-dev
     sudo zypper -n install rpm-build
-    cat /etc/*-release | grep "SUSE Linux Enterprise Server 11"
-
-    if [ $? != 0 ]
-    then
-      sudo zypper -n install libedit-devel
-    fi
 
     if is_arm
     then

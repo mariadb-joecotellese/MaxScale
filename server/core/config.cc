@@ -1047,7 +1047,11 @@ config::ParamEnum<mxb::ssl_version::Version> Config::s_admin_ssl_version(
         {mxb::ssl_version::TLS10, "TLSv10"},
         {mxb::ssl_version::TLS11, "TLSv11"},
         {mxb::ssl_version::TLS12, "TLSv12"},
-        {mxb::ssl_version::TLS13, "TLSv13"}
+        {mxb::ssl_version::TLS13, "TLSv13"},
+        {mxb::ssl_version::TLS10, "TLSv1.0"},
+        {mxb::ssl_version::TLS11, "TLSv1.1"},
+        {mxb::ssl_version::TLS12, "TLSv1.2"},
+        {mxb::ssl_version::TLS13, "TLSv1.3"},
     }, mxb::ssl_version::SSL_TLS_MAX);
 
 config::ParamPath Config::s_admin_ssl_cert(
@@ -1612,18 +1616,12 @@ bool Config::configure(const mxs::ConfigParameters& params, mxs::ConfigParameter
     return configured;
 }
 
-bool Config::configure(json_t* json, std::set<std::string>* pUnrecognized)
+bool Config::need_tls_reload(json_t* json) const
 {
-    std::string old_key = admin_ssl_key;
-    std::string old_cert = admin_ssl_cert;
-    bool configured = config::Configuration::configure(json, pUnrecognized);
-
-    if (configured && (old_key != admin_ssl_key || old_cert != admin_ssl_cert))
-    {
-        configured = mxs_admin_reload_tls();
-    }
-
-    return configured;
+    // The certificates need to be reloaded if either admin_ssl_cert or admin_ssl_key was provided, even if
+    // the values would compare equal to the old ones.
+    return json_object_get(json, s_admin_ssl_cert.name().c_str())
+           || json_object_get(json, s_admin_ssl_key.name().c_str());
 }
 
 void Config::check_cpu_situation() const
