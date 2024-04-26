@@ -265,9 +265,9 @@ void DiffOtherStats::add_result(const DiffOrdinaryOtherResult& other_result, con
     }
 }
 
-void DiffOtherStats::add(const DiffOtherStats& rhs, const DiffConfig& config)
+void DiffOtherStats::combine(const DiffOtherStats& rhs, const DiffConfig& config)
 {
-    DiffStats::add(rhs);
+    DiffStats::combine_stats(rhs, config);
 
     m_nRequests_skipped += rhs.m_nRequests_skipped;
 

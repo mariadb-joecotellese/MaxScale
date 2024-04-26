@@ -4,7 +4,7 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 #include "diffdata.hh"
-
+#include "diffconfig.hh"
 
 namespace
 {
@@ -77,7 +77,7 @@ void DiffData::add_explain(const mxb::Duration& duration,
     m_explains.emplace(duration, std::make_shared<Explain>(when, sql, pExplain));
 }
 
-DiffData& DiffData::operator += (const DiffData& rhs)
+void DiffData::combine(const DiffData& rhs, const DiffConfig& config)
 {
     m_errors += rhs.m_errors;
     m_rr_count += rhs.m_rr_count;
@@ -96,11 +96,16 @@ DiffData& DiffData::operator += (const DiffData& rhs)
 
     m_histogram += rhs.m_histogram;
 
-    // TODO: Limit size.
     for (const auto& kv : rhs.m_explains)
     {
         m_explains.emplace(kv);
     }
 
-    return *this;
+    if (m_explains.size() > (size_t)config.entries)
+    {
+        auto b = m_explains.begin();
+        auto e = b;
+        std::advance(e, m_explains.size() - config.entries);
+        m_explains.erase(b, e);
+    }
 }

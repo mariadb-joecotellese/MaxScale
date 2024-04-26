@@ -10,6 +10,8 @@
 #include <maxscale/target.hh>
 #include "diffhistogram.hh"
 
+class DiffConfig;
+
 class DiffData
 {
 public:
@@ -99,7 +101,7 @@ public:
                      std::string_view sql,
                      json_t* pExplain);
 
-    DiffData& operator += (const DiffData& rhs);
+    void combine(const DiffData& rhs, const DiffConfig& config);
 
 private:
     int64_t       m_errors { 0 };

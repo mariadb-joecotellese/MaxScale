@@ -63,7 +63,7 @@ config::ParamSize entries(
     &specification,
     "entries",
     "During the period specified by 'period', at most how many entries are logged.",
-    2, // Default
+    5, // Default
     0, // Min
     std::numeric_limits<config::ParamCount::value_type>::max(), // Max
     config::Param::AT_RUNTIME);

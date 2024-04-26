@@ -523,7 +523,7 @@ void DiffRouter::collect(const DiffRouterSessionStats& stats)
 {
     std::lock_guard<std::mutex> guard(m_stats_lock);
 
-    m_stats.add(stats, m_config);
+    m_stats.combine(stats, m_config);
 }
 
 namespace
