@@ -273,8 +273,21 @@ std::map<int64_t, std::shared_ptr<std::string>>  CapBoostStorage::canonicals()
 
 void CapBoostStorage::events_to_sql(std::ostream& out)
 {
-    for (const auto& qevent : *this)
+    std::map<uint64_t, std::unique_ptr<Trx>> trxs;
+
+    for (auto&& t : load_trx_events(*m_sTrx_in))
     {
-       out << qevent << "\n";
+        trxs.emplace(t.end_event_id, std::make_unique<Trx>(t.start_event_id, t.gtid));
+    }
+
+    for (auto&& qevent : *this)
+    {
+        if (auto it = trxs.find(qevent.event_id); it != trxs.end())
+        {
+            qevent.sTrx = std::move(it->second);
+            trxs.erase(it);
+        }
+
+        out << qevent << "\n";
     }
 }

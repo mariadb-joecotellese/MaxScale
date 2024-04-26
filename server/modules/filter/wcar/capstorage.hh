@@ -82,8 +82,14 @@ inline std::ostream& operator<<(std::ostream& os, const QueryEvent& qevent)
         os << "/**"
            << " Session: " << qevent.session_id
            << " Event: " << qevent.event_id
-           << " Duration: " << mxb::to_string(qevent.end_time - qevent.start_time)
-           << " */ "
+           << " Duration: " << mxb::to_string(qevent.end_time - qevent.start_time);
+
+        if (qevent.sTrx)
+        {
+            os << " GTID: " << qevent.sTrx->gtid;
+        }
+
+        os << " */ "
            << maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args)
            << ";";
     }
