@@ -8,5 +8,8 @@ reptransform.cc
 reprecorder.cc
 repbooststorage.cc
 repcsvstorage.cc)
-target_link_libraries(maxplayer wcar-core maxscale-common boost_serialization tbb)
+target_link_libraries(maxplayer wcar-core maxscale-common boost_serialization)
+if (HAVE_STD_EXECUTION)
+  target_link_libraries(maxplayer tbb)
+endif()
 install_executable(maxplayer enterprise)

@@ -44,7 +44,7 @@ CapFilter::CapFilter(const std::string& name)
 
 std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_prefix)
 {
-    auto base_path = m_config.capture_dir;
+    auto base_path = m_config.capture_directory();
     base_path += '/' + generate_file_base_name(file_prefix);
 
     m_sStorage = std::make_unique<CapBoostStorage>(base_path, ReadWrite::WRITE_ONLY);
@@ -95,6 +95,11 @@ bool CapFilter::post_configure()
 
 CapFilter::~CapFilter()
 {
+    if (m_dc_supervisor != mxb::Worker::NO_CALL)
+    {
+        cancel_dcall(m_dc_supervisor);
+    }
+
     if (m_sRecorder)
     {
         m_sRecorder->stop();
@@ -181,7 +186,20 @@ bool CapFilter::stop_capture()
 
 json_t* CapFilter::diagnostics() const
 {
-    return m_config.to_json();
+    mxb::Json js;
+
+    if (m_sRecorder)
+    {
+        js.set_bool("capturing", true);
+        js.set_real("duration", mxb::to_secs(mxb::Clock::now() - m_start_time));
+        js.set_int("size", m_sRecorder->context().bytes_processed());
+    }
+    else
+    {
+        js.set_bool("capturing", false);
+    }
+
+    return js.release();
 }
 
 int64_t CapFilter::get_next_event_id() const

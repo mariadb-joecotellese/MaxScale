@@ -217,36 +217,45 @@ DiffHistogram::Specification DiffRouterSession::get_specification_for(std::strin
     return rv;
 }
 
+bool DiffRouterSession::has_specification_for(std::string_view canonical) const
+{
+    return m_sHSRegistry->find(canonical) != m_sHSRegistry->end();
+}
+
 Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)
 {
     Explain rv = Explain::NONE;
 
-    if (should_report(other_result))
+    // We'll ignore all results until enough samples have been collected.
+    if (has_specification_for(other_result.canonical()))
     {
-        auto now = m_pSession->worker()->epoll_tick_now();
-        auto canonical_hash = other_result.canonical_hash();
-        auto id = other_result.id();
-        DiffRegistry::Entries explainers;
-
-        bool is_explained = m_router.registry().is_explained(now, canonical_hash, id, &explainers);
-        other_result.set_explainers(explainers);
-
-        if (m_router.config().entries == 0)
+        if (should_report(other_result))
         {
-            is_explained = false;
-        }
+            auto now = m_pSession->worker()->epoll_tick_now();
+            auto canonical_hash = other_result.canonical_hash();
+            auto id = other_result.id();
+            DiffRegistry::Entries explainers;
 
-        if (!is_explained)
-        {
-            auto explain = m_router.config().explain;
+            bool is_explained = m_router.registry().is_explained(now, canonical_hash, id, &explainers);
+            other_result.set_explainers(explainers);
 
-            if (other_result.is_explainable() && explain != Explain::NONE)
+            if (m_router.config().entries == 0)
             {
-                rv = explain;
+                is_explained = false;
             }
-            else
+
+            if (!is_explained)
             {
-                generate_report(other_result);
+                auto explain = m_router.config().explain;
+
+                if (other_result.is_explainable() && explain != Explain::NONE)
+                {
+                    rv = explain;
+                }
+                else
+                {
+                    generate_report(other_result);
+                }
             }
         }
     }
@@ -260,12 +269,12 @@ void DiffRouterSession::ready(const DiffExplainOtherResult& explain_result)
 
     if (!error.empty())
     {
-        auto& main_result = explain_result.other_result().main_result();
+        auto& main_result = explain_result.origin_result().main_result();
 
         auto sql = main_result.sql();
         MXB_WARNING("EXPLAIN of '%.*s' failed: %s", (int)sql.length(), sql.data(), error.c_str());
 
-        generate_report(explain_result.other_result());
+        generate_report(explain_result.origin_result());
     }
     else
     {
@@ -356,7 +365,7 @@ void DiffRouterSession::generate_report(const DiffExplainOtherResult& result)
         }
     }
 
-    generate_report(result.other_result(), pExplain_other, pExplain_main);
+    generate_report(result.origin_result(), pExplain_other, pExplain_main);
 }
 
 void DiffRouterSession::generate_report(const DiffOrdinaryOtherResult& other_result,

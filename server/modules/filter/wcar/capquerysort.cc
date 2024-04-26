@@ -4,7 +4,15 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 #include "capquerysort.hh"
+
+#if HAVE_STD_EXECUTION
 #include <execution>
+#define sort_par(...)  std::sort(std::execution::par, __VA_ARGS__)
+#define merge_par(...) std::merge(std::execution::par, __VA_ARGS__)
+#else
+#define sort_par(...)  std::sort(__VA_ARGS__)
+#define merge_par(...) std::merge(__VA_ARGS__)
+#endif
 
 // This should not really be a constant, but rather dynamic
 // based on available memory as a QueryEvent has a vector
@@ -58,7 +66,7 @@ inline void WorkChunk::push_back(QueryKey&& qkey)
 
 inline void WorkChunk::sort()
 {
-    std::sort(std::execution::par, m_qkeys.begin(), m_qkeys.end());
+    sort_par(m_qkeys.begin(), m_qkeys.end());
 }
 
 inline void WorkChunk::pop_front()
@@ -97,10 +105,9 @@ void WorkChunk::save(const std::string& file_name)
 inline void WorkChunk::merge(WorkChunk&& rhs)
 {
     std::deque<QueryKey> res;
-    std::merge(std::execution::par,
-               std::make_move_iterator(m_qkeys.begin()), std::make_move_iterator(m_qkeys.end()),
-               std::make_move_iterator(rhs.m_qkeys.begin()), std::make_move_iterator(rhs.m_qkeys.end()),
-               std::back_inserter(res));
+    merge_par(std::make_move_iterator(m_qkeys.begin()), std::make_move_iterator(m_qkeys.end()),
+              std::make_move_iterator(rhs.m_qkeys.begin()), std::make_move_iterator(rhs.m_qkeys.end()),
+              std::back_inserter(res));
     m_qkeys = std::move(res);
 }
 
@@ -149,7 +156,7 @@ void QuerySort::load_sort_keys()
     m_read_time.end_interval();
 
     m_sort_time.start_interval();
-    std::sort(std::execution::par, m_keys.begin(), m_keys.end());
+    sort_par(m_keys.begin(), m_keys.end());
     m_sort_time.end_interval();
 
     m_report.events = m_keys.size();
@@ -243,8 +250,7 @@ void QuerySort::sort_trx_events()
 
     // Sort by gtid, which can lead to out of order end_time. The number of
     // gtids is small relative to query events and fit in memory (TODO document).
-    std::sort(std::execution::par, m_tevents.begin(), m_tevents.end(), []
-              (const auto& lhs, const auto& rhs){
+    sort_par(m_tevents.begin(), m_tevents.end(), [](const auto& lhs, const auto& rhs){
         if (lhs.gtid.domain_id == lhs.gtid.domain_id)
         {
             return lhs.gtid.sequence_nr < rhs.gtid.sequence_nr;

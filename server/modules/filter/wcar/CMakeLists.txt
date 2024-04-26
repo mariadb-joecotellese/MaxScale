@@ -1,5 +1,15 @@
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND ${CMAKE_CXX_COMPILER_VERSION} VERSION_GREATER_EQUAL 9.1.0)
-  message(STATUS "Using <execution> for parallel sorting")
+# RHEL 8 does not have the <execution> header and TBB on RHEL 7 is too old.
+set(CMAKE_REQUIRED_LINK_OPTIONS "-ltbb")
+check_cxx_source_compiles("
+#include <execution>
+#include <algorithm>
+int main() {
+  int a[100]{5, 4, 3, 2, 1, 0};
+  std::sort(std::execution::par, std::begin(a), std::end(a));
+  return a[0];
+}" HAVE_STD_EXECUTION)
+
+if(HAVE_STD_EXECUTION)
   add_definitions(-DHAVE_STD_EXECUTION=1)
 else()
   message(STATUS "Compiler too old or <execution> not found, using serial sorting")
@@ -22,7 +32,10 @@ add_library(wcar SHARED
   caprecorder.cc
 )
 
-target_link_libraries(wcar wcar-core maxscale-common boost_serialization tbb)
+target_link_libraries(wcar wcar-core maxscale-common boost_serialization)
+if (HAVE_STD_EXECUTION)
+  target_link_libraries(wcar tbb)
+endif()
 set_target_properties(wcar PROPERTIES VERSION "1.0.0" LINK_FLAGS -Wl,-z,defs)
 install_module(wcar enterprise)
 
