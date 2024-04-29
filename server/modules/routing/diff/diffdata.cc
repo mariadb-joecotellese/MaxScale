@@ -101,11 +101,12 @@ void DiffData::combine(const DiffData& rhs, const DiffConfig& config)
         m_explains.emplace(kv);
     }
 
-    if (m_explains.size() > (size_t)config.entries)
+    size_t explain_entries = config.explain_entries;
+    if (m_explains.size() > explain_entries)
     {
         auto b = m_explains.begin();
         auto e = b;
-        std::advance(e, m_explains.size() - config.entries);
+        std::advance(e, m_explains.size() - explain_entries);
         m_explains.erase(b, e);
     }
 }

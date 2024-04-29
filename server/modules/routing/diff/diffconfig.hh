@@ -39,8 +39,8 @@ public:
 
     DiffConfig(const char* zName, DiffRouter* pInstance);
 
-    static mxs::config::ParamSize& param_entries();
-    static mxs::config::ParamDuration<std::chrono::milliseconds>& param_period();
+    static mxs::config::ParamSize& param_explain_entries();
+    static mxs::config::ParamDuration<std::chrono::milliseconds>& param_explain_period();
 
     static mxs::config::Specification& specification();
 
@@ -54,13 +54,13 @@ public:
     //
     // Optional, Runtime
     //
-    int64_t                    entries;
     Explain                    explain;
+    int64_t                    explain_entries;
+    std::chrono::milliseconds  explain_period;
     int64_t                    max_execution_time_difference;
     int64_t                    max_request_lag;
     mxs::config::Enum<OnError> on_error;
     int64_t                    percentile;
-    std::chrono::milliseconds  period;
     std::chrono::seconds       qps_window;
     mxs::config::Enum<Report>  report;
     bool                       reset_replication;

@@ -18,8 +18,8 @@ struct ThisUnit
 }
 
 DiffRegistry::DiffRegistry()
-    : m_nMax_entries(DiffConfig::param_entries().default_value())
-    , m_period(DiffConfig::param_period().default_value())
+    : m_nMax_entries(DiffConfig::param_explain_entries().default_value())
+    , m_period(DiffConfig::param_explain_period().default_value())
 {
 }
 

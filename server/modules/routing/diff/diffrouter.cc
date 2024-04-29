@@ -173,8 +173,8 @@ bool DiffRouter::post_configure()
 
                 if (rv)
                 {
-                    m_registry.set_max_entries(m_config.entries);
-                    m_registry.set_period(m_config.period);
+                    m_registry.set_max_entries(m_config.explain_entries);
+                    m_registry.set_period(m_config.explain_period);
 
                     m_stats.post_configure(m_config);
                 }
