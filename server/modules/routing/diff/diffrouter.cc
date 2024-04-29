@@ -173,8 +173,8 @@ bool DiffRouter::post_configure()
 
                 if (rv)
                 {
-                    m_registry.set_max_entries(m_config.entries);
-                    m_registry.set_period(m_config.period);
+                    m_registry.set_max_entries(m_config.explain_entries);
+                    m_registry.set_period(m_config.explain_period);
 
                     m_stats.post_configure(m_config);
                 }
@@ -523,7 +523,7 @@ void DiffRouter::collect(const DiffRouterSessionStats& stats)
 {
     std::lock_guard<std::mutex> guard(m_stats_lock);
 
-    m_stats.add(stats, m_config);
+    m_stats.combine(stats, m_config);
 }
 
 namespace

@@ -239,7 +239,7 @@ Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)
             bool is_explained = m_router.registry().is_explained(now, canonical_hash, id, &explainers);
             other_result.set_explainers(explainers);
 
-            if (m_router.config().entries == 0)
+            if (m_router.config().explain_entries == 0)
             {
                 is_explained = false;
             }

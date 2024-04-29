@@ -59,15 +59,6 @@ config::ParamString service(
 //
 // Runtime Parameters
 //
-config::ParamSize entries(
-    &specification,
-    "entries",
-    "During the period specified by 'period', at most how many entries are logged.",
-    2, // Default
-    0, // Min
-    std::numeric_limits<config::ParamCount::value_type>::max(), // Max
-    config::Param::AT_RUNTIME);
-
 config::ParamEnum<Explain> explain(
     &specification,
     "explain",
@@ -78,6 +69,24 @@ config::ParamEnum<Explain> explain(
         {Explain::BOTH, "both"}
     },
     Explain::BOTH, // Default
+    config::Param::AT_RUNTIME);
+
+config::ParamSize explain_entries(
+    &specification,
+    "explain_entries",
+    "During the period specified by 'explain_period', at most how many instances of a "
+    "particular query digest are EXPLAINed.",
+    5, // Default
+    0, // Min
+    std::numeric_limits<config::ParamCount::value_type>::max(), // Max
+    config::Param::AT_RUNTIME);
+
+config::ParamDuration<std::chrono::milliseconds> explain_period(
+    &specification,
+    "explain_period",
+    "Specifies the period during which at most 'explain_entries' number of instances of a "
+    "particular query digest are EXPLAINED.",
+    std::chrono::milliseconds { 15 * 60 * 1000 }, // Default, 15 minutes
     config::Param::AT_RUNTIME);
 
 config::ParamPercent max_execution_time_difference(
@@ -119,13 +128,6 @@ config::ParamPercent percentile(
     99, // Default
     1, // Min
     100,  // Max
-    config::Param::AT_RUNTIME);
-
-config::ParamDuration<std::chrono::milliseconds> period(
-    &specification,
-    "period",
-    "Specifies the period during which at most 'entries' number of entries are logged.",
-    std::chrono::milliseconds { 15 * 60 * 1000 }, // Default, 15 minutes
     config::Param::AT_RUNTIME);
 
 config::ParamDuration<std::chrono::seconds> qps_window(
@@ -194,12 +196,12 @@ DiffConfig::DiffConfig(const char* zName, DiffRouter* pInstance)
     add_native(&DiffConfig::pMain, &diff::main);
     add_native(&DiffConfig::service_name, &diff::service);
 
-    add_native(&DiffConfig::entries, &diff::entries);
     add_native(&DiffConfig::explain, &diff::explain);
+    add_native(&DiffConfig::explain_entries, &diff::explain_entries);
+    add_native(&DiffConfig::explain_period, &diff::explain_period);
     add_native(&DiffConfig::max_execution_time_difference, &diff::max_execution_time_difference);
     add_native(&DiffConfig::max_request_lag, &diff::max_request_lag);
     add_native(&DiffConfig::percentile, &diff::percentile);
-    add_native(&DiffConfig::period, &diff::period);
     add_native(&DiffConfig::qps_window, &diff::qps_window);
     add_native(&DiffConfig::reset_replication, &diff::reset_replication);
     add_native(&DiffConfig::retain_faster_statements, &diff::retain_faster_statements);
@@ -208,15 +210,15 @@ DiffConfig::DiffConfig(const char* zName, DiffRouter* pInstance)
 }
 
 //static
-mxs::config::ParamSize& DiffConfig::param_entries()
+mxs::config::ParamSize& DiffConfig::param_explain_entries()
 {
-    return diff::entries;
+    return diff::explain_entries;
 }
 
 //static
-mxs::config::ParamDuration<std::chrono::milliseconds>& DiffConfig::param_period()
+mxs::config::ParamDuration<std::chrono::milliseconds>& DiffConfig::param_explain_period()
 {
-    return diff::period;
+    return diff::explain_period;
 }
 
 // static

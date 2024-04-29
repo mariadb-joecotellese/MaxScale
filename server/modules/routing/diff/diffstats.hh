@@ -148,7 +148,12 @@ public:
         return m_datas;
     }
 
-    void add(const DiffStats& rhs)
+    virtual json_t* to_json() const;
+
+protected:
+    DiffStats() = default;
+
+    void combine_stats(const DiffStats& rhs, const DiffConfig& config)
     {
         m_total_duration += rhs.m_total_duration;
         m_nRequest_packets += rhs.m_nRequest_packets;
@@ -166,7 +171,7 @@ public:
 
             if (it != m_datas.end())
             {
-                it->second += kv.second;
+                it->second.combine(kv.second, config);
             }
             else
             {
@@ -174,11 +179,6 @@ public:
             }
         }
     }
-
-    virtual json_t* to_json() const;
-
-protected:
-    DiffStats() = default;
 
     virtual json_t* get_statistics() const;
 
@@ -201,6 +201,11 @@ class DiffMainStats final : public DiffStats
 {
 public:
     DiffMainStats() = default;
+
+    void combine(const DiffMainStats& rhs, const DiffConfig& config)
+    {
+        DiffStats::combine_stats(rhs, config);
+    }
 };
 
 
@@ -245,7 +250,7 @@ public:
 
     void add_result(const DiffOrdinaryOtherResult& result, const DiffConfig& config);
 
-    void add(const DiffOtherStats& stats, const DiffConfig& config);
+    void combine(const DiffOtherStats& stats, const DiffConfig& config);
 
     json_t* to_json() const override;
 
@@ -323,9 +328,9 @@ public:
     {
     }
 
-    void add(const DiffRouterSessionStats& rss, const DiffConfig& config)
+    void combine(const DiffRouterSessionStats& rss, const DiffConfig& config)
     {
-        m_main_stats.add(rss.main_stats());
+        m_main_stats.combine(rss.main_stats(), config);
         m_main_qps += rss.main_qps();
 
         for (const auto& kv : rss.others())
@@ -334,7 +339,7 @@ public:
 
             if (it != m_others.end())
             {
-                it->second.stats.add(kv.second.stats, config);
+                it->second.stats.combine(kv.second.stats, config);
                 it->second.qps += kv.second.qps;
             }
             else

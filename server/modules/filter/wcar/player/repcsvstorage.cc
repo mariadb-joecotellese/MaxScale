@@ -37,7 +37,7 @@ void RepCsvStorage::dump_canonicals(Canonicals canonicals, std::ostream& out)
 RepCsvStorage::RepCsvStorage(std::filesystem::path path, Canonicals canonicals)
     : m_canonicals(std::move(canonicals))
 {
-    m_file.open(path.replace_extension("csv"));
+    m_file.open(path);
 
     if (!m_file)
     {
