@@ -10,6 +10,7 @@ import copy
 from hashlib import sha1
 from IPython.display import Markdown, HTML, display
 import ipywidgets as widgets
+from datetime import datetime
 
 SORT_ASC = 1
 SORT_DESC = -1
@@ -39,7 +40,7 @@ def load_data():
 
 
 def plot_one_qps(ax, res, label):
-    t = res["qps"]["time"]
+    t = [datetime.fromtimestamp(t) for t in res["qps"]["time"]]
     c = res["qps"]["counts"]
     if len(t) > len(c) + 1:
         t = t[:len(c) + 1]
