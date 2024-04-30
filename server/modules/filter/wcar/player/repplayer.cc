@@ -73,6 +73,7 @@ void RepPlayer::replay()
 RepPlayer::ExecutionInfo RepPlayer::get_execution_info(RepSession& session, const QueryEvent& qevent)
 {
     ExecutionInfo exec {false, end(m_transform.transactions())};
+    auto trx_start_ite = m_transform.trx_start_mapping(qevent.event_id);
 
     if (m_front_trxn == end(m_transform.transactions()))
     {
@@ -84,12 +85,19 @@ RepPlayer::ExecutionInfo RepPlayer::get_execution_info(RepSession& session, cons
     }
     else
     {
-        exec.can_execute = qevent.start_time < m_front_trxn->end_time;
+        if (trx_start_ite != end(m_transform.transactions()))
+        {
+            exec.can_execute = qevent.start_time < m_front_trxn->end_time;
+        }
+        else
+        {
+            exec.can_execute = true;
+        }
     }
 
     if (exec.can_execute)
     {
-        exec.trx_start_ite = m_transform.trx_start_mapping(qevent.event_id);
+        exec.trx_start_ite = trx_start_ite;
     }
 
     return exec;
