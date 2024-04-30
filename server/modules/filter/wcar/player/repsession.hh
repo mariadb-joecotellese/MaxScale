@@ -114,3 +114,8 @@ inline void RepSession::queue_front_pending(int64_t commit_event_id)
     queue_query(std::move(m_pending_events.front()), commit_event_id);
     m_pending_events.pop_front();
 }
+
+void start_deadlock_monitor(int max_sessions,
+                            std::string user, std::string password,
+                            std::string address, int port);
+void stop_deadlock_monitor();

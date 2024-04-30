@@ -5,16 +5,121 @@
 #include <maxbase/assert.hh>
 #include <maxbase/string.hh>
 #include <maxsimd/canonical.hh>
+#include <maxsql/mariadb_connector.hh>
 #include <iostream>
 #include <thread>
 
 namespace
 {
+
+struct ThreadInfo
+{
+    uint64_t               session_id {0};
+    unsigned int           thread_id {0};
+    bool                   executing {false};
+    int64_t                last_event_id {-1};
+    mxb::Clock::time_point last_event_ts {mxb::Duration{0}};
+};
+
 namespace ThisUnit
 {
 std::atomic<int> next_thread_idx = 0;
 thread_local int thread_idx = -1;
+
+// Deadlock monitor thread
+std::vector<ThreadInfo> infos;
+std::mutex lock;
+std::condition_variable cv;
+std::atomic<bool> monitor_running {false};
+std::thread monitor_thr;
 }
+
+void dump_infos()
+{
+    std::lock_guard guard(ThisUnit::lock);
+
+    for (auto& t : ThisUnit::infos)
+    {
+        std::cout
+            << "Session: " << t.session_id << ", "
+            << "Thread: " << t.thread_id << ", "
+            << "Event ID: " << t.last_event_id << ", "
+            << "Time since start: " << mxb::to_string(mxb::Clock::now() - t.last_event_ts)
+            << std::endl;
+    }
+}
+
+void deadlock_monitor(std::string user, std::string password, std::string address, int port)
+{
+    mxq::MariaDB conn;
+    auto& s = conn.connection_settings();
+    s.user = user;
+    s.password = password;
+
+    if (!conn.open(address, port))
+    {
+        MXB_SERROR("Could not connect to " << address << ':' << std::to_string(port)
+                                           << " Error: " << conn.error());
+        return;
+    }
+
+    auto res = conn.query("SELECT @@global.innodb_lock_wait_timeout");
+    res->next_row();
+    std::chrono::seconds lock_wait_timeout {res->get_int(0)};
+    res.reset();
+
+    while (ThisUnit::monitor_running)
+    {
+        for (auto& info : ThisUnit::infos)
+        {
+            if (info.executing && mxb::Clock::now() - info.last_event_ts > lock_wait_timeout * 0.75)
+            {
+                auto wait_dur = std::chrono::duration_cast<mxb::Duration>(lock_wait_timeout * 0.75);
+                std::cout << "Session " << info.session_id << " has been stuck over "
+                          << mxb::to_string(wait_dur) << " on event " << info.last_event_id << ". "
+                          << "Connection ID: " << info.thread_id << std::endl;
+
+                res = conn.query("SHOW ENGINE INNODB STATUS");
+
+                while (res->next_row())
+                {
+                    for (unsigned int i = 0; i < res->get_col_count(); i++)
+                    {
+                        std::cout << res->get_string(i) << " ";
+                    }
+
+                    std::cout << "\n";
+                }
+
+                res.reset();
+                dump_infos();
+            }
+            else
+            {
+                std::unique_lock guard(ThisUnit::lock);
+                ThisUnit::cv.wait_for(guard, 5s, [&](){
+                    return !ThisUnit::monitor_running;
+                });
+            }
+        }
+    }
+}
+}
+
+void start_deadlock_monitor(int max_sessions,
+                            std::string user, std::string password,
+                            std::string address, int port)
+{
+    ThisUnit::infos.resize(max_sessions);
+    ThisUnit::monitor_running = true;
+    ThisUnit::monitor_thr = std::thread(deadlock_monitor, user, password, address, port);
+}
+
+void stop_deadlock_monitor()
+{
+    ThisUnit::monitor_running = false;
+    ThisUnit::cv.notify_one();
+    ThisUnit::monitor_thr.join();
 }
 
 bool RepSession::execute_stmt(const QueryEvent& qevent)
@@ -155,6 +260,10 @@ void RepSession::run()
         exit(EXIT_FAILURE);
     }
 
+    auto& info = ThisUnit::infos[ThisUnit::thread_idx];
+    info.thread_id = mysql_thread_id(m_pConn);
+    info.last_event_ts = mxb::Clock::now();
+
     while (m_running.load(std::memory_order_relaxed))
     {
         std::unique_lock lock(m_mutex);
@@ -163,6 +272,13 @@ void RepSession::run()
         });
 
         auto qevent = std::move(m_queue.front());
+
+        if (info.session_id == 0)
+        {
+            info.session_id = qevent.session_id;
+        }
+
+        info.last_event_id = qevent.event_id;
         m_queue.pop_front();
         lock.unlock();
 
@@ -173,7 +289,12 @@ void RepSession::run()
         }
         else
         {
+            // Only mark sessions inside a transaction as executing. This avoids long-running commands like
+            // ALTER TABLE from being falsely reported as deadlocked.
+            info.executing = in_trxn();
+            info.last_event_ts = mxb::Clock::now();
             execute_stmt(qevent);
+            info.executing = false;
             if (qevent.event_id == m_commit_event_id)
             {
                 auto rep = m_commit_event_id;

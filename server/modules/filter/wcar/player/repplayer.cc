@@ -25,6 +25,10 @@ void RepPlayer::replay()
     bool once = true;
     m_recorder.start();
 
+    start_deadlock_monitor(m_transform.max_parallel_sessions(),
+                           m_config.user, m_config.password,
+                           m_config.host.address(), m_config.host.port());
+
     // TODO: add throttling. This loop will now schedule all events, i.e. everything
     // that cannot be executed now, will go to pending, potentially consuming all memory.
     for (auto&& qevent : m_transform.player_storage())
@@ -57,6 +61,7 @@ void RepPlayer::replay()
 
     m_recorder.stop();
     m_transform.finalize();
+    stop_deadlock_monitor();
     MXB_SNOTICE("Transform finalize: " << mxb::to_string(m_stopwatch.restart()));
 
     for (auto str : mxb::strtok(mxb::get_collector_stats(), "\n"))
