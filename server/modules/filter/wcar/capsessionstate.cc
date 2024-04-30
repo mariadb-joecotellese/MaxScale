@@ -103,6 +103,14 @@ std::unique_ptr<Trx> CapSessionState::update(int64_t event_id, const mxs::Reply&
             }
         }
     }
+    else if (reply.error().is_rollback())
+    {
+        // If the server responds with an SQLSTATE 4000[X] error, it means the transaction caused a deadlock
+        // and it was rolled back. This means that the transaction is no longer open and the next statement
+        // should be able to start a new transaction.
+        m_in_trx = false;
+        m_trx_start_id = -1;
+    }
 
     if (event_id <= 0)
     {   // capture is not on, maintaining state.
