@@ -43,7 +43,7 @@ struct RepConfig
     CsvType       csv = CsvType::NONE;
     bool          row_counts = true;
 
-    std::string capture_dir = mxs::datadir() + std::string("/capture");
+    std::string capture_dir = mxs::datadir() + std::string("/wcar");
     std::string file_name;      // full path, not necessarily in capture_dir
     std::string output_file;    // Output file, defaults to file_name
     std::string command = "replay";
