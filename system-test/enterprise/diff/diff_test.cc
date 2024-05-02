@@ -11,10 +11,13 @@
  * Public License.
  */
 
+#include <iostream>
 #include <maxbase/string.hh>
 #include <maxtest/testconnections.hh>
 #include <maxtest/maxrest.hh>
 #include "../enterprise_test.hh"
+
+using namespace std;
 
 namespace
 {
@@ -22,42 +25,61 @@ namespace
 class Diff
 {
 public:
-    Diff(TestConnections* pTest)
-        : m_test(*pTest)
+    Diff(std::string_view name,
+         TestConnections* pTest)
+        : m_name(name)
+        , m_test(*pTest)
         , m_maxrest(pTest)
     {
     }
 
-    void prepare(const std::string& service,
-                 const std::string& a_server,
-                 const std::string& another_server) const
+    const std::string& name() const
     {
-        call_command(MaxRest::POST, "prepare", service, CallRepeatable::NO, { a_server, another_server });
+        return m_name;
     }
 
-    void start(const std::string& service) const
+    TestConnections& test() const
     {
-        call_command(MaxRest::POST, "start", service, CallRepeatable::NO);
+        return m_test;
     }
 
-    void status(const std::string& service) const
+    static Diff create(TestConnections* pTest,
+                       const std::string& diff_service,
+                       const std::string& service,
+                       const std::string& a_server,
+                       const std::string& another_server)
     {
-        call_command(MaxRest::POST, "status", service, CallRepeatable::YES);
+        MaxRest maxrest(pTest);
+
+        call_command(maxrest, MaxRest::POST, "create", diff_service, CallRepeatable::NO,
+                     { service, a_server, another_server });
+
+        return Diff(diff_service, pTest);
     }
 
-    void stop(const std::string& service) const
+    mxb::Json start() const
     {
-        call_command(MaxRest::POST, "stop", service, CallRepeatable::NO);
+        return call_command(MaxRest::POST, "start", m_name, CallRepeatable::NO);
     }
 
-    void summary(const std::string& service) const
+    mxb::Json status() const
     {
-        call_command(MaxRest::GET, "summary", service, CallRepeatable::YES, {"return"});
+        return call_command(MaxRest::POST, "status", m_name, CallRepeatable::YES);
     }
 
-    void unprepare(const std::string& service) const
+    mxb::Json stop() const
     {
-        call_command(MaxRest::POST, "unprepare", service, CallRepeatable::NO);
+        return call_command(MaxRest::POST, "stop", m_name, CallRepeatable::NO);
+    }
+
+    mxb::Json summary() const
+    {
+        return call_command(MaxRest::GET, "summary", m_name, CallRepeatable::YES, {"return"});
+    }
+
+    mxb::Json destroy() const
+    {
+        return call_command(MaxRest::POST, "destroy", m_name, CallRepeatable::NO);
     }
 
 private:
@@ -67,12 +89,24 @@ private:
         YES
     };
 
-    void call_command(MaxRest::Verb verb,
-                      const std::string& command,
-                      const std::string& instance,
-                      CallRepeatable call_repeatable,
-                      const std::vector<std::string>& params = std::vector<std::string>()) const
+    mxb::Json call_command(MaxRest::Verb verb,
+                           const std::string& command,
+                           const std::string& instance,
+                           CallRepeatable call_repeatable,
+                           const std::vector<std::string>& params = std::vector<std::string>()) const
     {
+        return call_command(m_maxrest, verb, command, instance, call_repeatable, params);
+    }
+
+    static mxb::Json call_command(MaxRest& maxrest,
+                                  MaxRest::Verb verb,
+                                  const std::string& command,
+                                  const std::string& instance,
+                                  CallRepeatable call_repeatable,
+                                  const std::vector<std::string>& params = std::vector<std::string>())
+    {
+        auto& test = maxrest.test();
+
         std::stringstream ss;
         ss << "diff " << command << " " << instance;
         auto args = mxb::join(params, " ");
@@ -80,32 +114,36 @@ private:
         {
             ss << " " << args;
         }
-        m_test.tprintf("%s\n", ss.str().c_str());
-        m_maxrest.call_command(verb, "diff", command, instance, params);
+        test.tprintf("%s\n", ss.str().c_str());
+
+        auto rv = maxrest.call_command(verb, "diff", command, instance, params);
 
         if (call_repeatable == CallRepeatable::NO)
         {
-            auto fail_on_error = m_maxrest.fail_on_error();
-            m_maxrest.fail_on_error(false);
+            auto fail_on_error = maxrest.fail_on_error();
+            maxrest.fail_on_error(false);
             bool failed = false;
 
             try
             {
                 // Since the call succeeded, the state has changed and it should not
                 // be possible to call again using the same arguments.
-                m_maxrest.call_command(verb, "diff", command, instance, params);
+                maxrest.call_command(verb, "diff", command, instance, params);
             }
             catch (const std::exception& x)
             {
                 failed = true;
             }
 
-            m_maxrest.fail_on_error(fail_on_error);
+            maxrest.fail_on_error(fail_on_error);
 
-            m_test.expect(failed, "Command succeeded although it should not have: %s", ss.str().c_str());
+            test.expect(failed, "Command succeeded although it should not have: %s", ss.str().c_str());
         }
+
+        return rv;
     }
 
+    std::string      m_name;
     TestConnections& m_test;
     mutable MaxRest  m_maxrest;
 };
@@ -114,15 +152,13 @@ void test_easy_setup(TestConnections& test)
 {
     // No concurrent clients.
 
-    Diff diff(&test);
-
-    diff.prepare("MyService", "server1", "server2");
-    diff.status("DiffMyService");
-    diff.start("DiffMyService");
-    diff.status("DiffMyService");
-    diff.summary("DiffMyService");
-    diff.stop("DiffMyService");
-    diff.unprepare("DiffMyService");
+    Diff diff = Diff::create(&test, "DiffMyService", "MyService", "server1", "server2");
+    diff.status();
+    diff.start();
+    diff.status();
+    diff.summary();
+    diff.stop();
+    diff.destroy();
 }
 
 void test_main(TestConnections& test)

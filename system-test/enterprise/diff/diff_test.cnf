@@ -22,5 +22,4 @@ servers=server1
 type=listener
 service=MyService
 protocol=mariadbclient
-address=127.0.0.1
 port=4006
