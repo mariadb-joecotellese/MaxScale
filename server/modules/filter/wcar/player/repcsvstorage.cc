@@ -10,7 +10,8 @@ namespace
 {
 std::string quote(std::string str)
 {
-    mxb_assert(str.find_first_of("\"'") == std::string::npos);
+    mxb_assert_message(str.find_first_of("\"'") == std::string::npos,
+                       "Unexpected quote in canonical: %s", str.c_str());
     size_t pos = str.find('\n');
 
     while (pos != std::string::npos)

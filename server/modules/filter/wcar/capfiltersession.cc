@@ -190,8 +190,8 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(wall_time::TimePoi
 
     if (auto it = collations.find(maria_ses.auth_data->collation); it != collations.end())
     {
-        auto sql = "set names '"s + it->second.character_set + "' "
-            + "collate '" + it->second.collation + "'";
+        auto sql = "set names "s + it->second.character_set + " "
+            + "collate " + it->second.collation;
         opening_event.sCanonical = std::make_shared<std::string>(std::move(sql));
         opening_event.event_id = m_filter.get_next_event_id();
         events.push_back(std::move(opening_event));
