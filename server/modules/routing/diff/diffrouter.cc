@@ -43,8 +43,8 @@ const char* DiffRouter::to_string(DiffState diff_state)
 {
     switch (diff_state)
     {
-    case DiffState::PREPARED:
-        return "prepared";
+    case DiffState::CREATED:
+        return "created";
 
     case DiffState::SYNCHRONIZING:
         return "synchronizing";
@@ -303,9 +303,9 @@ bool DiffRouter::check_configuration()
 
         if (it != targets.end())
         {
-            // Main found where it is supposed to be. So, we are prepared
+            // Main found where it is supposed to be. So, we are created
             // and must be started before comparing is done.
-            m_diff_state = DiffState::PREPARED;
+            m_diff_state = DiffState::CREATED;
             m_sync_state = SyncState::NOT_APPLICABLE;
 
             MXB_NOTICE("'%s' starting in the '%s' state. Must be started "
@@ -332,10 +332,10 @@ bool DiffRouter::start(json_t** ppOutput)
 {
     mxb_assert(MainWorker::is_current());
 
-    if (m_diff_state != DiffState::PREPARED)
+    if (m_diff_state != DiffState::CREATED)
     {
         MXB_ERROR("State of '%s' is '%s'. Can be started only when in state '%s'.",
-                  m_service.name(), to_string(m_diff_state), to_string(DiffState::PREPARED));
+                  m_service.name(), to_string(m_diff_state), to_string(DiffState::CREATED));
         return false;
     }
 
@@ -355,7 +355,7 @@ bool DiffRouter::start(json_t** ppOutput)
             }
             else
             {
-                set_state(DiffState::PREPARED);
+                set_state(DiffState::CREATED);
             }
         });
 
@@ -381,7 +381,7 @@ bool DiffRouter::stop(json_t** ppOutput)
 
     switch (m_diff_state)
     {
-    case DiffState::PREPARED:
+    case DiffState::CREATED:
         MXB_ERROR("The state of '%s' is '%s' and hence it cannot be stopped.",
                   m_service.name(), to_string(m_diff_state));
         break;
@@ -393,7 +393,7 @@ bool DiffRouter::stop(json_t** ppOutput)
 
         resume_sessions();
 
-        set_state(DiffState::PREPARED);
+        set_state(DiffState::CREATED);
         rv = true;
         break;
 
@@ -718,7 +718,7 @@ void DiffRouter::set_state(DiffState diff_state, SyncState sync_state)
 #ifdef SS_DEBUG
     switch (m_diff_state)
     {
-    case DiffState::PREPARED:
+    case DiffState::CREATED:
     case DiffState::COMPARING:
         mxb_assert(m_sync_state == SyncState::NOT_APPLICABLE);
         break;
@@ -1135,7 +1135,7 @@ void DiffRouter::setup(const RoutingWorker::SessionResult& sr)
                                m_config.pService->name());
 
                     resume_sessions();
-                    set_state(DiffState::PREPARED);
+                    set_state(DiffState::CREATED);
                 }
                 else
                 {
@@ -1157,7 +1157,7 @@ void DiffRouter::setup(const RoutingWorker::SessionResult& sr)
                       m_config.pService->name());
             start_replication();
             resume_sessions();
-            set_state(DiffState::PREPARED);
+            set_state(DiffState::CREATED);
             break;
         }
     }
@@ -1207,7 +1207,7 @@ void DiffRouter::teardown(const mxs::RoutingWorker::SessionResult& sr)
             mxb_assert(!true);
         }
 
-        set_state(DiffState::PREPARED);
+        set_state(DiffState::CREATED);
     }
 }
 

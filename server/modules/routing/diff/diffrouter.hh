@@ -29,7 +29,7 @@ public:
 
     enum class DiffState
     {
-        PREPARED,      // Setup for action.
+        CREATED,       // Ready for action.
         SYNCHRONIZING, // Started, suspending sessions, stopping replication, etc.
         COMPARING,     // Sessions restarted, comparing in process.
         STOPPING       // Stopping
@@ -209,7 +209,7 @@ private:
     using Samples = std::vector<mxb::Duration>;
     using SamplesByCanonical = std::map<std::string, Samples, std::less<>>;
 
-    DiffState                               m_diff_state { DiffState::PREPARED };
+    DiffState                               m_diff_state { DiffState::CREATED };
     SyncState                               m_sync_state { SyncState::NOT_APPLICABLE };
     DiffConfig                              m_config;
     SERVICE&                                m_service;
