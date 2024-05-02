@@ -28,38 +28,39 @@ typedef std::set<std::string> StringSet;
 
 namespace
 {
-void register_prepare_command();
+void register_create_command();
+void register_destroy_command();
 void register_start_command();
 void register_status_command();
 void register_stop_command();
 void register_summary_command();
-void register_unprepare_command();
 }
 
 void diff_register_commands()
 {
-    register_prepare_command();
+    register_create_command();
+    register_destroy_command();
     register_start_command();
     register_status_command();
     register_stop_command();
     register_summary_command();
-    register_unprepare_command();
 }
 
 /*
- * call command prepare
+ * call command create
  */
 namespace
 {
 
-static modulecmd_arg_type_t command_prepare_argv[] =
+static modulecmd_arg_type_t command_create_argv[] =
 {
-    {MODULECMD_ARG_SERVICE, "Service name"},
+    {MODULECMD_ARG_STRING,  "Name of Diff service to be created"},
+    {MODULECMD_ARG_SERVICE, "Name of existing service"},
     {MODULECMD_ARG_SERVER,  "Main server name"},
     {MODULECMD_ARG_SERVER,  "Other server name"}
 };
 
-static int command_prepare_argc = MXS_ARRAY_NELEMS(command_prepare_argv);
+static int command_create_argc = MXS_ARRAY_NELEMS(command_create_argv);
 
 Service* create_diff_service(const string& name,
                              const SERVICE& service,
@@ -124,37 +125,14 @@ Service* create_diff_service(const string& name,
     return pC_service;
 }
 
-Service* create_diff_service(const SERVICE& service,
-                             const SERVER& main,
-                             const SERVER& other)
+bool command_create(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
-    Service* pC_service = nullptr;
+    bool rv = false;
 
-    string name { "Diff" };
-    name += service.name();
-
-    if (const char* zType = mxs::Config::get_object_type(name))
-    {
-        MXB_ERROR("Cannot create Diff service for the service '%s', a %s "
-                  "with the name '%s' exists already.",
-                  service.name(), zType, name.c_str());
-    }
-    else
-    {
-        UnmaskPasswords unmasker;
-        pC_service = create_diff_service(name, service, main, other);
-    }
-
-    return pC_service;
-}
-
-bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
-{
-    Service* pService = static_cast<Service*>(pArgs->argv[0].value.service);
-    SERVER* pMain = pArgs->argv[1].value.server;
-    SERVER* pOther = pArgs->argv[2].value.server;
-
-    bool rv = true;
+    const char* zDiff_service_name = pArgs->argv[0].value.string;
+    Service* pService = static_cast<Service*>(pArgs->argv[1].value.service);
+    SERVER* pMain = pArgs->argv[2].value.server;
+    SERVER* pOther = pArgs->argv[3].value.server;
 
     vector<mxs::Target*> targets = pService->get_children();
     auto end = targets.end();
@@ -163,83 +141,92 @@ bool command_prepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
     if (it != end)
     {
+        bool arguments_ok = true;
         switch (get_replication_status(*pService, *pMain, *pOther))
         {
         case ReplicationStatus::OTHER_REPLICATES_FROM_MAIN:
             if (!status_is_master(pMain->status()))
             {
-                MXB_ERROR("Read-write comparison implied, but '%s' is not the primary.",
-                          pMain->name());
-                rv = false;
+                MXB_ERROR("Read-write comparison implied as '%s' replicates from '%s', "
+                          "but '%s' is not the primary.",
+                          pOther->name(), pMain->name(), pMain->name());
+                arguments_ok = false;
             }
             break;
 
         case ReplicationStatus::BOTH_REPLICATES_FROM_THIRD:
             if (!status_is_slave(pMain->status()))
             {
-                MXB_ERROR("Read-only comparison implied, but '%s' is not a replica.",
-                          pMain->name());
-                rv = false;
+                MXB_ERROR("Read-only comparison implied as '%s' and '%s' replicates "
+                          "from the same server, but '%s' is not a replica.",
+                          pOther->name(), pMain->name(), pMain->name());
+                arguments_ok = false;
             }
             break;
 
         case ReplicationStatus::MAIN_REPLICATES_FROM_OTHER:
             MXB_ERROR("Main '%s' replicates from other '%s', cannot continue.",
                       pMain->name(), pOther->name());
-            rv = false;
+            arguments_ok = false;
             break;
 
         case ReplicationStatus::NO_RELATION:
             // TODO: This might make sense if you intend to use a read-only workload.
             MXB_ERROR("There is no replication relation between main '%s' and other '%s'.",
                       pMain->name(), pOther->name());
-            rv = false;
+            arguments_ok = false;
             break;
 
         case ReplicationStatus::ERROR:
-            rv = false;
+            arguments_ok = false;
         }
 
-        if (rv)
+        if (arguments_ok)
         {
-            Service* pC_service = create_diff_service(*pService, *pMain, *pOther);
-
-            if (pC_service)
+            if (const char* zType = mxs::Config::get_object_type(zDiff_service_name))
             {
-                json_t* pOutput = json_object();
-                auto s = mxb::string_printf("Diff service '%s' created. Server '%s' ready "
-                                            "to be evaluated.",
-                                            pC_service->name(),
-                                            pOther->name());
-                json_object_set_new(pOutput, "status", json_string(s.c_str()));
-                *ppOutput = pOutput;
+                MXB_ERROR("Cannot create Diff service '%s' for the service '%s', a %s "
+                          "with the name '%s' exists already.",
+                          zDiff_service_name, pService->name(), zType, zDiff_service_name);
             }
             else
             {
-                rv = false;
+                UnmaskPasswords unmasker;
+                Service* pC_service = create_diff_service(zDiff_service_name, *pService, *pMain, *pOther);
+
+                if (pC_service)
+                {
+                    json_t* pOutput = json_object();
+                    auto s = mxb::string_printf("Diff service '%s' created. Server '%s' ready "
+                                                "to be evaluated.",
+                                                pC_service->name(),
+                                                pOther->name());
+                    json_object_set_new(pOutput, "status", json_string(s.c_str()));
+                    *ppOutput = pOutput;
+                    rv = true;
+                }
             }
         }
     }
     else
     {
         MXB_ERROR("'%s' is not a server of service '%s'.", pMain->name(), pService->name());
-        rv = false;
     }
 
     return rv;
 }
 
-void register_prepare_command()
+void register_create_command()
 {
     MXB_AT_DEBUG(bool rv);
 
     MXB_AT_DEBUG(rv =) modulecmd_register_command(MXB_MODULE_NAME,
-                                                  "prepare",
+                                                  "create",
                                                   MODULECMD_TYPE_ACTIVE,
-                                                  command_prepare,
-                                                  MXS_ARRAY_NELEMS(command_prepare_argv),
-                                                  command_prepare_argv,
-                                                  "Prepare Diff for Service");
+                                                  command_create,
+                                                  MXS_ARRAY_NELEMS(command_create_argv),
+                                                  command_create_argv,
+                                                  "Create Diff for Service");
     mxb_assert(rv);
 }
 
@@ -444,19 +431,19 @@ void register_summary_command()
 }
 
 /*
- * call command unprepare
+ * call command destroy
  */
 namespace
 {
 
-static modulecmd_arg_type_t command_unprepare_argv[] =
+static modulecmd_arg_type_t command_destroy_argv[] =
 {
     {MODULECMD_ARG_SERVICE | MODULECMD_ARG_NAME_MATCHES_DOMAIN, "Service name"},
 };
 
-static int command_unprepare_argc = MXS_ARRAY_NELEMS(command_unprepare_argv);
+static int command_destroy_argc = MXS_ARRAY_NELEMS(command_destroy_argv);
 
-bool command_unprepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
+bool command_destroy(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 {
     bool rv = false;
 
@@ -479,30 +466,30 @@ bool command_unprepare(const MODULECMD_ARG* pArgs, json_t** ppOutput)
 
         if (!rv)
         {
-            MXB_ERROR("Could not unprepare/destroy service '%s'.", pService->name());
+            MXB_ERROR("Could not destroy service '%s'.", pService->name());
         }
     }
     else
     {
         MXB_ERROR("Could not remove targets %s from service '%s' in order to "
-                  "unprepare/destroy the latter.",
+                  "destroy the latter.",
                   mxb::join(target_names, ",", "'").c_str(), pService->name());
     }
 
     return rv;
 }
 
-void register_unprepare_command()
+void register_destroy_command()
 {
     MXB_AT_DEBUG(bool rv);
 
     MXB_AT_DEBUG(rv =) modulecmd_register_command(MXB_MODULE_NAME,
-                                                  "unprepare",
+                                                  "destroy",
                                                   MODULECMD_TYPE_ACTIVE,
-                                                  command_unprepare,
-                                                  MXS_ARRAY_NELEMS(command_unprepare_argv),
-                                                  command_unprepare_argv,
-                                                  "Unprepare/destroy diff service");
+                                                  command_destroy,
+                                                  MXS_ARRAY_NELEMS(command_destroy_argv),
+                                                  command_destroy_argv,
+                                                  "Destroy diff service");
     mxb_assert(rv);
 }
 
