@@ -114,7 +114,6 @@ private:
         {
             ss << " " << args;
         }
-        test.tprintf("%s\n", ss.str().c_str());
 
         auto rv = maxrest.call_command(verb, "diff", command, instance, params);
 
@@ -148,9 +147,12 @@ private:
     mutable MaxRest  m_maxrest;
 };
 
+/**
+ * Simplest possible case, no concurrent activity.
+ */
 void test_easy_setup(TestConnections& test)
 {
-    // No concurrent clients.
+    cout << "Easy case, no concurrent activity." << endl;
 
     Diff diff = Diff::create(&test, "DiffMyService", "MyService", "server1", "server2");
     diff.status();
@@ -161,9 +163,134 @@ void test_easy_setup(TestConnections& test)
     diff.destroy();
 }
 
+void busy_fast_selects(TestConnections* pTest, std::atomic<bool>* pStop)
+{
+    auto& mxt = *pTest->maxscale;
+
+    Connection c(mxt.ip4(), 4006, "skysql", "skysql");
+
+    if (c.connect())
+    {
+        auto& stop = *pStop;
+
+        while (!stop)
+        {
+            c.query("SELECT 1");
+        }
+    }
+    else
+    {
+        pTest->expect(false, "Could not connect to MaxScale.");
+    }
+}
+
+void busy_slow_selects(TestConnections* pTest, std::atomic<bool>* pStop)
+{
+    auto& mxt = *pTest->maxscale;
+
+    Connection c(mxt.ip4(), 4006, "skysql", "skysql");
+
+    if (c.connect())
+    {
+        auto& stop = *pStop;
+
+        while (!stop)
+        {
+            c.query("BEGIN");
+            c.query("SELECT SLEEP(5)");
+            c.query("COMMIT");
+        }
+    }
+    else
+    {
+        pTest->expect(false, "Could not connect to MaxScale.");
+    }
+}
+
+void wait_for_state(Diff& diff, mxb::Json& json, std::string_view expected_state)
+{
+    cout << "Waiting for state '" << expected_state << "'." << endl;
+    cout << "State: " << flush;
+
+    bool reached = false;
+
+    do
+    {
+        auto meta = json.get_object("meta");
+        auto state = meta.get_string("state");
+
+        cout << state << " " << flush;
+
+        if (state == expected_state)
+        {
+            reached = true;
+        }
+        else
+        {
+            sleep(1);
+            json = diff.status();
+        }
+    }
+    while (!reached);
+
+    cout << endl;
+}
+
+/**
+ * Hard case, concurrent activity ongoing.
+ */
+void test_hard_setup(TestConnections& test)
+{
+    cout << "Hard case, concurrent activity ongoing." << endl;
+
+    // Setup
+
+    Diff diff = Diff::create(&test, "DiffMyService", "MyService", "server1", "server2");
+
+    std::atomic<bool> stop { false };
+    vector<std::thread> clients;
+
+    size_t i = 0;
+    for (; i < 5; ++i)
+    {
+        clients.emplace_back(busy_fast_selects, &diff.test(), &stop);
+    }
+
+    for (; i < 10; ++i)
+    {
+        clients.emplace_back(busy_slow_selects, &diff.test(), &stop);
+    }
+
+    sleep(1);
+
+    mxb::Json json;
+
+    json = diff.start();
+
+    wait_for_state(diff, json, "comparing");
+
+    // Tear down
+
+    json = diff.stop();
+
+    sleep(1);
+
+    stop = true;
+
+    wait_for_state(diff, json, "created");
+
+    for (i = 0; i < clients.size(); ++i)
+    {
+        clients[i].join();
+    }
+
+    diff.destroy();
+}
+
 void test_main(TestConnections& test)
 {
     test_easy_setup(test);
+    test_hard_setup(test);
 }
 
 }
