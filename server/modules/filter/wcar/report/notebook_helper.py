@@ -240,7 +240,10 @@ def show_query_details(compared, sql):
 
     out_explain = widgets.Output()
     with out_explain:
-        show_explain(compared, sql)
+        try:
+            show_explain(compared, sql)
+        except KeyError:
+            display(Markdown("No explains available."))
 
     tab = widgets.Tab()
     tab.children = [out_hist, out_explain]
