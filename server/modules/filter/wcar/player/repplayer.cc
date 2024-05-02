@@ -87,7 +87,20 @@ RepPlayer::ExecutionInfo RepPlayer::get_execution_info(RepSession& session, cons
     {
         if (trx_start_ite != end(m_transform.transactions()))
         {
-            exec.can_execute = qevent.start_time < m_front_trxn->end_time;
+            switch (m_config.commit_order)
+            {
+            case RepConfig::CommitOrder::NONE:
+                exec.can_execute = true;
+                break;
+
+            case RepConfig::CommitOrder::OPTIMISTIC:
+                exec.can_execute = qevent.start_time < m_front_trxn->end_time;
+                break;
+
+            case RepConfig::CommitOrder::SERIALIZED:
+                exec.can_execute = trx_start_ite == m_front_trxn;
+                break;
+            }
         }
         else
         {
