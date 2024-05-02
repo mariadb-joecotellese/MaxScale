@@ -15,6 +15,8 @@ from datetime import datetime
 SORT_ASC = 1
 SORT_DESC = -1
 SORT_ID = 0
+SHORT_SQL_LEN = 150
+MAX_SQL_LEN = 400
 
 
 def load_data():
@@ -48,7 +50,7 @@ def get_id_list(compared):
 
     Returns: A list of typles with the first value as the field description and the second one as the field identifier
     """
-    return [(f"{q[0]['id']}: {q[0]['sql'][:100]}", q[0]["sql"]) for q in sorted(compared, key=lambda x: x[0]["id"])]
+    return [(f"{q[0]['id']}: {q[0]['sql'][:SHORT_SQL_LEN]}", q[0]["sql"]) for q in sorted(compared, key=lambda x: x[0]["id"])]
 
 
 def markdown_widget(md):
@@ -118,8 +120,8 @@ def display_table(compared, value, metric, orderby, top, relative):
         table += f"|{math.floor(10000 * (dv) / (lv)) / 100 if lv != 0 else 0.0}%"
         table += f"|{lv}"
         table += f"|{rv}"
-        table += f"|{diff['errors']}"
-        table += f"|```{lhs['sql']}```"
+        table += f"|{'+' if diff['errors'] > 0 else ''}{diff['errors']}"
+        table += f"|```{lhs['sql'] if len(lhs['sql']) < MAX_SQL_LEN else (lhs['sql'][0:MAX_SQL_LEN] + '...')}```"
         table += f"|\n"
     display(Markdown(table))
 
