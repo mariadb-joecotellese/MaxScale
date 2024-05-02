@@ -143,10 +143,15 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     if (mysql_query(m_pConn, sql.c_str()))
     {
         int error_number = mysql_errno(m_pConn);
-        MXB_SERROR("MariaDB: Error S "
-                   << qevent.session_id << " E " << qevent.event_id
-                   << " SQL " << mxb::show_some(sql)
-                   << " Error code " << error_number << ": " << mysql_error(m_pConn));
+
+        if (get_error(qevent) != error_number)
+        {
+            MXB_SERROR("MariaDB: Error S "
+                       << qevent.session_id << " E " << qevent.event_id
+                       << " SQL " << mxb::show_some(sql)
+                       << " Error code " << error_number << ": " << mysql_error(m_pConn));
+        }
+
         revent.error = error_number;
     }
 

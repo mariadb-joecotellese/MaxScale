@@ -48,7 +48,9 @@ struct QueryEvent
 {
     /* shared_ptr at this level because every kind of storage benefits
      * from the shared_ptr for caching.
-     * The flags member has type_mask in lower 32 bits, upper 32 bits are for future use
+     *
+     * The flags member has the query classifier type mask in the lower 32 bits. The next 16 bits contain the
+     * flags themselves and the last 16 bits is used to store the SQL error number that the query generated.
      */
     std::shared_ptr<std::string> sCanonical;
     maxsimd::CanonicalArgs       canonical_args;
@@ -71,6 +73,11 @@ inline bool is_real_event(const QueryEvent& qevent)
     return (qevent.flags & (CAP_ARTIFICIAL | CAP_SESSION_CLOSE)) == 0;
 }
 
+inline uint16_t get_error(const QueryEvent& qevent)
+{
+    return qevent.flags >> 48;
+}
+
 inline std::ostream& operator<<(std::ostream& os, const QueryEvent& qevent)
 {
     if (is_session_close(qevent))
@@ -87,6 +94,11 @@ inline std::ostream& operator<<(std::ostream& os, const QueryEvent& qevent)
         if (qevent.sTrx)
         {
             os << " GTID: " << qevent.sTrx->gtid;
+        }
+
+        if (uint16_t error = get_error(qevent))
+        {
+            os << " Error: " << error;
         }
 
         os << " */ "
