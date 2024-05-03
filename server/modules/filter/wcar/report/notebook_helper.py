@@ -92,7 +92,7 @@ def plot_qps(res1, res2):
     plt.show()
 
 
-def display_table(compared, value, metric, orderby, top, relative):
+def display_table(compared, value, metric, orderby, top, relative, full_sql):
     if orderby == SORT_ID:
         compared.sort(key=lambda x: x[0]["id"])
     elif value == "errors":
@@ -121,7 +121,7 @@ def display_table(compared, value, metric, orderby, top, relative):
         table += f"|{lv}"
         table += f"|{rv}"
         table += f"|{'+' if diff['errors'] > 0 else ''}{diff['errors']}"
-        table += f"|```{lhs['sql'] if len(lhs['sql']) < MAX_SQL_LEN else (lhs['sql'][0:MAX_SQL_LEN] + '...')}```"
+        table += f"|```{lhs['sql'] if len(lhs['sql']) < MAX_SQL_LEN or full_sql else (lhs['sql'][0:MAX_SQL_LEN] + '...')}```"
         table += f"|\n"
     display(Markdown(table))
 
@@ -143,14 +143,17 @@ def plot_query_table(compared):
                               continuous_update=False, orientation='horizontal',
                               readout=True, readout_format='d')
 
+    full_sql_w = widgets.Checkbox(value=False, description="Show Full SQL")
     out = widgets.interactive_output(display_table, {
         'value': value_w, 'metric': metric_w, 'orderby': orderby_w,
-        'top': top_w, 'relative': relative_w, 'compared': widgets.fixed(compared)})
+        'top': top_w, 'relative': relative_w, 'compared': widgets.fixed(compared),
+        'full_sql': full_sql_w})
     box = widgets.HBox([widgets.Label("Order By: "), orderby_w,
                         widgets.Label("Value: "), value_w,
                         widgets.Label("Metric: "), metric_w,
                         widgets.Label("Change: "), relative_w,
-                        widgets.Label("Top: "), top_w])
+                        widgets.Label("Top: "), top_w,
+                        full_sql_w])
 
     display(box)
     display(out)
