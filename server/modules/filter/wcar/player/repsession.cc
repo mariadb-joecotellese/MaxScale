@@ -49,6 +49,19 @@ void dump_infos()
     }
 }
 
+ThreadInfo* find_session(unsigned int thread_id)
+{
+    for (size_t i = 0; i < ThisUnit::infos.size(); i++)
+    {
+        if (ThisUnit::infos[i].thread_id == thread_id)
+        {
+            return &ThisUnit::infos[i];
+        }
+    }
+
+    return nullptr;
+}
+
 void deadlock_monitor(std::string user, std::string password, std::string address, int port)
 {
     mxq::MariaDB conn;
@@ -70,38 +83,47 @@ void deadlock_monitor(std::string user, std::string password, std::string addres
 
     while (ThisUnit::monitor_running)
     {
-        for (auto& info : ThisUnit::infos)
+        res = conn.query("SHOW ENGINE INNODB STATUS");
+
+        if (res && res->next_row() && res->get_col_count() >= 3)
         {
-            if (info.executing && mxb::Clock::now() - info.last_event_ts > lock_wait_timeout * 0.75)
+            std::istringstream iss(res->get_string(2));
+            unsigned int thread_id = 0;
+            const std::string_view thr_prefix = "MariaDB thread id ";
+            const std::string_view lock_wait_prefix = "TRX HAS BEEN WAITING ";
+
+            for (std::string line; std::getline(iss, line);)
             {
-                auto wait_dur = std::chrono::duration_cast<mxb::Duration>(lock_wait_timeout * 0.75);
-                std::cout << "Session " << info.session_id << " has been stuck over "
-                          << mxb::to_string(wait_dur) << " on event " << info.last_event_id << ". "
-                          << "Connection ID: " << info.thread_id << std::endl;
-
-                res = conn.query("SHOW ENGINE INNODB STATUS");
-
-                while (res->next_row())
+                if (auto pos = line.find(thr_prefix); pos != std::string::npos)
                 {
-                    for (unsigned int i = 0; i < res->get_col_count(); i++)
-                    {
-                        std::cout << res->get_string(i) << " ";
-                    }
-
-                    std::cout << "\n";
+                    thread_id = strtoul(line.c_str() + pos + thr_prefix.size(), nullptr, 10);
                 }
 
-                res.reset();
-                dump_infos();
-            }
-            else
-            {
-                std::unique_lock guard(ThisUnit::lock);
-                ThisUnit::cv.wait_for(guard, 5s, [&](){
-                    return !ThisUnit::monitor_running;
-                });
+                if (auto pos = line.find(lock_wait_prefix); pos != std::string::npos)
+                {
+                    std::chrono::microseconds wait_usec {
+                        strtoul(line.c_str() + pos + lock_wait_prefix.size(), nullptr, 10)
+                    };
+
+                    if (wait_usec > lock_wait_timeout * 0.75)
+                    {
+                        if (auto* info = find_session(thread_id))
+                        {
+                            std::cout << "Session " << info->session_id << " has been stuck over "
+                                      << mxb::to_string(wait_usec) << " on event " << info->last_event_id
+                                      << ". Connection ID: " << info->thread_id << std::endl;
+
+                            dump_infos();
+                        }
+                    }
+                }
             }
         }
+
+        std::unique_lock guard(ThisUnit::lock);
+        ThisUnit::cv.wait_for(guard, 5s, [&](){
+            return !ThisUnit::monitor_running;
+        });
     }
 }
 }
