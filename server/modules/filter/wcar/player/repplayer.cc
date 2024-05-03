@@ -234,7 +234,16 @@ void RepPlayer::wait_for_sessions_to_finish()
         {
             std::unique_lock lock(m_trxn_mutex);
             more_pending = schedule_pending_events(lock);
-            std::this_thread::yield();      // TODO no condition to wait on here
+
+            if (more_pending)
+            {
+                lock.lock();
+                mxb_assert_message(m_front_trxn != end(m_transform.transactions()),
+                                   "There should be pending transactions");
+                m_trxn_condition.wait_for(lock, 1s, [&](){
+                    return !m_finished_trxns.empty();
+                });
+            }
         }
         else
         {
