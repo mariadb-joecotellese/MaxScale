@@ -153,6 +153,10 @@ public:
 protected:
     DiffStats() = default;
 
+    virtual DiffHistogram::Specification get_specification(DiffRouterSession& router_session,
+                                                           std::string_view canonical,
+                                                           const std::chrono::nanoseconds& duration) = 0;
+
     void combine_stats(const DiffStats& rhs, const DiffConfig& config)
     {
         m_total_duration += rhs.m_total_duration;
@@ -206,6 +210,11 @@ public:
     {
         DiffStats::combine_stats(rhs, config);
     }
+
+private:
+    DiffHistogram::Specification get_specification(DiffRouterSession& router_session,
+                                                   std::string_view canonical,
+                                                   const std::chrono::nanoseconds& duration) override;
 };
 
 
@@ -255,6 +264,10 @@ public:
     json_t* to_json() const override;
 
 private:
+    DiffHistogram::Specification get_specification(DiffRouterSession& router_session,
+                                                   std::string_view canonical,
+                                                   const std::chrono::nanoseconds& duration) override;
+
     json_t* get_statistics() const override;
     json_t* get_verdict() const;
 

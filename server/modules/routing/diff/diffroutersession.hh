@@ -55,6 +55,15 @@ public:
     /**
      * Does a histogram specification exist for a particular canonical statement.
      *
+     * @param canonical  A canonical statement.
+     *
+     * @return A non-empty specification if one existed.
+     */
+    DiffHistogram::Specification get_specification_for(std::string_view canonical) const;
+
+    /**
+     * Does a histogram specification exist for a particular canonical statement.
+     *
      * @param canonical  A canonical statements.
      *
      * @return True, if a canonical specification exists, false otherwise.

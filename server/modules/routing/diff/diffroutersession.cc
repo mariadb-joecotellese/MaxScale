@@ -217,6 +217,20 @@ DiffHistogram::Specification DiffRouterSession::get_specification_for(std::strin
     return rv;
 }
 
+DiffHistogram::Specification DiffRouterSession::get_specification_for(std::string_view canonical) const
+{
+    DiffHistogram::Specification rv;
+
+    auto it = m_sHSRegistry->find(canonical);
+
+    if (it != m_sHSRegistry->end())
+    {
+        rv = it->second;
+    }
+
+    return rv;
+}
+
 bool DiffRouterSession::has_specification_for(std::string_view canonical) const
 {
     return m_sHSRegistry->find(canonical) != m_sHSRegistry->end();

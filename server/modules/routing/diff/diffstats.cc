@@ -131,7 +131,7 @@ void DiffStats::add_canonical_result(DiffRouterSession& router_session,
     }
     else
     {
-        DiffHistogram::Specification spec = router_session.get_specification_for(canonical, duration);
+        DiffHistogram::Specification spec = get_specification(router_session, canonical, duration);
 
         if (!spec.empty())
         {
@@ -204,6 +204,16 @@ json_t* DiffStats::to_json() const
     json_object_set_new(pData, "statistics", get_statistics());
 
     return pData;
+}
+
+/**
+ * DiffMainStats
+ */
+DiffHistogram::Specification DiffMainStats::get_specification(DiffRouterSession& router_session,
+                                                              std::string_view canonical,
+                                                              const std::chrono::nanoseconds& duration)
+{
+    return router_session.get_specification_for(canonical, duration);
 }
 
 /**
@@ -313,6 +323,14 @@ json_t* DiffOtherStats::to_json() const
     json_object_set_new(pJson, "verdict", get_verdict());
 
     return pJson;
+}
+
+DiffHistogram::Specification DiffOtherStats::get_specification(DiffRouterSession& router_session,
+                                                               std::string_view canonical,
+                                                               const std::chrono::nanoseconds& duration)
+{
+    // Result from 'other' is not counted as a sample, so 'duration' is not used.
+    return router_session.get_specification_for(canonical);
 }
 
 json_t* DiffOtherStats::get_statistics() const
