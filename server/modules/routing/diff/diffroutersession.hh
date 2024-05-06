@@ -61,22 +61,14 @@ public:
      */
     DiffHistogram::Specification get_specification_for(std::string_view canonical) const;
 
-    /**
-     * Does a histogram specification exist for a particular canonical statement.
-     *
-     * @param canonical  A canonical statements.
-     *
-     * @return True, if a canonical specification exists, false otherwise.
-     */
-    bool has_specification_for(std::string_view canonical) const;
-
 private:
     // DiffOtherBackend::Handler
     Explain ready(DiffOrdinaryOtherResult& other_result) override;
     void ready(const DiffExplainOtherResult& explain_other_result) override;
 
 private:
-    bool should_report(const DiffOrdinaryOtherResult& result) const;
+    bool should_report(const DiffHistogram::Specification& hspec,
+                       const DiffOrdinaryOtherResult& result) const;
 
     void generate_report(const DiffOrdinaryOtherResult& result);
     void generate_report(const DiffExplainOtherResult& result);

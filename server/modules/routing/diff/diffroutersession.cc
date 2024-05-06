@@ -231,19 +231,16 @@ DiffHistogram::Specification DiffRouterSession::get_specification_for(std::strin
     return rv;
 }
 
-bool DiffRouterSession::has_specification_for(std::string_view canonical) const
-{
-    return m_sHSRegistry->find(canonical) != m_sHSRegistry->end();
-}
-
 Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)
 {
     Explain rv = Explain::NONE;
 
+    DiffHistogram::Specification hspec = get_specification_for(other_result.canonical());
+
     // We'll ignore all results until enough samples have been collected.
-    if (has_specification_for(other_result.canonical()))
+    if (!hspec.empty())
     {
-        if (should_report(other_result))
+        if (should_report(hspec, other_result))
         {
             auto now = m_pSession->worker()->epoll_tick_now();
             auto canonical_hash = other_result.canonical_hash();
@@ -296,7 +293,8 @@ void DiffRouterSession::ready(const DiffExplainOtherResult& explain_result)
     }
 }
 
-bool DiffRouterSession::should_report(const DiffOrdinaryOtherResult& other_result) const
+bool DiffRouterSession::should_report(const DiffHistogram::Specification& hspec,
+                                      const DiffOrdinaryOtherResult& other_result) const
 {
     const auto& config = m_router.config();
 
@@ -305,9 +303,6 @@ bool DiffRouterSession::should_report(const DiffOrdinaryOtherResult& other_resul
     if (!rv)
     {
         const auto& main_result = other_result.main_result();
-        std::chrono::nanoseconds main_duration = main_result.duration();
-        std::chrono::nanoseconds delta = (main_duration * config.max_execution_time_difference) / 100;
-        std::chrono::nanoseconds other_duration = other_result.duration();
 
         if (is_checksum_discrepancy(other_result, main_result.checksum()))
         {
@@ -315,10 +310,7 @@ bool DiffRouterSession::should_report(const DiffOrdinaryOtherResult& other_resul
         }
         else
         {
-            std::chrono::nanoseconds min_duration = main_duration - delta;
-            std::chrono::nanoseconds max_duration = main_duration + delta;
-
-            if (is_execution_time_discrepancy(other_duration, min_duration, max_duration))
+            if (is_execution_time_discrepancy(other_result.duration(), hspec.min(), hspec.max()))
             {
                 rv = true;
             }
