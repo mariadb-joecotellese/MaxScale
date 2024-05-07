@@ -39,7 +39,9 @@ private:
     int m_fd;
 };
 
-std::unique_ptr<DiffExporter> build_exporter(const DiffConfig& config, const mxs::Target& target)
+std::unique_ptr<DiffExporter> build_exporter(const std::string& diff_service_name,
+                                             const mxs::Target& main_target,
+                                             const mxs::Target& other_target)
 {
     std::unique_ptr<DiffExporter> sExporter;
 
@@ -47,18 +49,18 @@ std::unique_ptr<DiffExporter> build_exporter(const DiffConfig& config, const mxs
     dir += "/";
     dir += MXB_MODULE_NAME;
     dir += "/";
-    dir += config.service_name;
+    dir += diff_service_name;
 
     if (mxs_mkdir_all(dir.c_str(), 0777))
     {
         time_t now = time(nullptr);
         std::stringstream time;
-        time << std::put_time(std::localtime(&now),"%Y-%m-%dT%H-%M-%S");
+        time << std::put_time(std::localtime(&now),"%Y-%m-%d_%H%M%S");
 
         std::string file = dir + "/";
-        file += config.pMain->name();
+        file += main_target.name();
         file += "_";
-        file += target.name();
+        file += other_target.name();
         file += "_";
         file += time.str();
         file += ".json";
