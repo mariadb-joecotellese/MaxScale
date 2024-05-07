@@ -413,7 +413,7 @@ void DiffRouterSessionStats::add_other(mxs::Target* pOther,
  */
 void DiffRouterStats::post_configure(const DiffConfig& config)
 {
-    mxb_assert(!m_pMain);
+    mxb_assert(!m_pMain || m_pMain == config.pMain);
 
     m_pMain = config.pMain;
 }

@@ -89,16 +89,6 @@ config::ParamDuration<std::chrono::milliseconds> explain_period(
     std::chrono::milliseconds { 15 * 60 * 1000 }, // Default, 15 minutes
     config::Param::AT_RUNTIME);
 
-config::ParamPercent max_execution_time_difference(
-    &specification,
-    "max_execution_time_difference",
-    "Maximum allowed execution time difference, specified in percent, "
-    "between the main and an other server before the result is logged.",
-    10, // Default
-    0, // Min
-    std::numeric_limits<config::ParamCount::value_type>::max(), // Max
-    config::Param::AT_RUNTIME);
-
 config::ParamSize max_request_lag(
     &specification,
     "max_request_lag",
@@ -199,7 +189,6 @@ DiffConfig::DiffConfig(const char* zName, DiffRouter* pInstance)
     add_native(&DiffConfig::explain, &diff::explain);
     add_native(&DiffConfig::explain_entries, &diff::explain_entries);
     add_native(&DiffConfig::explain_period, &diff::explain_period);
-    add_native(&DiffConfig::max_execution_time_difference, &diff::max_execution_time_difference);
     add_native(&DiffConfig::max_request_lag, &diff::max_request_lag);
     add_native(&DiffConfig::percentile, &diff::percentile);
     add_native(&DiffConfig::qps_window, &diff::qps_window);
