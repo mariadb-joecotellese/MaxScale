@@ -10,12 +10,67 @@
 #include "repshow.hh"
 #include <iostream>
 #include <maxbase/maxbase.hh>
+#include <maxbase/stacktrace.hh>
 #include "../capbooststorage.hh"
 #include "repcsvstorage.hh"
+
+void signal_set(int sig, void (* handler)(int))
+{
+    struct sigaction sigact = {};
+    sigact.sa_handler = handler;
+
+    do
+    {
+        errno = 0;
+        sigaction(sig, &sigact, NULL);
+    }
+    while (errno == EINTR);
+}
+
+static bool s_dumped = false;
+
+void write_line(const char* line)
+{
+    s_dumped = true;
+    std::cerr << line << std::endl;
+}
+
+static void sigfatal_handler(int i)
+{
+    if (mxb::have_gdb())
+    {
+        mxb::dump_gdb_stacktrace(write_line);
+    }
+
+    if (!s_dumped)
+    {
+        mxb::dump_stacktrace(write_line);
+    }
+
+    if (!s_dumped)
+    {
+        mxb::emergency_stacktrace();
+    }
+
+    signal_set(i, SIG_DFL);
+    raise(i);
+}
+
+void set_signal_handlers()
+{
+    signal_set(SIGSEGV, sigfatal_handler);
+    signal_set(SIGABRT, sigfatal_handler);
+    signal_set(SIGFPE, sigfatal_handler);
+    signal_set(SIGILL, sigfatal_handler);
+#ifdef SIGBUS
+    signal_set(SIGBUS, sigfatal_handler);
+#endif
+}
 
 int main(int argc, char** argv)
 try
 {
+    set_signal_handlers();
     mxb::MaxBase mxb(MXB_LOG_TARGET_STDOUT);
 
     RepConfig config(argc, argv);
