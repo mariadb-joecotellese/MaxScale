@@ -235,7 +235,8 @@ Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)
 {
     Explain rv = Explain::NONE;
 
-    bool should_report = (m_router.config().report.get() == Report::ALWAYS);
+    Report report = m_router.config().report.get();
+    bool should_report = (report == Report::ALWAYS);
 
     DiffHistogram::Specification hspec = get_specification_for(other_result.canonical());
 
@@ -244,7 +245,7 @@ Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)
     {
         if (needs_explaining(hspec, other_result))
         {
-            should_report = true;
+            should_report = (report != Report::NEVER);
 
             auto now = m_pSession->worker()->epoll_tick_now();
             auto canonical_hash = other_result.canonical_hash();
@@ -282,6 +283,8 @@ Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)
 
 void DiffRouterSession::ready(const DiffExplainOtherResult& explain_result)
 {
+    Report report = m_router.config().report.get();
+
     const auto& error = explain_result.error();
 
     if (!error.empty())
@@ -291,9 +294,12 @@ void DiffRouterSession::ready(const DiffExplainOtherResult& explain_result)
         auto sql = main_result.sql();
         MXB_WARNING("EXPLAIN of '%.*s' failed: %s", (int)sql.length(), sql.data(), error.c_str());
 
-        generate_report(explain_result.origin_result());
+        if (report != Report::NEVER)
+        {
+            generate_report(explain_result.origin_result());
+        }
     }
-    else
+    else if (report != Report::NEVER)
     {
         generate_report(explain_result);
     }

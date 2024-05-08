@@ -133,7 +133,8 @@ config::ParamEnum<Report> report(
     "When to generate the report for an SQL command",
     {
         {Report::ALWAYS, "always"},
-        {Report::ON_DISCREPANCY, "on_discrepancy"}
+        {Report::ON_DISCREPANCY, "on_discrepancy"},
+        {Report::NEVER, "never"}
     },
     Report::ON_DISCREPANCY, // Default
     config::Param::AT_RUNTIME);

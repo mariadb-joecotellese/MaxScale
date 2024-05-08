@@ -27,6 +27,7 @@ enum class Report
 {
     ALWAYS,
     ON_DISCREPANCY,
+    NEVER
 };
 
 class DiffRouter;
