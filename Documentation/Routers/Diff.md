@@ -1,29 +1,91 @@
 # Diff - router for comparing servers
 
+**NOTE** The Diff router is only available in _MaxScale Enterprise_.
+
 [TOC]
 
 ## Overview
 
-The `diff`-router, hereafter referred to as _Diff_,
-compares the behaviour of one MariaDB server version
-to that of another.
+The `diff`-router, hereafter referred to as _Diff_, compares the
+behaviour of one MariaDB server version to that of another.
 
-Diff will send the workload both to the server currently
-being used - called _main_ - and to another server - called
-_other_ - whose behaviour needs to be assessed.
+Diff will send the workload both to the server currently being used -
+called _main_ - and to another server - called _other_ - whose
+behaviour needs to be assessed.
 
 The responses from _main_ are returned to the client, without
-waiting for the responses from _other_. The responses from _other_
-are only compared to the responses from _main_, with discrepancies
-in content or execution time subsequently logged.
+waiting for the responses from _other_. While running, Diff collects
+latency histogram data that later can be used for evaluating the
+behaviour of _main_ and _other_.
 
-Although Diff is a normal MaxScale router that can be
-configured manually, typically it is created using commands
-provided by the router itself. As its only purpose is to
-compare the behaviour of different servers, it is only
-meaningful to start it provided certain conditions are
-fulfilled and those conditions are easily ensured using
+Although Diff is a normal MaxScale router that can be configured
+manually, typically it is created using commands provided by the
+router itself. As its only purpose is to compare the behaviour of
+different servers, it is only meaningful to start it provided certain
+conditions are fulfilled and those conditions are easily ensured using
 the router itself.
+
+### Histogram
+
+Diff collects latency information separately for each _canonical
+statement_, which simply means a statement where all literals have been
+replaced with question marks. For instance, the canonical statement of
+`SELECT f FROM t WHERE f = 10` and `SELECT f FROM t WHERE f = 20` is
+in both cases `SELECT f FROM t WHERE f = ?`. The latency information
+of both of those statements will be collected under the same canonical
+statement.
+
+Before starting to register histogram data, Diff will collect
+[samples](#samples) from _main_ that will be used for defining the
+edges and the number of bins of the histogram.
+
+### Discrepancies
+
+The responses from _main_ and _other_ are considered to be different
+- if the checksum of the response from _main_ and _other differ, or
+- if the response time of _other_ is outside the boundaries of the
+  histogram edges calculated from the samples from _main_.
+
+A difference in the response time of individual queries is not a
+meaningful criteria, as there for varying reasons (e.g. network
+traffic) can be a significant amount of variance in the results. It
+would only always cause a large number of false positives.
+
+### EXPLAIN
+
+When a discrepancy is detected, an EXPLAIN statement will be executed
+if the query was a DELETE, SELECT, INSERT or UPDATE. The EXPLAIN will
+be executed using the same connection that was used for executing the
+original statement. In the normal case, the EXPLAIN will be executed
+immediately after the original statement, but if the client is
+streaming requests, an other statement may have been exceuted in
+between.
+
+EXPLAINs are not always executed, but the frequency is controlled by
+[explain_entries](#explain_entries) and
+[explain_period](#explain_period). The EXPLAIN results are included in
+the [output](#reporting) of Diff.
+
+### QPS
+
+While running, Diff will also collect QPS information over a sliding
+window whose size is defined by [qps_period](#qps_period).
+
+### Reporting
+
+Diff produces two kinds of output:
+- Output that is generated when Diff terminates or upon
+  [request](#summary). That output can be visualized as explained
+  [here](#visualizing).
+- [Optionally](#report) Diff can continuously report queries whose
+  responses from _main_ and other _differ_ as described
+  [here](#discrepancies).
+
+When Diff starts it will create a directory `diff` in MaxScale's
+data directory (typically `/var/lib/maxscale`). Under that it
+will create a directory whose name is the same as that of the
+service specified in [service](#service). The output files are created
+in that directory.
 
 ## Setup
 
@@ -31,7 +93,7 @@ The behaviour and usage of Diff is most easily explained
 using an example.
 
 Consider the following simple configuration that only includes
-the very essential for the example.
+the very essential.
 ```
 [MyServer1]
 type=server
@@ -75,15 +137,27 @@ With these steps Diff is ready to be used.
 
 ### Running Diff
 
-#### Prepare
+Diff is controlled using a number of module commands.
+
+#### Create
+Syntax: `create new-service existing-service used-server new-server`
+
+Where:
+- `new-service`: The name of the service using the Diff router, to be
+  created.
+- `existing-service`: The name of an existing service in whose context
+  the the new server is to be evaluated.
+- `used-server`: A server used by `existing-service`
+- `new-server`: The server that should be compared to `used-server`.
+
 ```
-usr/bin/maxctrl call command diff create DiffMyService MyService MyServer1 MariaDB_112
+maxctrl call command diff create DiffMyService MyService MyServer1 MariaDB_112
 {
     "status": "Diff service 'DiffMyService' created. Server 'MariaDB_112' ready to be evaluated."
 }
 ```
 With this command, preparations for comparing the server `MariaDB_112`
-against the server 'MyServer1' of the service `MyService` will be made.
+against the server `MyServer1` of the service `MyService` will be made.
 At this point it will be checked in what kind of replication relationship
 `MariaDB_112` is with respect to `MyServer1`.  If the steps in
 [prerequisites](#prerequisites) were followed, it will be detected that
@@ -95,7 +169,7 @@ service `DiffMyService` will be copied from `MyService`.
 
 Using maxctrl we can check that the service indeed has been created.
 ```
-$ maxctrl list services
+maxctrl list services
 ┌───────────────┬────────────────┬─────────────┬───────────────────┬────────────────────────┐
 │ Service       │ Router         │ Connections │ Total Connections │ Targets                │
 ├───────────────┼────────────────┼─────────────┼───────────────────┼────────────────────────┤
@@ -108,6 +182,11 @@ $ maxctrl list services
 Now the comparison can be started.
 
 #### Start
+Syntax: `start diff-service`
+
+Where:
+- `diff-service: The name of the service created in the `create` step.
+
 ```
 maxctrl call command diff start DiffMyService
 {
@@ -155,7 +234,7 @@ processed, but they will now be routed via `DiffMyService`.
 
 With maxctrl we can can check that MyServer has been rewired.
 ```
-$ maxctrl list services
+maxctrl list services
 ┌───────────────┬────────────────┬─────────────┬───────────────────┬────────────────────────┐
 │ Service       │ Router         │ Connections │ Total Connections │ Targets                │
 ├───────────────┼────────────────┼─────────────┼───────────────────┼────────────────────────┤
@@ -167,7 +246,7 @@ $ maxctrl list services
 The target of `MyService` is `DiffMyService` instead of `MyServer1`
 that it used to be.
 
-The output object tells the current state.
+The output object returned by `create` tells the current state.
 ```
 {
     "sessions": {
@@ -188,6 +267,10 @@ means that it is in the process of changing `MyService` to use
 process of suspending sessions.
 
 #### Status
+Syntax: `status diff-service`
+
+Where:
+- `diff-service: The name of the service created in the `create` step.
 
 When Diff has been started, its current status can be checked with the
 command `status`. The output is the same as what was returned when
@@ -207,12 +290,16 @@ The state is now `comparing`, which means that everything is ready
 and clients can connect in normal fashion.
 
 #### Summary
+Syntax: `summary diff-service`
+
+Where:
+- `diff-service: The name of the service created in the `create` step.
 
 While Diff is running, it is possible at any point to request
 a summary.
 
 ```
-usr/bin/maxctrl call command diff summary DiffMyService
+maxctrl call command diff summary DiffMyService
 OK
 ```
 The summary consists of two files, one for the _main_ server and
@@ -235,6 +322,10 @@ The visualization of the results is done using the
 [maxvisualize](#visualizing) program.
 
 #### Stop
+Syntax: `stop diff-service`
+
+Where:
+- `diff-service: The name of the service created in the `create` step.
 
 The comparison can stopped with the command `stop`.
 ```
@@ -260,6 +351,10 @@ before the operation has completed. The status can be checked with
 the 'status' command.
 
 #### Destroy
+Syntax: `destroy diff-service`
+
+Where:
+- `diff-service: The name of the service created in the `create` step.
 
 As the final step, the command `destroy` can be called to
 destroy the service.
@@ -270,15 +365,83 @@ OK
 
 ## Visualizing
 
-The visualization itself is done with the `maxvisualize` program,
-which is part of the Capture functionality. The visualization will
+The visualization of the data is done with the `maxvisualize` program,
+which is part of the _Capture_ functionality. The visualization will
 open up a browser window to show the visualization.
 
 If no browser opens up, the visualization URL is also printed into
 the command line which by default should be http://localhost:8866/.
+
+In the case of the example above, the directory where the output files
+are created would be `/var/lib/maxscale/diff/MyService`. And the files
+to be used when visualizing would be called something like
+`MyServer1_2024-05-07_140323.json` and
+`MariaDB_112_2024-05-07_140323.json`. The timestamp will be different
+every time [summary](#summary) is executed.
+
 ```
-maxvisualize baseline-summary.json comparison-summary.json
+maxvisualize MyServer1_2024-05-07_140323.json MariaDB_112_2024-05-07_140323.json
 ```
+The order is significant; the first argument is the baseline and the
+second argument the results compared to the baseline.
+
+## Continuous Reporting
+
+If the value of [report](#report) is something else but `never`, Diff
+will continously log results to a file whose name is the concatenation
+for the main and other server followed by a timestamp. In the example
+above, the name would be something like
+`MyServer1_MariaDB_112_2024-02-15_152838.json`.
+
+Each line (here expanded for readability) in the file will look like:
+```
+{
+  "id": 1,
+  "session": 1,
+  "command": "COM_QUERY",
+  "query": "select @@version_comment limit 1",
+  "results": [
+    {
+      "target": "MyServer1",
+      "checksum": "0f491b37",
+      "rows": 1,
+      "warnings": 0,
+      "duration": 257805,
+      "type": "resultset",
+      "explain": { ... }
+    },
+    {
+      "target": "MariaDB_112",
+      "checksum": "0f491b37",
+      "rows": 1,
+      "warnings": 0,
+      "duration": 170043,
+      "type": "resultset",
+      "explain": { ... }
+    }
+  ]
+}
+```
+The meaning of the fields are as follows:
+
+* **id**: Running number, increases for each query, but will not be in
+  strict increasing order if a statement needed to be EXPLAINed and
+  the following did not.
+* **session**: The session id.
+* **command**: The protocol packet type.
+* **query**: The SQL of the query.
+* **results**: Array of results.
+   * **target**: The server the result relates to.
+   * **checksum**: The checksum of the result.
+   * **rows**: How many rows were returned.
+   * **warnings**: The number of warnings.
+   * **duration**: The execution duration in nanonseconds.
+   * **type**: What type of result `resultset`, `ok` or `error`.
+   * **explain**: The result of `EXPLAIN FORMAT=JSON statement`.
+
+Instead of an `explain` object, there may be an `explained_by` array,
+containing the ids of similar statements (i.e. their canonical
+statement is the same) that were EXPLAINed.
 
 ## Mode
 
@@ -286,7 +449,7 @@ Diff can run in a read-only or read-write mode and the mode is
 deduced from the replication relationship between _main_ and
 _other_.
 
-If _other_ replicates from _main, it is assumed that _main_ is
+If _other_ replicates from _main_, it is assumed that _main_ is
 the primary. In this case Diff will, when started, stop the
 replication from _main_ to _other_. When the comparison ends
 Diff will, depending on the value of
@@ -408,11 +571,12 @@ will also be saved.
 - **Type**: [enum](#enumerations)
 - **Mandatory**: No
 - **Dynamic**: Yes
-- **Values**: `always`, `on_discrepancy`
+- **Values**: `always`, `on_discrepancy`, `never`
 - **Default**: `on_discrepancy`
 
 Specifies when the results of executing a statement on _other_ and _main_
-should be logged; always or when there is a significant difference.
+should be logged; _always_, when there is a significant difference or
+_never_.
 
 ### `reset_replication`
 
@@ -454,88 +618,16 @@ or when Diff is explicitly instructed to do so.
 - **Dynamic**: Yes
 - **Default**: 5
 
-Specifies the number of slower statements that are retained in memory.
-The statements will be saved in the summary when the comparison ends,
-or when Diff is explicitly instructed to do so.
+### `samples`
 
-## Reporting
+- **Type**: count
+- **Mandatory**: No
+- **Dynamic**: Yes
+- **Min**: 100
+- **Default**: 1000
 
-### Log
-
-When Diff starts it will create a directory `diff` in MaxScale's
-data directory (typically `/var/lib/maxscale`). Under that it
-will create a directory whose name is the same as that of the
-service specified in [service](#service). In the example above,
-it would be `/var/lib/maxscale/diff/MyService`.
-
-In that directory it will create a file whose name is formed
-from the name of _main_, the name of _other_ and a timestamp.
-In the example above, it could be
-`MyServer1_MariaDB_112_2024-02-15T15-28-38.json`.
-
-Each line (here expanded for readability) will look like:
-```
-{
-  "id": 1,
-  "session": 1,
-  "command": "COM_QUERY",
-  "query": "select @@version_comment limit 1",
-  "results": [
-    {
-      "target": "MyServer1",
-      "checksum": "0f491b37",
-      "rows": 1,
-      "warnings": 0,
-      "duration": 257805,
-      "type": "resultset",
-      "explain": {
-        "query_block": {
-          "select_id": 1,
-          "table": {
-            "message": "No tables used"
-          }
-        }
-      }
-    },
-    {
-      "target": "MariaDB_112",
-      "checksum": "0f491b37",
-      "rows": 1,
-      "warnings": 0,
-      "duration": 170043,
-      "type": "resultset",
-      "explain": {
-        "query_block": {
-          "select_id": 1,
-          "table": {
-            "message": "No tables used"
-          }
-        }
-      }
-    }
-  ]
-}
-```
-The meaning of the fields are as follows:
-
-* **id**: Running number, increases for each query.
-* **session**: The session id.
-* **command**: The protocol packet type.
-* **query**: The SQL of the query.
-* **results**: Array of results.
-   * **target**: The server the result relates to.
-   * **checksum**: The checksum of the result.
-   * **rows**: How many rows were returned.
-   * **warning**: The number of warnings.
-   * **duration**: The execution duration in nanonseconds.
-   * **type**: What type of result `resultset`, `ok` or `error`.
-   * **explain**: The result of `EXPLAIN FORMAT=JSON statement`.
-
-### Summary
-
-When Diff is stopped, it will write a summary to the same
-directory as the log. The summary will be written to file
-whose name is `Summary-' followed by a timestamp.
+Specifies the number of samples that will be collected in order to
+define the edges and number of bins of the histograms.
 
 ## Limitations
 
