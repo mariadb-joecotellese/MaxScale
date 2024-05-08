@@ -77,7 +77,7 @@ With these steps Diff is ready to be used.
 
 #### Prepare
 ```
-$ maxctrl call command diff prepare MyService MyServer1 MariaDB_112
+usr/bin/maxctrl call command diff create DiffMyService MyService MyServer1 MariaDB_112
 {
     "status": "Diff service 'DiffMyService' created. Server 'MariaDB_112' ready to be evaluated."
 }
@@ -89,9 +89,9 @@ At this point it will be checked in what kind of replication relationship
 [prerequisites](#prerequisites) were followed, it will be detected that
 `MariaDB_112` replicates from `MyServer1`.
 
-If everything seems to be in order, service `DiffMyService` will be
-created. The settings used by the service `DiffMyService` will be copied
-from `MyService`.
+If everything seems to be in order, the service `DiffMyService` will be
+created. Settings such as _user_ and _password_ that are needed by the
+service `DiffMyService` will be copied from `MyService`.
 
 Using maxctrl we can check that the service indeed has been created.
 ```
@@ -109,7 +109,7 @@ Now the comparison can be started.
 
 #### Start
 ```
-$ maxctrl call command comparator start DiffMyService
+maxctrl call command diff start DiffMyService
 {
     "sessions": {
         "suspended": 0,
@@ -193,7 +193,7 @@ When Diff has been started, its current status can be checked with the
 command `status`. The output is the same as what was returned when
 Diff was started.
 ```
-$ maxctrl call command diff status DiffMyService
+maxctrl call command diff status DiffMyService
 {
     "sessions": {
         "suspended": 0,
@@ -209,88 +209,36 @@ and clients can connect in normal fashion.
 #### Summary
 
 While Diff is running, it is possible at any point to request
-a summary. In the following is an example that has been
-slighty edited for brevity.
+a summary.
 
 ```
-$ maxctrl call command diff summary DiffMyService return
-{
-    "sessions": {
-        "current": 0,
-        "total": 3
-    },
-    "summary": {
-        "main": {
-            "MyServer1": {
-                "data": {
-                    "explain": {
-                        "duration": 2,
-                        "requests": 8,
-                        "responses": 8
-                    },
-                    "request_packets": 22,
-                    "requests": 22,
-                    "requests_explainable": 17,
-                    "requests_responding": 19,
-                    "responses": 19,
-                    "total_duration": 13
-                }
-            }
-        },
-        "others": {
-            "MariaDB_112": {
-                "data": {
-                    "explain": {
-                        "duration": 3,
-                        "requests": 8,
-                        "responses": 8
-                    },
-                    "request_packets": 22,
-                    "requests": 22,
-                    "requests_explainable": 17,
-                    "requests_responding": 19,
-                    "requests_skipped": 0,
-                    "responses": 19,
-                    "total_duration": 124
-                },
-                "verdict": {
-                    "faster": 4,
-                    "fastest": [
-                        {
-                            "explained_by": [],
-                            "id": 1,
-                            "percent": 34,
-                            "sql": "select @@version_comment limit 1"
-                        },
-                        ...
-                    ],
-                    "slower": 15,
-                    "slowest": [
-                        {
-                            "explained_by": [],
-                            "id": 18,
-                            "percent": 24.2,
-                            "sql": "select * from t"
-                        },
-                        ...
-                    ]
-                }
-            }
-        }
-    }
-}
+usr/bin/maxctrl call command diff summary DiffMyService
+OK
+```
+The summary consists of two files, one for the _main_ server and
+one for the _other_ server. The files are written to a subdirectory
+with the same name as the Diff service, which is created in the
+subdirectory `diff` in the data directory of MaxScale.
+
+Assuming the data directory is the default `/var/lib/maxscale`,
+the directory would in this example be
+`/var/lib/maxscale/diff/DiffMyService`.
+
+The names of the files will be the server name, concatenated with a
+timestamp. In this example, the names of the files could be:
+```
+MyServer1_2024-05-07_140323.json
+MariaDB_112_2024-05-07_140323.json
 ```
 
-By default, the summary is stored to a file, but by specifying
-`return` when making the call, the summary will also be returned.
-With `both` it is possible to specify that the summary should be
-saved to a file and returned.
+The visualization of the results is done using the
+[maxvisualize](#visualizing) program.
 
 #### Stop
 
 The comparison can stopped with the command `stop`.
 ```
-$ maxctrl call command diff stop DiffMyService
+maxctrl call command diff stop DiffMyService
 {
     "sessions": {
         "suspended": 0,
@@ -311,13 +259,25 @@ As the sessions have to be suspended, it may take a while
 before the operation has completed. The status can be checked with
 the 'status' command.
 
-#### Unprepare
+#### Destroy
 
-As the final step, the command `unprepare` can be called to
+As the final step, the command `destroy` can be called to
 destroy the service.
 ```
-$ maxctrl call command diff unprepare DiffMyService
+maxctrl call command diff destroy DiffMyService
 OK
+```
+
+## Visualizing
+
+The visualization itself is done with the `maxvisualize` program,
+which is part of the Capture functionality. The visualization will
+open up a browser window to show the visualization.
+
+If no browser opens up, the visualization URL is also printed into
+the command line which by default should be http://localhost:8866/.
+```
+maxvisualize baseline-summary.json comparison-summary.json
 ```
 
 ## Mode
@@ -365,16 +325,6 @@ mid-session, the client connection will be closed.
 
 Specifies the service Diff will modify.
 
-### `entries`
-
-- **Type**: non-negative integer
-- **Mandatory**: No
-- **Dynamic**: Yes
-- **Default**: 2
-
-Specifies how many times at most a particular canonical statement
-is EXPLAINed during the period specified by [period](#period).
-
 ### `explain`
 
 - **Type**: [enum](#enumerations)
@@ -386,15 +336,27 @@ is EXPLAINed during the period specified by [period](#period).
 Specifies whether a request should be EXPLAINed on only _other_,
 both _other_ and _main_ or neither.
 
-### `max_execution_time_difference`
+### `explain_entries`
 
-- **Type**: [Percent](../Getting-Started/Configuration-Guide.md#percent)
+- **Type**: non-negative integer
 - **Mandatory**: No
 - **Dynamic**: Yes
-- **Default**: 10%
+- **Default**: 2
 
-Specifies the maximum difference in execution time between _other_
-and _main_ before information about the statement is logged.
+Specifies how many times at most a particular canonical statement
+is EXPLAINed during the period specified by
+[explain_period](#explain_period).
+
+### `explain_period`
+
+- **Type**: [duration](../Getting-Started/Configuration-Guide.md#duration)
+- **Mandatory**: No
+- **Dynamic**: Yes
+- **Default**: 15m
+
+Specifies the length of the period during which at most
+[explain_entries](#explain_entries) number of EXPLAINs are executed
+for a statement.
 
 ### `max_request_lag`
 
@@ -418,15 +380,28 @@ are skipped to bring it back in line with _main_.
 Specifies whether an error from _other_, will cause the session to
 be closed. By default it will not.
 
-### `period`
+### `percentile`
+
+- **Type**: count
+- **Mandatory**: No
+- **Dynamic**: Yes
+- **Min**: 1
+- **Max**: 100
+- **Default**: 99
+
+Specifies the percentile of sampels that will be considered when
+calculating the width and number of bins of the histogram.
+
+### `qps_window`
 
 - **Type**: [duration](../Getting-Started/Configuration-Guide.md#duration)
 - **Mandatory**: No
-- **Dynamic**: Yes
+- **Dynamic**: No
 - **Default**: 15m
 
-Specifies the length of the period during which at most [entries](#entries)
-number of EXPLAINs are executed for a statement.
+Specifies the size of the sliding window during which QPS is calculated
+and stored. When a [summary](#summary) is requested, the QPS information
+will also be saved.
 
 ### `report`
 
@@ -470,8 +445,7 @@ is on.
 
 Specifies the number of faster statements that are retained in memory.
 The statements will be saved in the summary when the comparison ends,
-or when Diff is explicitly instructed to do so. The statements will
-also be returned by the call `summary`.
+or when Diff is explicitly instructed to do so.
 
 ### `retain_slower_statements`
 
@@ -482,8 +456,7 @@ also be returned by the call `summary`.
 
 Specifies the number of slower statements that are retained in memory.
 The statements will be saved in the summary when the comparison ends,
-or when Diff is explicitly instructed to do so. The statements will
-also be returned by the call `summary`.
+or when Diff is explicitly instructed to do so.
 
 ## Reporting
 

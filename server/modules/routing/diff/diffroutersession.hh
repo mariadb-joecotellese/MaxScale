@@ -67,8 +67,8 @@ private:
     void ready(const DiffExplainOtherResult& explain_other_result) override;
 
 private:
-    bool should_report(const DiffHistogram::Specification& hspec,
-                       const DiffOrdinaryOtherResult& result) const;
+    bool needs_explaining(const DiffHistogram::Specification& hspec,
+                          const DiffOrdinaryOtherResult& result) const;
 
     void generate_report(const DiffOrdinaryOtherResult& result);
     void generate_report(const DiffExplainOtherResult& result);

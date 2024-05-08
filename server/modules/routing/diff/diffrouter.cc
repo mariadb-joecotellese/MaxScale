@@ -464,8 +464,8 @@ bool DiffRouter::summary(Summary summary, json_t** ppOutput)
     base += "/";
     base += MXB_MODULE_NAME;
     base += "/";
-    base += m_config.service_name;
-    base += "/Summary_";
+    base += m_service.name();
+    base += "/";
 
     time_t now = time(nullptr);
     std::stringstream time;
@@ -1256,7 +1256,7 @@ bool DiffRouter::update_exporters()
             }
             else
             {
-                SExporter sExporter = build_exporter(m_config, *pTarget);
+                SExporter sExporter = build_exporter(m_service.name(), *m_config.pMain, *pTarget);
 
                 if (sExporter)
                 {

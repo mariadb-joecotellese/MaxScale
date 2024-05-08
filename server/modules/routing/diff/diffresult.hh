@@ -195,10 +195,7 @@ public:
 
     Hash canonical_hash() const;
 
-    bool is_explainable() const
-    {
-        return !sql().empty();
-    }
+    bool is_explainable() const;
 
     std::chrono::nanoseconds close(const mxs::Reply& reply) override;
 

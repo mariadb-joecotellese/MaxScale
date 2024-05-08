@@ -105,6 +105,30 @@ DiffResult::Hash DiffOrdinaryMainResult::canonical_hash() const
     return m_canonical_hash;
 }
 
+bool DiffOrdinaryMainResult::is_explainable() const
+{
+    bool rv = false;
+
+    if (!sql().empty())
+    {
+        switch (parser().get_operation(m_packet))
+        {
+        case mxs::sql::OP_DELETE:
+        case mxs::sql::OP_INSERT:
+        case mxs::sql::OP_SELECT:
+        case mxs::sql::OP_UPDATE:
+            rv = true;
+            break;
+
+        default:
+            ;
+        }
+    }
+
+    return rv;
+}
+
+
 std::chrono::nanoseconds DiffOrdinaryMainResult::close(const mxs::Reply& reply)
 {
     auto rv = DiffResult::close(reply);

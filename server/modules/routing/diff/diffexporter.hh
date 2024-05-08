@@ -23,4 +23,6 @@ public:
     virtual void ship(json_t* pJson) = 0;
 };
 
-std::unique_ptr<DiffExporter> build_exporter(const DiffConfig& config, const mxs::Target& target);
+std::unique_ptr<DiffExporter> build_exporter(const std::string& diff_service_name,
+                                             const mxs::Target& main,
+                                             const mxs::Target& other);

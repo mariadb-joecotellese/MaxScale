@@ -27,6 +27,7 @@ enum class Report
 {
     ALWAYS,
     ON_DISCREPANCY,
+    NEVER
 };
 
 class DiffRouter;
@@ -57,7 +58,6 @@ public:
     Explain                    explain;
     int64_t                    explain_entries;
     std::chrono::milliseconds  explain_period;
-    int64_t                    max_execution_time_difference;
     int64_t                    max_request_lag;
     mxs::config::Enum<OnError> on_error;
     int64_t                    percentile;
