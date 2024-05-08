@@ -40,11 +40,12 @@ const struct option long_opts[] =
     {"output",        required_argument, 0, 'o'},
     {"verbose",       no_argument,       0, 'v'},
     {"no-row-counts", no_argument,       0, 'R'},
+    {"commit-order",  required_argument, 0, 'C'},
     {0,               0,                 0, 0  }
 };
 
 // This is not separately checked, keep in sync with long_opts.
-const char* short_opts = "hu:p:H:s:c::o:vR";
+const char* short_opts = "hu:p:H:s:c::o:vRC:";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -132,6 +133,7 @@ void RepConfig::show_help()
               << OPT('H', host)
               << OPT('v', verbosity)
               << OPT('R', row_counts)
+              << OPT('C', "Commit ordering (options: none, optimistic, serialized)")
               << std::endl;
 }
 
@@ -179,6 +181,27 @@ RepConfig::RepConfig(int argc, char** argv)
             else
             {
                 std::cerr << "Invalid --csv value: " << optarg << std::endl;
+                help = true;
+                error = true;
+            }
+            break;
+
+        case 'C':
+            if (optarg == "none"s)
+            {
+                commit_order = CommitOrder::NONE;
+            }
+            else if (optarg == "optimistic"s)
+            {
+                commit_order = CommitOrder::OPTIMISTIC;
+            }
+            else if (optarg == "serialized"s)
+            {
+                commit_order = CommitOrder::SERIALIZED;
+            }
+            else
+            {
+                std::cerr << "Invalid --commit-order value: " << optarg << std::endl;
                 help = true;
                 error = true;
             }

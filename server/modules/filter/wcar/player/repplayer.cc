@@ -25,6 +25,10 @@ void RepPlayer::replay()
     bool once = true;
     m_recorder.start();
 
+    start_deadlock_monitor(m_transform.max_parallel_sessions(),
+                           m_config.user, m_config.password,
+                           m_config.host.address(), m_config.host.port());
+
     // TODO: add throttling. This loop will now schedule all events, i.e. everything
     // that cannot be executed now, will go to pending, potentially consuming all memory.
     for (auto&& qevent : m_transform.player_storage())
@@ -57,6 +61,7 @@ void RepPlayer::replay()
 
     m_recorder.stop();
     m_transform.finalize();
+    stop_deadlock_monitor();
     MXB_SNOTICE("Transform finalize: " << mxb::to_string(m_stopwatch.restart()));
 
     for (auto str : mxb::strtok(mxb::get_collector_stats(), "\n"))
@@ -68,6 +73,7 @@ void RepPlayer::replay()
 RepPlayer::ExecutionInfo RepPlayer::get_execution_info(RepSession& session, const QueryEvent& qevent)
 {
     ExecutionInfo exec {false, end(m_transform.transactions())};
+    auto trx_start_ite = m_transform.trx_start_mapping(qevent.event_id);
 
     if (m_front_trxn == end(m_transform.transactions()))
     {
@@ -79,12 +85,32 @@ RepPlayer::ExecutionInfo RepPlayer::get_execution_info(RepSession& session, cons
     }
     else
     {
-        exec.can_execute = qevent.start_time < m_front_trxn->end_time;
+        if (trx_start_ite != end(m_transform.transactions()))
+        {
+            switch (m_config.commit_order)
+            {
+            case RepConfig::CommitOrder::NONE:
+                exec.can_execute = true;
+                break;
+
+            case RepConfig::CommitOrder::OPTIMISTIC:
+                exec.can_execute = qevent.start_time < m_front_trxn->end_time;
+                break;
+
+            case RepConfig::CommitOrder::SERIALIZED:
+                exec.can_execute = trx_start_ite == m_front_trxn;
+                break;
+            }
+        }
+        else
+        {
+            exec.can_execute = true;
+        }
     }
 
     if (exec.can_execute)
     {
-        exec.trx_start_ite = m_transform.trx_start_mapping(qevent.event_id);
+        exec.trx_start_ite = trx_start_ite;
     }
 
     return exec;
@@ -208,7 +234,16 @@ void RepPlayer::wait_for_sessions_to_finish()
         {
             std::unique_lock lock(m_trxn_mutex);
             more_pending = schedule_pending_events(lock);
-            std::this_thread::yield();      // TODO no condition to wait on here
+
+            if (more_pending)
+            {
+                lock.lock();
+                mxb_assert_message(m_front_trxn != end(m_transform.transactions()),
+                                   "There should be pending transactions");
+                m_trxn_condition.wait_for(lock, 1s, [&](){
+                    return !m_finished_trxns.empty();
+                });
+            }
         }
         else
         {

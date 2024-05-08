@@ -4,6 +4,7 @@
  * This is UNPUBLISHED PROPRIETARY SOURCE CODE of MariaDB plc
  */
 #include "capquerysort.hh"
+#include "meminfo.hh"
 
 #if HAVE_STD_EXECUTION
 #include <execution>
@@ -14,11 +15,19 @@
 #define merge_par(...) std::merge(__VA_ARGS__)
 #endif
 
-// This should not really be a constant, but rather dynamic
-// based on available memory as a QueryEvent has a vector
-// of canonical arguments.
-
-constexpr size_t MAX_CHUNK_SIZE = 1'000'000;
+// The memory handling strategy for sorting is to
+// read CHUNK_READ_SIZE with no memory checking,
+// then check for a possible split to disk and loop.
+// The memory check is very expensive compared to the
+// rest of the work. A small read size in not only
+// preventing a memory limit breach but also makes
+// sorting faster as the data fits in cache in most CPUs.
+namespace
+{
+constexpr size_t CHUNK_READ_SIZE = 1000;
+constexpr float MIN_FREE_MEM_PCT = 10;
+MemInfo mem_info;
+}
 
 static inline bool operator<(const SortKey& lhs, const SortKey& rhs)
 {
@@ -175,7 +184,7 @@ void QuerySort::sort_query_events()
     m_sort_time.start_interval();
 
     WorkChunk work_chunk;
-    fill_chunk(work_chunk, query_in);   // also manipulates m_sort_time
+    fill_chunk(work_chunk, query_in, CHUNK_READ_SIZE);      // also manipulates m_sort_time
 
     while (key_ite != m_keys.end())
     {
@@ -189,12 +198,12 @@ void QuerySort::sort_query_events()
             work_chunk.pop_front();
         }
 
-        if (work_chunk.size() == MAX_CHUNK_SIZE)
+        if (mem_info.free_pct() < MIN_FREE_MEM_PCT)
         {
             m_external_chunks.save(work_chunk.split());
         }
 
-        if (fill_chunk(work_chunk, query_in))
+        if (fill_chunk(work_chunk, query_in, CHUNK_READ_SIZE))
         {
             break;
         }
@@ -268,13 +277,15 @@ void QuerySort::sort_trx_events()
     }
 }
 
-bool QuerySort::fill_chunk(WorkChunk& chunk, BoostIFile& query_in)
+bool QuerySort::fill_chunk(WorkChunk& chunk, BoostIFile& query_in, int64_t more)
 {
+    MemInfo mi;
     m_sort_time.end_interval();
     m_read_time.start_interval();
     auto n_existing_events = chunk.size();
     WorkChunk new_chunk;
-    while (!query_in.at_end_of_stream() && new_chunk.size() + n_existing_events < MAX_CHUNK_SIZE)
+
+    while (!query_in.at_end_of_stream() && new_chunk.size() < n_existing_events + more)
     {
         auto qevent = CapBoostStorage::load_query_event(query_in);
         new_chunk.push_back(QueryKey(std::make_unique<QueryEvent>(std::move(qevent))));

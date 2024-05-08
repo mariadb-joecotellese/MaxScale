@@ -81,15 +81,19 @@ Storage::Iterator CapBoostStorage::end() const
     return Storage::Iterator(nullptr, QueryEvent {});
 }
 
-int64_t CapBoostStorage::size()
+int64_t CapBoostStorage::tell()
 {
     if (m_access == ReadWrite::WRITE_ONLY)
     {
-        return m_sCanonical_out->tell() + m_sQuery_event_out->tell();
+        return m_sCanonical_out->tell()
+               + m_sQuery_event_out->tell()
+               + m_sTrx_out->tell();
     }
     else
     {
-        return m_sCanonical_in->tell() + m_sQuery_event_in->tell();
+        return m_sCanonical_in->tell()
+               + m_sQuery_event_in->tell()
+               + m_sTrx_in->tell();
     }
 }
 
@@ -273,8 +277,20 @@ std::map<int64_t, std::shared_ptr<std::string>>  CapBoostStorage::canonicals()
 
 void CapBoostStorage::events_to_sql(std::ostream& out)
 {
-    for (const auto& qevent : *this)
+    std::map<uint64_t, std::unique_ptr<Trx>> trxs;
+
+    for (auto&& t : load_trx_events(*m_sTrx_in))
     {
-       out << qevent << "\n";
+        trxs.emplace(t.end_event_id, std::make_unique<Trx>(t.start_event_id, t.gtid));
+    }
+
+    for (auto&& qevent : *this)
+    {
+        if (auto it = trxs.find(qevent.event_id); it != trxs.end())
+        {
+            qevent.sTrx = std::move(it->second);
+            trxs.erase(it);
+        }
+        out << qevent << "\n";
     }
 }

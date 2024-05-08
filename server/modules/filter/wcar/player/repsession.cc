@@ -5,16 +5,143 @@
 #include <maxbase/assert.hh>
 #include <maxbase/string.hh>
 #include <maxsimd/canonical.hh>
+#include <maxsql/mariadb_connector.hh>
 #include <iostream>
 #include <thread>
 
 namespace
 {
+
+struct ThreadInfo
+{
+    uint64_t               session_id {0};
+    unsigned int           thread_id {0};
+    bool                   executing {false};
+    int64_t                last_event_id {-1};
+    mxb::Clock::time_point last_event_ts {mxb::Duration{0}};
+};
+
 namespace ThisUnit
 {
 std::atomic<int> next_thread_idx = 0;
 thread_local int thread_idx = -1;
+
+// Deadlock monitor thread
+std::vector<ThreadInfo> infos;
+std::mutex lock;
+std::condition_variable cv;
+std::atomic<bool> monitor_running {false};
+std::thread monitor_thr;
 }
+
+void dump_infos()
+{
+    std::lock_guard guard(ThisUnit::lock);
+
+    for (auto& t : ThisUnit::infos)
+    {
+        std::cout
+            << "Session: " << t.session_id << ", "
+            << "Thread: " << t.thread_id << ", "
+            << "Event ID: " << t.last_event_id << ", "
+            << "Time since start: " << mxb::to_string(mxb::Clock::now() - t.last_event_ts)
+            << std::endl;
+    }
+}
+
+ThreadInfo* find_session(unsigned int thread_id)
+{
+    for (size_t i = 0; i < ThisUnit::infos.size(); i++)
+    {
+        if (ThisUnit::infos[i].thread_id == thread_id)
+        {
+            return &ThisUnit::infos[i];
+        }
+    }
+
+    return nullptr;
+}
+
+void deadlock_monitor(std::string user, std::string password, std::string address, int port)
+{
+    mxq::MariaDB conn;
+    auto& s = conn.connection_settings();
+    s.user = user;
+    s.password = password;
+
+    if (!conn.open(address, port))
+    {
+        MXB_SERROR("Could not connect to " << address << ':' << std::to_string(port)
+                                           << " Error: " << conn.error());
+        return;
+    }
+
+    auto res = conn.query("SELECT @@global.innodb_lock_wait_timeout");
+    res->next_row();
+    std::chrono::seconds lock_wait_timeout {res->get_int(0)};
+    res.reset();
+
+    while (ThisUnit::monitor_running)
+    {
+        res = conn.query("SHOW ENGINE INNODB STATUS");
+
+        if (res && res->next_row() && res->get_col_count() >= 3)
+        {
+            std::istringstream iss(res->get_string(2));
+            unsigned int thread_id = 0;
+            const std::string_view thr_prefix = "MariaDB thread id ";
+            const std::string_view lock_wait_prefix = "TRX HAS BEEN WAITING ";
+
+            for (std::string line; std::getline(iss, line);)
+            {
+                if (auto pos = line.find(thr_prefix); pos != std::string::npos)
+                {
+                    thread_id = strtoul(line.c_str() + pos + thr_prefix.size(), nullptr, 10);
+                }
+
+                if (auto pos = line.find(lock_wait_prefix); pos != std::string::npos)
+                {
+                    std::chrono::microseconds wait_usec {
+                        strtoul(line.c_str() + pos + lock_wait_prefix.size(), nullptr, 10)
+                    };
+
+                    if (wait_usec > lock_wait_timeout * 0.75)
+                    {
+                        if (auto* info = find_session(thread_id))
+                        {
+                            std::cout << "Session " << info->session_id << " has been stuck over "
+                                      << mxb::to_string(wait_usec) << " on event " << info->last_event_id
+                                      << ". Connection ID: " << info->thread_id << std::endl;
+
+                            dump_infos();
+                        }
+                    }
+                }
+            }
+        }
+
+        std::unique_lock guard(ThisUnit::lock);
+        ThisUnit::cv.wait_for(guard, 5s, [&](){
+            return !ThisUnit::monitor_running;
+        });
+    }
+}
+}
+
+void start_deadlock_monitor(int max_sessions,
+                            std::string user, std::string password,
+                            std::string address, int port)
+{
+    ThisUnit::infos.resize(max_sessions);
+    ThisUnit::monitor_running = true;
+    ThisUnit::monitor_thr = std::thread(deadlock_monitor, user, password, address, port);
+}
+
+void stop_deadlock_monitor()
+{
+    ThisUnit::monitor_running = false;
+    ThisUnit::cv.notify_one();
+    ThisUnit::monitor_thr.join();
 }
 
 bool RepSession::execute_stmt(const QueryEvent& qevent)
@@ -38,10 +165,15 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     if (mysql_query(m_pConn, sql.c_str()))
     {
         int error_number = mysql_errno(m_pConn);
-        MXB_SERROR("MariaDB: Error S "
-                   << qevent.session_id << " E " << qevent.event_id
-                   << " SQL " << mxb::show_some(sql)
-                   << " Error code " << error_number << ": " << mysql_error(m_pConn));
+
+        if (get_error(qevent) != error_number)
+        {
+            MXB_SERROR("MariaDB: Error S "
+                       << qevent.session_id << " E " << qevent.event_id
+                       << " SQL " << mxb::show_some(sql)
+                       << " Error code " << error_number << ": " << mysql_error(m_pConn));
+        }
+
         revent.error = error_number;
     }
 
@@ -155,6 +287,10 @@ void RepSession::run()
         exit(EXIT_FAILURE);
     }
 
+    auto& info = ThisUnit::infos[ThisUnit::thread_idx];
+    info.thread_id = mysql_thread_id(m_pConn);
+    info.last_event_ts = mxb::Clock::now();
+
     while (m_running.load(std::memory_order_relaxed))
     {
         std::unique_lock lock(m_mutex);
@@ -163,6 +299,13 @@ void RepSession::run()
         });
 
         auto qevent = std::move(m_queue.front());
+
+        if (info.session_id == 0)
+        {
+            info.session_id = qevent.session_id;
+        }
+
+        info.last_event_id = qevent.event_id;
         m_queue.pop_front();
         lock.unlock();
 
@@ -173,7 +316,12 @@ void RepSession::run()
         }
         else
         {
+            // Only mark sessions inside a transaction as executing. This avoids long-running commands like
+            // ALTER TABLE from being falsely reported as deadlocked.
+            info.executing = in_trxn();
+            info.last_event_ts = mxb::Clock::now();
             execute_stmt(qevent);
+            info.executing = false;
             if (qevent.event_id == m_commit_event_id)
             {
                 auto rep = m_commit_event_id;

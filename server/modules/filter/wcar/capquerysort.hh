@@ -130,7 +130,7 @@ private:
     void sort_query_events();
     void sort_trx_events();
     // Returns true when query_in has been all read
-    bool fill_chunk(WorkChunk& chunk, BoostIFile& query_in);
+    bool fill_chunk(WorkChunk& chunk, BoostIFile& query_in, int64_t more);
 
     fs::path                m_file_path;
     SortCallback            m_sort_cb;

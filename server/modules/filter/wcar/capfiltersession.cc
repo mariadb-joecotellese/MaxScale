@@ -190,8 +190,8 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(wall_time::TimePoi
 
     if (auto it = collations.find(maria_ses.auth_data->collation); it != collations.end())
     {
-        auto sql = "set names '"s + it->second.character_set + "' "
-            + "collate '" + it->second.collation + "'";
+        auto sql = "set names "s + it->second.character_set + " "
+            + "collate " + it->second.collation;
         opening_event.sCanonical = std::make_shared<std::string>(std::move(sql));
         opening_event.event_id = m_filter.get_next_event_id();
         events.push_back(std::move(opening_event));
@@ -333,6 +333,10 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
     {
         if (m_capture)
         {
+            // Store the error code in the last two bytes of the flags field. This saves space compared to
+            // storing it as a separate member.
+            m_query_event.flags |= (uint64_t)reply.error().code() >> 48;
+
             m_query_event.end_time = SimTime::sim_time().now();
             m_query_event.event_id = m_filter.get_next_event_id();
             m_query_event.sTrx = m_session_state.update(m_query_event.event_id, reply);

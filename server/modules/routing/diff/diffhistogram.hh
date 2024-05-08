@@ -76,6 +76,11 @@ public:
             return m_delta;
         }
 
+        mxb::Duration max() const
+        {
+            return m_min + m_bins * m_delta;
+        }
+
         int bins() const
         {
             return m_bins;

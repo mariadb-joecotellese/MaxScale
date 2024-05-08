@@ -48,7 +48,9 @@ struct QueryEvent
 {
     /* shared_ptr at this level because every kind of storage benefits
      * from the shared_ptr for caching.
-     * The flags member has type_mask in lower 32 bits, upper 32 bits are for future use
+     *
+     * The flags member has the query classifier type mask in the lower 32 bits. The next 16 bits contain the
+     * flags themselves and the last 16 bits is used to store the SQL error number that the query generated.
      */
     std::shared_ptr<std::string> sCanonical;
     maxsimd::CanonicalArgs       canonical_args;
@@ -71,6 +73,11 @@ inline bool is_real_event(const QueryEvent& qevent)
     return (qevent.flags & (CAP_ARTIFICIAL | CAP_SESSION_CLOSE)) == 0;
 }
 
+inline uint16_t get_error(const QueryEvent& qevent)
+{
+    return qevent.flags >> 48;
+}
+
 inline std::ostream& operator<<(std::ostream& os, const QueryEvent& qevent)
 {
     if (is_session_close(qevent))
@@ -82,8 +89,19 @@ inline std::ostream& operator<<(std::ostream& os, const QueryEvent& qevent)
         os << "/**"
            << " Session: " << qevent.session_id
            << " Event: " << qevent.event_id
-           << " Duration: " << mxb::to_string(qevent.end_time - qevent.start_time)
-           << " */ "
+           << " Duration: " << mxb::to_string(qevent.end_time - qevent.start_time);
+
+        if (qevent.sTrx)
+        {
+            os << " GTID: " << qevent.sTrx->gtid;
+        }
+
+        if (uint16_t error = get_error(qevent))
+        {
+            os << " Error: " << error;
+        }
+
+        os << " */ "
            << maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args)
            << ";";
     }
@@ -139,10 +157,11 @@ public:
     virtual Iterator begin() = 0;
     virtual Iterator end() const = 0;
 
-    // Return a meaningful size for a Storage. Currently there only
-    // is boost storage, but it is not impossible that in-memory
-    // storage is revived.
-    virtual int64_t size() = 0;
+    // The purpose of this function is to control in-memory usage of
+    // the application using a storage. It is an approximation of how
+    // many bytes have been written or read, much like tellg() or tellp()
+    // on a simple file.
+    virtual int64_t tell() = 0;
 
 protected:
     int64_t            next_can_id();

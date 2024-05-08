@@ -34,6 +34,21 @@ struct RepConfig
         FULL,
     };
 
+    enum class CommitOrder
+    {
+        // No ordering of transactions
+        NONE,
+
+        // Optimistic ordering of transactions. Assumes that if a transaction was started before the latest
+        // transaction was committed, it can be executed.
+        OPTIMISTIC,
+
+        // Serialized ordering of transactions. A transaction can only start if it's the next transaction in
+        // line. This effectively serializes the execution of the workload for all transactions that cause
+        // modifications.
+        SERIALIZED,
+    };
+
     RepConfig(int argc, char** argv);
 
     std::string   user{"maxskysql"};
@@ -41,9 +56,10 @@ struct RepConfig
     maxbase::Host host{"127.1.1.0", 3306};
     int           verbosity = 0;
     CsvType       csv = CsvType::NONE;
+    CommitOrder   commit_order = CommitOrder::OPTIMISTIC;
     bool          row_counts = true;
 
-    std::string capture_dir = mxs::datadir() + std::string("/capture");
+    std::string capture_dir = mxs::datadir() + std::string("/wcar");
     std::string file_name;      // full path, not necessarily in capture_dir
     std::string output_file;    // Output file, defaults to file_name
     std::string command = "replay";

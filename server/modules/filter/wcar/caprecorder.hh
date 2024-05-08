@@ -37,7 +37,7 @@ private:
     friend CapRecorder;
     void update_bytes_processed()
     {
-        m_bytes_processed.store(pStorage->size(), std::memory_order_relaxed);
+        m_bytes_processed.store(pStorage->tell(), std::memory_order_relaxed);
     }
     std::atomic<int64_t> m_bytes_processed = 0;
 };
