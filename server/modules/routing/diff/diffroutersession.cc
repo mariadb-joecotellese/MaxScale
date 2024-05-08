@@ -235,13 +235,17 @@ Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)
 {
     Explain rv = Explain::NONE;
 
+    bool should_report = (m_router.config().report.get() == Report::ALWAYS);
+
     DiffHistogram::Specification hspec = get_specification_for(other_result.canonical());
 
     // We'll ignore all results until enough samples have been collected.
     if (!hspec.empty())
     {
-        if (should_report(hspec, other_result))
+        if (needs_explaining(hspec, other_result))
         {
+            should_report = true;
+
             auto now = m_pSession->worker()->epoll_tick_now();
             auto canonical_hash = other_result.canonical_hash();
             auto id = other_result.id();
@@ -261,14 +265,16 @@ Explain DiffRouterSession::ready(DiffOrdinaryOtherResult& other_result)
 
                 if (other_result.is_explainable() && explain != Explain::NONE)
                 {
+                    should_report = false; // Will be reported once the EXPLAIN is available.
                     rv = explain;
-                }
-                else
-                {
-                    generate_report(other_result);
                 }
             }
         }
+    }
+
+    if (should_report)
+    {
+        generate_report(other_result);
     }
 
     return rv;
@@ -293,28 +299,20 @@ void DiffRouterSession::ready(const DiffExplainOtherResult& explain_result)
     }
 }
 
-bool DiffRouterSession::should_report(const DiffHistogram::Specification& hspec,
-                                      const DiffOrdinaryOtherResult& other_result) const
+bool DiffRouterSession::needs_explaining(const DiffHistogram::Specification& hspec,
+                                         const DiffOrdinaryOtherResult& other_result) const
 {
-    const auto& config = m_router.config();
+    bool rv = false;
 
-    bool rv = (config.report.get() == Report::ALWAYS);
+    const auto& main_result = other_result.main_result();
 
-    if (!rv)
+    if (is_checksum_discrepancy(other_result, main_result.checksum()))
     {
-        const auto& main_result = other_result.main_result();
-
-        if (is_checksum_discrepancy(other_result, main_result.checksum()))
-        {
-            rv = true;
-        }
-        else
-        {
-            if (is_execution_time_discrepancy(other_result.duration(), hspec.min(), hspec.max()))
-            {
-                rv = true;
-            }
-        }
+        rv = true;
+    }
+    else if (is_execution_time_discrepancy(other_result.duration(), hspec.min(), hspec.max()))
+    {
+        rv = true;
     }
 
     return rv;
