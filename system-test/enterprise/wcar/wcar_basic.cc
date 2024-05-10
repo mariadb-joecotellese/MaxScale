@@ -147,18 +147,18 @@ void sanity_check(TestConnections& test)
                                        test.repl->port(0),
                                        replay_file.c_str());
 
-    test.expect(rc != 0, "'maxplayer replay' should fail if there's no write access to the file");
+    MXT_EXPECT_F(rc != 0, "'maxplayer replay' should fail if there's no write access to the file");
 
     test.tprintf("Attempting a summary without the correct file permissions");
     res = test.maxscale->ssh_output("maxplayer summary " + replay_file + " 2>&1", false);
-    test.expect(res.rc != 0, "'maxplayer summary' should fail if there's no write access to the file");
-    test.expect(res.output.find("Could not open file") != std::string::npos,
-                "The failure to open should be reported");
+    MXT_EXPECT_F(res.rc != 0, "'maxplayer summary' should fail if there's no write access to the file");
+    MXT_EXPECT_F(res.output.find("Could not open file") != std::string::npos,
+                 "The failure to open should be reported");
     std::cout << res.output << std::endl;
 
     test.tprintf("Attempting a summary with the correct file permissions");
     res = test.maxscale->ssh_output("maxplayer summary " + replay_file + " 2>&1", true);
-    test.expect(res.rc == 0, "'maxplayer summary' should work as root");
+    MXT_EXPECT_F(res.rc == 0, "'maxplayer summary' should work as root");
     std::cout << res.output << std::endl;
 
 
@@ -171,7 +171,7 @@ void sanity_check(TestConnections& test)
                                    test.repl->port(0),
                                    replay_file.c_str());
 
-    test.expect(res.rc == 0, "'maxplayer replay' should work after running 'maxplayer summary' as root");
+    MXT_EXPECT_F(rc == 0, "'maxplayer replay' should work after running 'maxplayer summary' as root");
 
     test.maxscale->copy_from_node("/tmp/replay.csv", "./replay.csv");
 
