@@ -66,6 +66,7 @@ private:
 
 void sanity_check(TestConnections& test)
 {
+    test.tprintf("%s", __func__);
     Cleanup cleanup(test);
     cleanup.add_table("test.wcar_basic");
 
@@ -184,9 +185,76 @@ void sanity_check(TestConnections& test)
     MXT_EXPECT_F(before == after, "CHECKSUM TABLE mismatch: %s != %s", before.c_str(), after.c_str());
 }
 
+void do_replay_and_checksum(TestConnections& test)
+{
+    test.maxscale->stop();
+
+    int rc = test.maxscale->ssh_node_f(true, ASAN_OPTS
+                                       "maxplayer replay -u %s -p %s -H %s:%d --csv -o /tmp/replay.csv "
+                                       "/var/lib/maxscale/wcar/WCAR/*.cx",
+                                       test.repl->user_name().c_str(), test.repl->password().c_str(),
+                                       test.repl->ip(0), test.repl->port(0));
+
+    MXT_EXPECT_F(rc == 0, "Replay should work.");
+    auto res = test.maxscale->ssh_output("wc -l /tmp/replay.csv");
+    MXT_EXPECT_F(std::stoi(res.output) > 1,
+                 "Replay should generate a CSV file with at least one line: %s", res.output.c_str());
+}
+
+void simple_binary_ps(TestConnections& test)
+{
+    test.tprintf("%s", __func__);
+    Cleanup cleanup(test);
+    auto c = test.maxscale->rwsplit();
+    MXT_EXPECT(c.connect());
+    MYSQL_STMT* stmt = c.stmt();
+
+    std::string query = "SELECT ?, ?, ?, ?";
+
+    mysql_stmt_prepare(stmt, query.c_str(), query.size());
+
+    int value = 1;
+    MYSQL_BIND param[4];
+
+    param[0].buffer_type = MYSQL_TYPE_LONG;
+    param[0].is_null = 0;
+    param[0].buffer = &value;
+    param[1].buffer_type = MYSQL_TYPE_LONG;
+    param[1].is_null = 0;
+    param[1].buffer = &value;
+    param[2].buffer_type = MYSQL_TYPE_LONG;
+    param[2].is_null = 0;
+    param[2].buffer = &value;
+    param[3].buffer_type = MYSQL_TYPE_LONG;
+    param[3].is_null = 0;
+    param[3].buffer = &value;
+
+    mysql_stmt_bind_param(stmt, param);
+    mysql_stmt_execute(stmt);
+    mysql_stmt_close(stmt);
+
+    do_replay_and_checksum(test);
+}
+
+void simple_text_ps(TestConnections& test)
+{
+    test.tprintf("%s", __func__);
+    Cleanup cleanup(test);
+
+    auto c = test.maxscale->rwsplit();
+    MXT_EXPECT(c.connect());
+    c.query("PREPARE stmt FROM 'SELECT ?, ?, ?, ?'");
+    c.query("SET @a = 1, @b = 2, @c = 3, @d = 4");
+    c.query("EXECUTE STMT USING @a, @b, @c, @d");
+
+    do_replay_and_checksum(test);
+}
+
 void test_main(TestConnections& test)
 {
     sanity_check(test);
+    simple_binary_ps(test);
+    simple_text_ps(test);
 }
 
 ENTERPRISE_TEST_MAIN(test_main)
