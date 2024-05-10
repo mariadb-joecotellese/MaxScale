@@ -216,7 +216,7 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(wall_time::TimePoi
         }
         else
         {
-            mxb_assert_message(false, "Unhandled command: %s.",
+            mxb_assert_message(mariadb::get_command(buffer) == MXS_COM_STMT_PREPARE, "Unhandled command: %s.",
                                mariadb::cmd_to_string(mariadb::get_command(buffer)));
         }
     }
