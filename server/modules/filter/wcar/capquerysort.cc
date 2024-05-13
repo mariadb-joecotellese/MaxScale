@@ -168,8 +168,11 @@ void QuerySort::load_sort_keys()
     sort_par(m_keys.begin(), m_keys.end());
     m_sort_time.end_interval();
 
-    m_report.events = m_keys.size();
-    m_report.capture_duration = end_time - m_keys.front().start_time;
+    if (!m_keys.empty())
+    {
+        m_report.events = m_keys.size();
+        m_report.capture_duration = end_time - m_keys.front().start_time;
+    }
 }
 
 void QuerySort::sort_query_events()

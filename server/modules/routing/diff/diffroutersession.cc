@@ -129,6 +129,12 @@ bool DiffRouterSession::routeQuery(GWBUF&& packet)
                                 && !qi.multi_part_packet)                  // not multi part.
                             {
                                 // Ok, so a vanilla SELECT. Let's skip due to the lag.
+                                MXB_INFO("SELECT not sent to '%s', as request lag %d is larger "
+                                         "than max allowed lag %ld.",
+                                         sOther->name(),
+                                         nMain_backlog - nOther_backlog,
+                                         m_router.config().max_request_lag);
+
                                 sOther->inc_requests_skipped();
                                 write_to_other = false;
                             }

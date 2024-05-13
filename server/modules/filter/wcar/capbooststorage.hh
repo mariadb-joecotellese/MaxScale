@@ -157,18 +157,27 @@ private:
 
 template<typename BoostArchive>
 BoostFile<BoostArchive>::BoostFile(const fs::path& path)
-try
     : m_path(path)
     , m_fs(path.string())
 {
-    if (!m_fs.is_open())
+    const char* purpose = "reading";
+
+    if constexpr (std::is_same_v<BoostOArchive, BoostArchive> )
     {
-        m_fs.open(path, std::ios_base::out);
+        purpose = "writing";
+
+        if (!m_fs)
+        {
+            // The file didn't exist, create it
+            m_fs.open(path, std::ios_base::out);
+        }
     }
-}
-catch (std::exception& ex)
-{
-    MXB_THROW(WcarError, "Could not open file " << path << ' ' << mxb_strerror(errno));
+
+    if (!m_fs)
+    {
+        MXB_THROW(WcarError,
+                  "Could not open file " << path << " for " << purpose << ": " << mxb_strerror(errno));
+    }
 }
 
 template<typename BoostArchive>

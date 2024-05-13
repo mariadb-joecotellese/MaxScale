@@ -164,7 +164,7 @@ void DiffStats::add_explain_result(std::string_view canonical,
     {
         MXB_WARNING("Ignoring EXPLAIN result, no statistics entry found for "
                     "canonical statement: %.*s", (int)sql.length(), sql.data());
-        mxb_assert(!true);
+        json_decref(pExplain);
     }
 }
 
