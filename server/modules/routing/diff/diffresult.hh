@@ -38,6 +38,8 @@ public:
 
     virtual ~DiffResult();
 
+    virtual std::string_view sql() const = 0;
+
     virtual Kind kind() const
     {
         return Kind::INTERNAL;
@@ -187,7 +189,7 @@ public:
         return m_id;
     }
 
-    std::string_view sql() const;
+    std::string_view sql() const override;
 
     uint8_t command() const;
 
@@ -328,7 +330,7 @@ public:
         return m_sMain_result->id();
     }
 
-    std::string_view sql() const
+    std::string_view sql() const override
     {
         return m_sMain_result->sql();
     }
@@ -367,8 +369,6 @@ template<class Base>
 class DiffExplainResult : public Base
 {
 public:
-    virtual std::string_view sql() const = 0;
-
     const std::string& error() const
     {
         const auto& r = this->reply();

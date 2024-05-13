@@ -230,6 +230,8 @@ DiffBackend::Routing DiffConcreteBackend<Stats, Result, ExplainResult>::finish_r
     mxb_assert(reply.is_complete());
     mxb_assert(!m_results.empty());
 
+    MXB_INFO("Response from backend '%s' complete: %s", name(), reply.describe().c_str());
+
     auto sResult = std::move(m_results.front());
     m_results.pop_front();
 
@@ -263,6 +265,11 @@ void DiffConcreteBackend<Stats, Result, ExplainResult>::execute_pending_explains
 
         if (!extraordinary_in_process())
         {
+            if (!m_pending_explains.empty())
+            {
+                MXB_INFO("Executing %ld pending EXPLAINs.", m_pending_explains.size());
+            }
+
             while (rv && !m_pending_explains.empty())
             {
                 auto sExplain_result = std::move(m_pending_explains.front());
@@ -293,6 +300,8 @@ bool DiffConcreteBackend<Stats, Result, ExplainResult>::execute(const SExplainRe
 {
     std::string sql { "EXPLAIN FORMAT=JSON "};
     sql += sExplain_result->sql();
+
+    MXB_INFO("EXPLAINing on backend '%s': %s", name(), sql.c_str());
 
     m_results.emplace_back(std::move(sExplain_result));
 

@@ -122,8 +122,8 @@ DiffOtherBackend::~DiffOtherBackend()
 
     if (nStill_registered != 0)
     {
-        MXB_WARNING("Att session close, there was %d 'other' result(s) that "
-                    "still waited for the 'main' result.", nStill_registered);
+        MXB_WARNING("At session close, there was %d result(s) of %s that "
+                    "still waited for the 'main' result.", nStill_registered, name());
     }
 
     nStill_registered = 0;
@@ -141,8 +141,8 @@ DiffOtherBackend::~DiffOtherBackend()
 
     if (nStill_registered != 0)
     {
-        MXB_WARNING("Att session close, there was %d 'other' EXPLAIN result(s) that "
-                    "still waited for the 'main' EXPLAIN result.", nStill_registered);
+        MXB_WARNING("At session close, there was %d EXPLAIN result(s) of %s that "
+                    "still waited for the 'main' EXPLAIN result.", nStill_registered, name());
     }
 
 }
