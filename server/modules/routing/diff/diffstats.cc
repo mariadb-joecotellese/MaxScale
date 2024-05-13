@@ -155,9 +155,17 @@ void DiffStats::add_explain_result(std::string_view canonical,
     // This function should not be called before enough samples have been collected
     // and at that point, there should be an entry in m_data.
     auto it = m_datas.find(canonical);
-    mxb_assert(it != m_datas.end());
 
-    it->second.add_explain(duration, now, sql, pExplain);
+    if (it != m_datas.end())
+    {
+        it->second.add_explain(duration, now, sql, pExplain);
+    }
+    else
+    {
+        MXB_WARNING("Ignoring EXPLAIN result, no statistics entry found for "
+                    "canonical statement: %.*s", (int)sql.length(), sql.data());
+        mxb_assert(!true);
+    }
 }
 
 json_t* DiffStats::get_statistics() const

@@ -94,6 +94,11 @@ bool DiffRouterSession::routeQuery(GWBUF&& packet)
 
         if (m_sMain->write(packet.shallow_clone(), type))
         {
+            std::string_view sql = parser().get_sql(packet);
+
+            MXB_INFO("Wrote to main backend '%s' %.*s",
+                     m_sMain->name(), (int)sql.length(), sql.data());
+
             if (type == mxs::Backend::EXPECT_RESPONSE)
             {
                 type = mxs::Backend::IGNORE_RESPONSE;
@@ -139,6 +144,8 @@ bool DiffRouterSession::routeQuery(GWBUF&& packet)
                         }
 
                         sOther->write(packet.shallow_clone(), type);
+                        MXB_INFO("Wrote to other backend '%s': %.*s",
+                                 sOther->name(),(int)sql.length(), sql.data());
                     }
                 }
             }

@@ -92,7 +92,7 @@ void DiffData::combine(const DiffData& rhs, const DiffConfig& config)
         m_rr_min = rhs.m_rr_min;
     }
 
-    m_rr_sum += m_rr_sum;
+    m_rr_sum += rhs.m_rr_sum;
 
     m_histogram += rhs.m_histogram;
 
