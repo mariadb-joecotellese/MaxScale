@@ -779,6 +779,7 @@ bool DiffRouter::rewire_service(const std::set<std::string>& from_targets,
 {
     bool rv = false;
 
+    DisableRuntimeWarnings no_warnings;
     UnmaskPasswords unmasker;
 
     Service* pService = static_cast<Service*>(m_config.pService);
