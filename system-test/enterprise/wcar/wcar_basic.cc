@@ -127,6 +127,7 @@ void sanity_check(TestConnections& test)
     std::set<std::string> expected{".cx", ".ex", ".gx"};
     std::string replay_file;
     std::string event_file;
+    std::string gtid_file;
 
     for (fs::path file : mxb::strtok(res.output, "\n"))
     {
@@ -137,6 +138,10 @@ void sanity_check(TestConnections& test)
         else if (file.extension() == ".ex")
         {
             event_file = file;
+        }
+        else if (file.extension() == ".gx")
+        {
+            gtid_file = file;
         }
 
         files.insert(file.extension());
@@ -173,13 +178,12 @@ void sanity_check(TestConnections& test)
     res = test.maxscale->ssh_output("maxplayer summary " + replay_file + " 2>&1", false);
     MXT_EXPECT_F(res.rc != 0, "'maxplayer summary' should fail if there's no write access to the file");
     MXT_EXPECT_F(res.output.find("Could not open file") != std::string::npos,
-                 "The failure to open should be reported");
-    std::cout << res.output << std::endl;
+                 "The failure to open should be reported: %s", res.output.c_str());
 
     test.tprintf("Attempting a summary with the correct file permissions");
     res = test.maxscale->ssh_output("maxplayer summary " + replay_file + " 2>&1", true);
-    MXT_EXPECT_F(res.rc == 0, "'maxplayer summary' should work as root");
-    std::cout << res.output << std::endl;
+    std::string summary = res.output;
+    MXT_EXPECT_F(res.rc == 0, "'maxplayer summary' should work as root: %s", summary.c_str());
 
     test.tprintf("Attempting a replay with the correct file permissions");
     rc = test.maxscale->ssh_node_f(true, ASAN_OPTS
@@ -236,6 +240,17 @@ void sanity_check(TestConnections& test)
     test.tprintf("The 'show' output of event 1 should be 'CREATE TABLE'");
     res = test.maxscale->ssh_output("maxplayer show " + replay_file + " 1 2>&1", true);
     MXT_EXPECT_F(res.rc == 0, "'maxplayer show' should work: %s", res.output.c_str());
+    MXT_EXPECT_F(res.output.find("CREATE TABLE") != std::string::npos,
+                 "Output should contain 'CREATE TABLE': %s", res.output.c_str());
+
+    test.tprintf("The 'show' event for the first GTID should be 'CREATE TABLE'");
+    std::string needle = "First GTID: \"";
+    auto pos = summary.find(needle);
+    MXT_EXPECT(pos != std::string::npos);
+    pos += needle.size();
+    auto gtid = summary.substr(pos, summary.find('"', pos + 1) - pos);
+    res = test.maxscale->ssh_output("maxplayer show " + replay_file + " " + gtid + " 2>&1", true);
+    MXT_EXPECT_F(res.rc == 0, "'maxplayer show' with GTID should work: %s", res.output.c_str());
     MXT_EXPECT_F(res.output.find("CREATE TABLE") != std::string::npos,
                  "Output should contain 'CREATE TABLE': %s", res.output.c_str());
 
