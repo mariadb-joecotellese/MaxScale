@@ -224,6 +224,11 @@ RepConfig::RepConfig(int argc, char** argv)
         case 'R':
             row_counts = false;
             break;
+
+        default:
+            help = true;
+            error = true;
+            break;
         }
     }
 
