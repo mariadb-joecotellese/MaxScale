@@ -40,11 +40,18 @@ public:
         m_created_tables.insert(table);
     }
 
+    template<class ... Args>
+    void add_files(Args ... args)
+    {
+        (m_files.push_back(args), ...);
+    }
+
 private:
     void cleanup()
     {
         m_test.maxscale->stop();
-        m_test.maxscale->ssh_node("rm -f /var/lib/maxscale/wcar/WCAR/* /tmp/replay.csv", true);
+        m_test.maxscale->ssh_node("rm -f /var/lib/maxscale/wcar/WCAR/* /tmp/replay.csv "
+                                  + mxb::join(m_files, " "), true);
 
         if (!m_created_tables.empty())
         {
@@ -60,8 +67,9 @@ private:
         m_test.maxscale->start();
     }
 
-    TestConnections&      m_test;
-    std::set<std::string> m_created_tables;
+    TestConnections&         m_test;
+    std::set<std::string>    m_created_tables;
+    std::vector<std::string> m_files;
 };
 
 void sanity_check(TestConnections& test)
@@ -69,6 +77,9 @@ void sanity_check(TestConnections& test)
     test.tprintf("%s", __func__);
     Cleanup cleanup(test);
     cleanup.add_table("test.wcar_basic");
+    cleanup.add_files("/tmp/replay.rx", "/tmp/replay.csv", "/tmp/converted.cx",
+                      "/tmp/converted.rx", "/tmp/converted.csv", "/tmp/converted2.csv",
+                      "/tmp/output-full.csv", "/tmp/output.csv");
 
     auto c = test.maxscale->rwsplit();
     MXT_EXPECT(c.connect());
@@ -77,7 +88,7 @@ void sanity_check(TestConnections& test)
     // 2. Replay the capture
     // 3. Check that the contents of the database are identical
 
-    for (const char* query : {
+    for (std::string query : {
         "CREATE TABLE test.wcar_basic(id INT PRIMARY KEY, data INT)",
 
         "START TRANSACTION",
@@ -92,10 +103,12 @@ void sanity_check(TestConnections& test)
         "UPDATE wcar_basic SET data = 2 WHERE id = 1",
         "COMMIT",
 
+        "SELECT THIS SHOULD BE A SYNTAX ERROR",
         "SELECT 'hello world'",
     })
     {
-        MXT_EXPECT_F(c.query(query), "Query %s failed: %s", query, c.error());
+        MXT_EXPECT_F(c.query(query) || query.find("SYNTAX ERROR") != std::string::npos,
+                     "Query %s failed: %s", query.c_str(), c.error());
     }
 
     test.maxscale->stop();
@@ -162,7 +175,6 @@ void sanity_check(TestConnections& test)
     MXT_EXPECT_F(res.rc == 0, "'maxplayer summary' should work as root");
     std::cout << res.output << std::endl;
 
-
     test.tprintf("Attempting a replay with the correct file permissions");
     rc = test.maxscale->ssh_node_f(true, ASAN_OPTS
                                    "maxplayer replay -u %s -p %s -H %s:%d --csv -o /tmp/replay.csv %s",
@@ -183,6 +195,73 @@ void sanity_check(TestConnections& test)
 
     auto after = m.field("CHECKSUM TABLE test.wcar_basic EXTENDED", 1);
     MXT_EXPECT_F(before == after, "CHECKSUM TABLE mismatch: %s != %s", before.c_str(), after.c_str());
+    std::string opt_outfile = "-o /tmp/output.csv --csv";
+    std::vector<std::string> options = {
+        "-o /tmp/replay.rx",                        // Generates .rx files
+        "-o /tmp/output-full.csv --csv=full",       // Full CSV output
+        "-o /dev/null --csv",                       // Discards output
+        opt_outfile + " --speed 0",                 // Replay as fast as possible
+        opt_outfile + " -R",                        // No Rows_read counts
+        opt_outfile + " -v",                        // Verbose output
+        opt_outfile + " -vv",                       // Very verbose output
+        opt_outfile + " --commit-order=none",       // No commit ordering
+        opt_outfile + " --commit-order=optimistic", // No optimistic ordering
+        opt_outfile + " --commit-order=serialized", // No serialized ordering
+    };
+
+    for (auto opt : options)
+    {
+        test.tprintf("Replay options: %s", opt.c_str());
+
+        test.maxscale->ssh_node("rm -f /tmp/output.csv", true);
+        MXT_EXPECT(m.query("DROP TABLE test.wcar_basic"));
+        rc = test.maxscale->ssh_node_f(true, ASAN_OPTS
+                                       "maxplayer replay -u %s -p %s -H %s:%d %s %s",
+                                       test.repl->user_name().c_str(), test.repl->password().c_str(),
+                                       test.repl->ip(0), test.repl->port(0),
+                                       replay_file.c_str(), opt.c_str());
+
+        MXT_EXPECT_F(rc == 0, "'maxplayer replay' with '%s' failed.", opt.c_str());
+    }
+
+    test.tprintf("The 'show' output of event 1 should be 'CREATE TABLE'");
+    res = test.maxscale->ssh_output("maxplayer show " + replay_file + " 1 2>&1", true);
+    MXT_EXPECT_F(res.rc == 0, "'maxplayer show' should work: %s", res.output.c_str());
+    MXT_EXPECT_F(res.output.find("CREATE TABLE") != std::string::npos,
+                 "Output should contain 'CREATE TABLE': %s", res.output.c_str());
+
+    test.tprintf("The 'dump-data' output should contain 'hello world'");
+    res = test.maxscale->ssh_output("maxplayer dump-data " + replay_file + " 2>&1", true);
+    MXT_EXPECT_F(res.rc == 0, "'maxplayer dump-data' should work: %s", res.output.c_str());
+    MXT_EXPECT_F(res.output.find("hello world") != std::string::npos,
+                 "Output should contain 'hello world': %s", res.output.c_str());
+
+    std::string canonical = "UPDATE wcar_basic SET data = ? WHERE id = ?";
+    test.tprintf("The 'canonicals' output should contain '%s'", canonical.c_str());
+    res = test.maxscale->ssh_output("maxplayer canonicals " + replay_file + " 2>&1", true);
+    MXT_EXPECT_F(res.rc == 0, "'maxplayer canonicals' should work: %s", res.output.c_str());
+    MXT_EXPECT_F(res.output.find(canonical) != std::string::npos,
+                 "Output should contain '%s': %s", canonical.c_str(), res.output.c_str());
+
+    test.tprintf("Convert .cx into .rx");
+    res = test.maxscale->ssh_output("maxplayer convert " + replay_file + " -o /tmp/converted.rx 2>&1", true);
+    MXT_EXPECT_F(res.rc == 0, "Convert from .cx to .rx should work: %s", res.output.c_str());
+    rc = test.maxscale->ssh_node("test -f /tmp/converted.rx", true);
+    MXT_EXPECT_F(rc == 0, ".rx file doesn't exist");
+
+    test.tprintf("Convert .cx into .csv");
+    res = test.maxscale->ssh_output("maxplayer convert " + replay_file + " --csv -o /tmp/converted.csv 2>&1",
+                                    true);
+    MXT_EXPECT_F(res.rc == 0, "Convert from .cx to .csv should work: %s", res.output.c_str());
+    rc = test.maxscale->ssh_node("test -f /tmp/converted.csv", true);
+    MXT_EXPECT_F(rc == 0, ".csv file doesn't exist");
+
+    test.tprintf("Convert .rx into .csv");
+    res = test.maxscale->ssh_output("maxplayer convert /tmp/replay.rx --csv -o /tmp/converted2.csv 2>&1",
+                                    true);
+    MXT_EXPECT_F(res.rc == 0, "Convert from .rx to .csv should work: %s", res.output.c_str());
+    rc = test.maxscale->ssh_node("test -f /tmp/converted2.csv", true);
+    MXT_EXPECT_F(rc == 0, ".csv file doesn't exist");
 }
 
 void do_replay_and_checksum(TestConnections& test)
