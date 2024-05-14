@@ -79,7 +79,7 @@ void sanity_check(TestConnections& test)
     cleanup.add_table("test.wcar_basic");
     cleanup.add_files("/tmp/replay.rx", "/tmp/replay.csv", "/tmp/converted.cx",
                       "/tmp/converted.rx", "/tmp/converted.csv", "/tmp/converted2.csv",
-                      "/tmp/output-full.csv", "/tmp/output.csv");
+                      "/tmp/output-full.csv", "/tmp/output.csv", "/tmp/dump.txt", "/tmp/canonicals.csv");
 
     auto c = test.maxscale->rwsplit();
     MXT_EXPECT(c.connect());
@@ -236,12 +236,27 @@ void sanity_check(TestConnections& test)
     MXT_EXPECT_F(res.output.find("hello world") != std::string::npos,
                  "Output should contain 'hello world': %s", res.output.c_str());
 
+    test.tprintf("The -o option writes the output of 'dump-data' to a file.");
+    res = test.maxscale->ssh_output("maxplayer dump-data " + replay_file + " -o /tmp/dump.txt 2>&1", true);
+    MXT_EXPECT_F(res.rc == 0, "'maxplayer dump-data' should work: %s", res.output.c_str());
+    test.maxscale->copy_from_node("/tmp/dump.txt", "./dump.txt");
+    auto dump_contents = MAKE_STR(std::ifstream("./dump.txt").rdbuf());
+    MXT_EXPECT(dump_contents.find("hello world") != std::string::npos);
+
     std::string canonical = "UPDATE wcar_basic SET data = ? WHERE id = ?";
     test.tprintf("The 'canonicals' output should contain '%s'", canonical.c_str());
     res = test.maxscale->ssh_output("maxplayer canonicals " + replay_file + " 2>&1", true);
     MXT_EXPECT_F(res.rc == 0, "'maxplayer canonicals' should work: %s", res.output.c_str());
     MXT_EXPECT_F(res.output.find(canonical) != std::string::npos,
                  "Output should contain '%s': %s", canonical.c_str(), res.output.c_str());
+
+    test.tprintf("The -o option writes the output of 'canonicals' to a file.");
+    res = test.maxscale->ssh_output("maxplayer canonicals " + replay_file + " -o /tmp/canonicals.csv 2>&1",
+                                    true);
+    MXT_EXPECT_F(res.rc == 0, "'maxplayer canonicals' should work: %s", res.output.c_str());
+    test.maxscale->copy_from_node("/tmp/canonicals.csv", "./canonicals.csv");
+    auto canonicals_csv_contents = MAKE_STR(std::ifstream("./canonicals.csv").rdbuf());
+    MXT_EXPECT(canonicals_csv_contents.find(canonical) != std::string::npos);
 
     test.tprintf("Convert .cx into .rx");
     res = test.maxscale->ssh_output("maxplayer convert " + replay_file + " -o /tmp/converted.rx 2>&1", true);
