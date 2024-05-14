@@ -115,11 +115,7 @@ bool is_gtid(const std::string& str)
 
 std::unique_ptr<ShowFilter> build_show_filter(const RepConfig& config)
 {
-    if (config.extra_args.empty())
-    {
-        MXB_THROW(WcarError, "The 'show' command requires at least one argument.");
-    }
-
+    mxb_assert(!config.extra_args.empty());
     size_t num_gtid = std::count_if(config.extra_args.begin(), config.extra_args.end(), is_gtid);
 
     if (num_gtid > 0 && num_gtid < config.extra_args.size())

@@ -17,13 +17,5 @@ RepRecorder::RepRecorder(std::unique_ptr<RecorderContext>&& context, int num_thr
 void RepRecorder::make_updates(RecorderContext* pContext,
                                std::vector<typename SharedUpdate::UpdateType>& queue)
 {
-    try
-    {
-        pContext->pStorage->add_rep_event(queue);
-    }
-    catch (std::exception& ex)
-    {
-        MXB_SERROR("TODO: unhandled exception " << ex.what());
-        throw;
-    }
+    pContext->pStorage->add_rep_event(queue);
 }

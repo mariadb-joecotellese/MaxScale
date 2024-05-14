@@ -77,16 +77,10 @@ auto OPT(int optval, H help)
     }
 
     std::ostringstream msg;
-    if (long_opts[idx].val == 0)
-    {
-        msg << "\nBUG: invalid option '" << char(optval) << "' in  help function\n";
-    }
-    else
-    {
-        msg << "\n-" << char(long_opts[idx].val) << " --"
-            << std::setw(indent + 1) << std::left << long_opts[idx].name
-            << std::boolalpha << help;
-    }
+    mxb_assert(long_opts[idx].val != 0);
+    msg << "\n-" << char(long_opts[idx].val) << " --"
+        << std::setw(indent + 1) << std::left << long_opts[idx].name
+        << std::boolalpha << help;
 
     return [msg = msg.str()](std::ostream& os) -> std::ostream& {
         return os << msg.c_str();
@@ -288,12 +282,7 @@ RepConfig::RepConfig(int argc, char** argv)
     {
         if (command == cmd::SHOW)
         {
-            if (extra_args.empty())
-            {
-                std::cerr << "error: Not enough arguments" << std::endl;
-                help = true;
-                error = true;
-            }
+            mxb_assert(!extra_args.empty());
         }
         else if (!extra_args.empty())
         {
