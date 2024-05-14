@@ -81,12 +81,16 @@ void sanity_check(TestConnections& test)
                       "/tmp/converted.rx", "/tmp/converted.csv", "/tmp/converted2.csv",
                       "/tmp/output-full.csv", "/tmp/output.csv", "/tmp/dump.txt", "/tmp/canonicals.csv");
 
+    // This'll catch any massive problems in the executable itself
+    MXT_EXPECT(test.maxscale->ssh_node("maxplayer --help", false) == 0);
+
     auto c = test.maxscale->rwsplit();
     MXT_EXPECT(c.connect());
 
     // 1. Do a capture
     // 2. Replay the capture
     // 3. Check that the contents of the database are identical
+    int queries = 0;
 
     for (std::string query : {
         "CREATE TABLE test.wcar_basic(id INT PRIMARY KEY, data INT)",
@@ -103,12 +107,14 @@ void sanity_check(TestConnections& test)
         "UPDATE wcar_basic SET data = 2 WHERE id = 1",
         "COMMIT",
 
+        "SELECT \n 1, \t 2, \r\n 3",
         "SELECT THIS SHOULD BE A SYNTAX ERROR",
         "SELECT 'hello world'",
     })
     {
         MXT_EXPECT_F(c.query(query) || query.find("SYNTAX ERROR") != std::string::npos,
                      "Query %s failed: %s", query.c_str(), c.error());
+        ++queries;
     }
 
     test.maxscale->stop();
@@ -187,11 +193,14 @@ void sanity_check(TestConnections& test)
     MXT_EXPECT_F(rc == 0, "'maxplayer replay' should work after running 'maxplayer summary' as root");
 
     test.maxscale->copy_from_node("/tmp/replay.csv", "./replay.csv");
+    int lines = 0;
 
     for (auto line : mxb::strtok(MAKE_STR(std::ifstream("./replay.csv").rdbuf()), "\n"))
     {
-        test.tprintf("%s", line.c_str());
+        lines++;
     }
+
+    MXT_EXPECT_F(lines == queries + 1, "Expected %d lines but only found %d", queries + 1, lines);
 
     auto after = m.field("CHECKSUM TABLE test.wcar_basic EXTENDED", 1);
     MXT_EXPECT_F(before == after, "CHECKSUM TABLE mismatch: %s != %s", before.c_str(), after.c_str());
