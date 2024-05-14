@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2028-04-03
+ * Change Date: 2027-04-10
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -341,7 +341,7 @@ public:
 
         bool from_string(const std::string& value_as_string,
                          value_type* pValue,
-                         std::string* pMessage) const;
+                         std::string* pMessage) const override;
     };
 
     class ParamKeyManager : public config::ParamEnum<mxs::KeyManager::Type>

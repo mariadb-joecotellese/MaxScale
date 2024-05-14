@@ -5,7 +5,7 @@
  * Use of this software is governed by the Business Source License included
  * in the LICENSE.TXT file and at www.mariadb.com/bsl11.
  *
- * Change Date: 2028-04-03
+ * Change Date: 2027-04-10
  *
  * On the date above, in accordance with the Business Source License, use
  * of this software will be governed by version 2 or later of the General
@@ -259,6 +259,12 @@ mon_op::Result MariaDBMonitor::manual_reset_replication(SERVER* master_server)
 
     mon_op::Result rval;
     auto& error_out = rval.output;
+    if (!lock_status_is_ok())
+    {
+        print_no_locks_error(error_out);
+        return rval;
+    }
+
     MariaDBServer* new_master = nullptr;
     if (master_server)
     {
