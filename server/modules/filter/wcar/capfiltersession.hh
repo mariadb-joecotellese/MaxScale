@@ -70,9 +70,11 @@ private:
 
     CapSessionState m_session_state;
     bool            m_inside_initial_trx = false;   // A trx was active when capture started
-    bool            m_capture = false;
     InitState       m_init_state = InitState::SEND_QUERY;
-    QueryEvent      m_query_event;
 
     mariadb::PsTracker m_ps_tracker;
+
+    // The queue of executed queries. The first value is whether the query was captured and the second one is
+    // the QueryEvent for the query.
+    std::deque<std::pair<bool, QueryEvent>> m_queries;
 };

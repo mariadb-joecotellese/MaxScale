@@ -67,14 +67,17 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
         switch (signal)
         {
         case CapSignal::QEVENT:
-            for (auto&& e : make_opening_events(m_query_event.start_time))
             {
-                send_event(std::move(e));
-            }
-            send_event(std::move(m_query_event));
+                auto& query_event = m_queries.front().second;
+                for (auto&& e : make_opening_events(query_event.start_time))
+                {
+                    send_event(std::move(e));
+                }
+                send_event(std::move(query_event));
 
-            m_state.store(CapState::ENABLED, std::memory_order_release);
-            handled = true;
+                m_state.store(CapState::ENABLED, std::memory_order_release);
+                handled = true;
+            }
             break;
 
         case CapSignal::STOP:
@@ -93,7 +96,7 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
         switch (signal)
         {
         case CapSignal::QEVENT:
-            send_event(std::move(m_query_event));
+            send_event(std::move(m_queries.front().second));
             handled = true;
             break;
 
@@ -267,7 +270,8 @@ bool CapFilterSession::routeQuery(GWBUF&& buffer)
 
     SimTime::sim_time().tick();
 
-    m_capture = m_state.load(std::memory_order_acquire) != CapState::DISABLED;
+    QueryEvent query_event;
+    bool capture = m_state.load(std::memory_order_acquire) != CapState::DISABLED;
 
     m_ps_tracker.track_query(buffer);
 
@@ -275,31 +279,33 @@ bool CapFilterSession::routeQuery(GWBUF&& buffer)
     {
         // TODO: This does not work if multiple queries are pending. A small COM_QUERY followed by a very
         // TODO: big COM_QUERY will cause both to not be recorded.
-        m_capture = false;
+        m_queries.emplace_back(false, std::move(query_event));
         return mxs::FilterSession::routeQuery(std::move(buffer));
     }
 
     if (auto [canonical, args] = m_ps_tracker.get_args(buffer); !canonical.empty())
     {
-        m_query_event.sCanonical = std::make_shared<std::string>(std::move(canonical));
-        m_query_event.canonical_args = std::move(args);
+        query_event.sCanonical = std::make_shared<std::string>(std::move(canonical));
+        query_event.canonical_args = std::move(args);
     }
     else
     {
-        if (!generate_canonical_for(buffer, &m_query_event))
+        if (!generate_canonical_for(buffer, &query_event))
         {
-            m_capture = false;
+            capture = false;
         }
     }
 
-    if (m_capture)
+    if (capture)
     {
-        const auto& maria_ses = static_cast<const MYSQL_session&>(protocol_data());
-        m_query_event.session_id = m_pSession->id();
-        m_query_event.start_time = SimTime::sim_time().now();
-        m_query_event.flags = parser().get_type_mask(buffer);
+        query_event.flags = parser().get_type_mask(buffer);
     }
 
+    const auto& maria_ses = static_cast<const MYSQL_session&>(protocol_data());
+    query_event.session_id = m_pSession->id();
+    query_event.start_time = SimTime::sim_time().now();
+
+    m_queries.emplace_back(capture, std::move(query_event));
     return mxs::FilterSession::routeQuery(std::move(buffer));
 }
 
@@ -321,26 +327,29 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
 
     SimTime::sim_time().tick();
 
+    mxb_assert(!m_queries.empty());
+    auto& [capture, query_event] = m_queries.front();
+
     m_ps_tracker.track_reply(reply);
 
     if (m_ps_tracker.is_ldli())
     {
         mxb_assert(m_ps_tracker.should_ignore());
         // LOAD DATA LOCAL INFILE is starting, ignore it.
-        m_capture = false;
+        capture = false;
     }
 
     if (reply.is_complete())
     {
-        if (m_capture)
+        if (capture)
         {
             // Store the error code in the last two bytes of the flags field. This saves space compared to
             // storing it as a separate member.
-            m_query_event.flags |= (uint64_t)reply.error().code() >> 48;
+            query_event.flags |= (uint64_t)reply.error().code() >> 48;
 
-            m_query_event.end_time = SimTime::sim_time().now();
-            m_query_event.event_id = m_filter.get_next_event_id();
-            m_query_event.sTrx = m_session_state.update(m_query_event.event_id, reply);
+            query_event.end_time = SimTime::sim_time().now();
+            query_event.event_id = m_filter.get_next_event_id();
+            query_event.sTrx = m_session_state.update(query_event.event_id, reply);
             // This implicitely implements CaptureStartMethod::IGNORE_ACTIVE_TRANSACTIONS
             if (!m_inside_initial_trx)
             {
@@ -351,6 +360,8 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
         {
             m_session_state.update(-1, reply);      // maintain state
         }
+
+        m_queries.pop_front();
     }
 
     if (m_inside_initial_trx)
