@@ -39,7 +39,7 @@ void CapRecorder::make_updates(RecorderContext* pContext,
 {
     try
     {
-        pContext->pStorage->add_query_event(queue);
+        pContext->sStorage->add_query_event(queue);
 
         pContext->update_bytes_processed();
     }

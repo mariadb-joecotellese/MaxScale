@@ -58,6 +58,7 @@ private:
 
 private:
     std::shared_ptr<CapRecorder> make_storage(const std::string file_prefix);
+    void                         start_recording(std::shared_ptr<CapRecorder> sRecorder);
 
     bool supervise();
 
@@ -65,7 +66,6 @@ private:
     mxb::Duration m_capture_duration;
     int64_t       m_capture_size;
 
-    std::unique_ptr<Storage>     m_sStorage;
     std::shared_ptr<CapRecorder> m_sRecorder;
 
     mxb::Worker::DCId m_dc_supervisor  {mxb::Worker::NO_CALL};

@@ -22,11 +22,11 @@ class CapRecorder;
 class RecorderContext
 {
 public:
-    RecorderContext(Storage* pStorage)
-        : pStorage(pStorage)
+    RecorderContext(std::unique_ptr<Storage> sStorage)
+        : sStorage(std::move(sStorage))
     {
     }
-    Storage* pStorage;
+    std::unique_ptr<Storage> sStorage;
 
     int64_t bytes_processed() const
     {
@@ -37,7 +37,7 @@ private:
     friend CapRecorder;
     void update_bytes_processed()
     {
-        m_bytes_processed.store(pStorage->tell(), std::memory_order_relaxed);
+        m_bytes_processed.store(sStorage->tell(), std::memory_order_relaxed);
     }
     std::atomic<int64_t> m_bytes_processed = 0;
 };

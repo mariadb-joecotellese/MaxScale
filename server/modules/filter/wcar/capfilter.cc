@@ -47,12 +47,19 @@ std::shared_ptr<CapRecorder> CapFilter::make_storage(const std::string file_pref
     auto base_path = m_config.capture_directory();
     base_path += '/' + generate_file_base_name(file_prefix);
 
-    m_sStorage = std::make_unique<CapBoostStorage>(base_path, ReadWrite::WRITE_ONLY);
+    return std::make_shared<CapRecorder>(std::make_unique<RecorderContext>(
+        std::make_unique<CapBoostStorage>(base_path, ReadWrite::WRITE_ONLY)
+        ));
+}
 
+void CapFilter::start_recording(std::shared_ptr<CapRecorder> sRecorder)
+{
+    // This function must be called with m_sessions_mutex locked.
+    SimTime::reset_sim_time(wall_time::Clock::now());
     m_capture_stop_triggered = false;
     m_start_time = mxb::Clock::now(mxb::NowType::EPollTick);
-
-    return std::make_shared<CapRecorder>(std::make_unique<RecorderContext>(m_sStorage.get()));
+    m_sRecorder = std::move(sRecorder);
+    m_sRecorder->start();
 }
 
 bool CapFilter::supervise()
@@ -78,9 +85,10 @@ bool CapFilter::post_configure()
 {
     if (m_config.start_capture)
     {
-        SimTime::reset_sim_time(wall_time::Clock::now());
-        m_sRecorder = make_storage(DEFAULT_FILE_PREFIX);
-        m_sRecorder->start();
+        auto sRecorder = make_storage(DEFAULT_FILE_PREFIX);
+
+        std::lock_guard guard{m_sessions_mutex};
+        start_recording(std::move(sRecorder));
     }
 
     m_dc_supervisor = dcall(1s, [this]() {
@@ -104,8 +112,6 @@ CapFilter::~CapFilter()
     {
         m_sRecorder->stop();
     }
-
-    m_sStorage.reset();
 
     // TODO: gc_stats are useful to log. Make the stats non-global, i.e.
     //       move the counters inside GCUpdater.
@@ -138,16 +144,18 @@ bool CapFilter::start_capture(std::string file_prefix)
 {
     stop_capture();
 
-    std::lock_guard guard{m_sessions_mutex};
-
     if (file_prefix.empty())
     {
         file_prefix = DEFAULT_FILE_PREFIX;
     }
 
-    SimTime::reset_sim_time(wall_time::Clock::now());
-    m_sRecorder = make_storage(file_prefix);
-    m_sRecorder->start();
+    // The call to make_storage() will end up calling RoutingWorker::call() which must not be done while
+    // holding m_session_mutex as the same lock is acquired in newSession() that's executed by the
+    // RoutingWorkers.
+    auto sRecorder = make_storage(file_prefix);
+
+    std::lock_guard guard{m_sessions_mutex};
+    start_recording(std::move(sRecorder));
 
     for (auto& w : m_sessions)
     {
@@ -178,7 +186,6 @@ bool CapFilter::stop_capture()
 
         m_sRecorder->stop();
         m_sRecorder.reset();
-        m_sStorage.reset();
     }
 
     return true;
