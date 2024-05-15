@@ -121,7 +121,7 @@ private:
 class QuerySort
 {
 public:
-    QuerySort(fs::path file_path, SortCallback sort_cb);
+    QuerySort(fs::path file_path, SortCallback sort_cb, uint64_t chunk_size = 0);
 
     std::vector<TrxEvent> release_trx_events();
     SortReport            report();
@@ -142,4 +142,5 @@ private:
     mxb::IntervalTimer      m_read_time;
     mxb::IntervalTimer      m_sort_time;
     mxb::IntervalTimer      m_merge_time;
+    uint64_t                m_chunk_size = 0;
 };

@@ -41,11 +41,12 @@ const struct option long_opts[] =
     {"verbose",       no_argument,       0, 'v'},
     {"no-row-counts", no_argument,       0, 'R'},
     {"commit-order",  required_argument, 0, 'C'},
+    {"chunk-size",    required_argument, 0, 'B'},
     {0,               0,                 0, 0  }
 };
 
 // This is not separately checked, keep in sync with long_opts.
-const char* short_opts = "hu:p:H:s:c::o:vRC:";
+const char* short_opts = "hu:p:H:s:c::o:vRC:B:";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -127,6 +128,7 @@ void RepConfig::show_help()
               << OPT('H', host)
               << OPT('v', verbosity)
               << OPT('R', row_counts)
+              << OPT('B', chunk_size)
               << OPT('C', "Commit ordering (options: none, optimistic, serialized)")
               << std::endl;
 }
@@ -217,6 +219,16 @@ RepConfig::RepConfig(int argc, char** argv)
 
         case 'R':
             row_counts = false;
+            break;
+
+        case 'B':
+            if (!get_suffixed_size(optarg, &chunk_size))
+            {
+
+                std::cerr << "Invalid --chunk-size value: " << optarg << std::endl;
+                help = true;
+                error = true;
+            }
             break;
 
         default:

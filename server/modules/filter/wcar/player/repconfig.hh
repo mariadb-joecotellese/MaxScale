@@ -64,6 +64,7 @@ struct RepConfig
     std::string output_file;    // Output file, defaults to file_name
     std::string command = "replay";
     float       sim_speed = 1.0;
+    uint64_t    chunk_size = 0; // A value of 0 uses system memory for sort buffer sizing
 
     std::vector<std::string> extra_args;
 

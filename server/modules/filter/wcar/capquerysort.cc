@@ -121,10 +121,10 @@ inline void WorkChunk::merge(WorkChunk&& rhs)
 }
 
 
-QuerySort::QuerySort(fs::path file_path,
-                     SortCallback sort_cb)
+QuerySort::QuerySort(fs::path file_path, SortCallback sort_cb, uint64_t chunk_size)
     : m_file_path(file_path)
     , m_sort_cb(sort_cb)
+    , m_chunk_size(chunk_size)
 {
     mxb::StopWatch total_time;
 
@@ -183,6 +183,7 @@ void QuerySort::sort_query_events()
     qevent_path.replace_extension("ex");
     BoostIFile query_in{qevent_path.string()};
     BoostOFile query_out{qevent_path.string()};
+    uint64_t bytes_sorted = 0;
 
     m_sort_time.start_interval();
 
@@ -199,11 +200,18 @@ void QuerySort::sort_query_events()
             m_sort_cb(*work_chunk.front().sQuery_event);
             CapBoostStorage::save_query_event(query_out, std::move(*work_chunk.front().sQuery_event));
             work_chunk.pop_front();
+
+            if (m_chunk_size)
+            {
+                bytes_sorted += query_out.tell();
+            }
         }
 
-        if (mem_info.free_pct() < MIN_FREE_MEM_PCT)
+        if (mem_info.free_pct() < MIN_FREE_MEM_PCT || bytes_sorted > m_chunk_size)
         {
+            mxb_assert(m_chunk_size);
             m_external_chunks.save(work_chunk.split());
+            bytes_sorted = 0;
         }
 
         if (fill_chunk(work_chunk, query_in, CHUNK_READ_SIZE))
@@ -282,7 +290,6 @@ void QuerySort::sort_trx_events()
 
 bool QuerySort::fill_chunk(WorkChunk& chunk, BoostIFile& query_in, int64_t more)
 {
-    MemInfo mi;
     m_sort_time.end_interval();
     m_read_time.start_interval();
     auto n_existing_events = chunk.size();

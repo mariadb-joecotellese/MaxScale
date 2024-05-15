@@ -76,7 +76,7 @@ void RepTransform::transform_events(const fs::path& path, Action action)
             }
         };
 
-        QuerySort sorter(path, sort_cb);
+        QuerySort sorter(path, sort_cb, m_config.chunk_size);
 
         m_trxs = sorter.release_trx_events();
         report = sorter.report();
