@@ -153,6 +153,7 @@ CapFilterSession::~CapFilterSession()
 void CapFilterSession::send_event(QueryEvent&& qevent, Who who)
 {
     mxb_assert(m_sRecorder);
+    mxb_assert(qevent.sCanonical);
 
     int idx = 0;    // Index of the first SharedData.
     if (who == CURRENT_WORKER)
