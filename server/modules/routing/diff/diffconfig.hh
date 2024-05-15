@@ -56,6 +56,7 @@ public:
     // Optional, Runtime
     //
     Explain                    explain;
+    bool                       explain_always;
     int64_t                    explain_entries;
     std::chrono::milliseconds  explain_period;
     int64_t                    max_request_lag;

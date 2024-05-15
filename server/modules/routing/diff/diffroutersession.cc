@@ -321,17 +321,20 @@ void DiffRouterSession::ready(const DiffExplainOtherResult& explain_result)
 bool DiffRouterSession::needs_explaining(const DiffHistogram::Specification& hspec,
                                          const DiffOrdinaryOtherResult& other_result) const
 {
-    bool rv = false;
+    bool rv = m_router.config().explain_always;
 
-    const auto& main_result = other_result.main_result();
+    if (!rv)
+    {
+        const auto& main_result = other_result.main_result();
 
-    if (is_checksum_discrepancy(other_result, main_result.checksum()))
-    {
-        rv = true;
-    }
-    else if (is_execution_time_discrepancy(other_result.duration(), hspec.min(), hspec.max()))
-    {
-        rv = true;
+        if (is_checksum_discrepancy(other_result, main_result.checksum()))
+        {
+            rv = true;
+        }
+        else if (is_execution_time_discrepancy(other_result.duration(), hspec.min(), hspec.max()))
+        {
+            rv = true;
+        }
     }
 
     return rv;

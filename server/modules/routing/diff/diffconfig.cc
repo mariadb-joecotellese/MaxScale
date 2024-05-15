@@ -71,6 +71,16 @@ config::ParamEnum<Explain> explain(
     Explain::BOTH, // Default
     config::Param::AT_RUNTIME);
 
+config::ParamBool explain_always(
+    &specification,
+    "explain_always",
+    "Specifies whether a query should always be EXPLAINed or only when it "
+    "fulfills the default EXPLAIN criteria. Note that even if the value is "
+    "'true', the number of EXPLAINs are still subject to the restrictions "
+    "imposed by 'explain_entries' and 'explain_period'.",
+    false, // Default
+    config::Param::AT_RUNTIME);
+
 config::ParamSize explain_entries(
     &specification,
     "explain_entries",
@@ -188,6 +198,7 @@ DiffConfig::DiffConfig(const char* zName, DiffRouter* pInstance)
     add_native(&DiffConfig::service_name, &diff::service);
 
     add_native(&DiffConfig::explain, &diff::explain);
+    add_native(&DiffConfig::explain_always, &diff::explain_always);
     add_native(&DiffConfig::explain_entries, &diff::explain_entries);
     add_native(&DiffConfig::explain_period, &diff::explain_period);
     add_native(&DiffConfig::max_request_lag, &diff::max_request_lag);
