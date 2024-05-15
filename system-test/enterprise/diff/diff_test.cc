@@ -57,6 +57,24 @@ public:
         return Diff(diff_service, pTest);
     }
 
+    void set_explain_always(bool explain_always)
+    {
+        m_maxrest.alter_service(m_name, "explain_always", explain_always);
+    }
+
+    void set_explain_period(std::chrono::milliseconds explain_period)
+    {
+        std::stringstream ss;
+        ss << explain_period.count() << "ms";
+
+        m_maxrest.alter_service(m_name, "explain_period", ss.str());
+    }
+
+    void set_samples(int64_t samples)
+    {
+        m_maxrest.alter_service(m_name, "samples", samples);
+    }
+
     mxb::Json start() const
     {
         return call_command(MaxRest::POST, "start", m_name, CallRepeatable::NO);
@@ -161,6 +179,25 @@ void test_easy_setup(TestConnections& test)
     diff.summary();
     diff.stop();
     diff.destroy();
+}
+
+void n_fast_selects(TestConnections* pTest, int n)
+{
+    auto& mxt = *pTest->maxscale;
+
+    Connection c(mxt.ip4(), 4006, "skysql", "skysql");
+
+    if (c.connect())
+    {
+        for (int i = 0; i < n; ++i)
+        {
+            c.query("SELECT 1");
+        }
+    }
+    else
+    {
+        pTest->expect(false, "Could not connect to MaxScale.");
+    }
 }
 
 void busy_fast_selects(TestConnections* pTest, std::atomic<bool>* pStop)
@@ -345,11 +382,52 @@ void test_abort_setup(TestConnections& test)
     }
 }
 
+/**
+ * Ensure that EXPLAINs are made by turning on 'explain_always'.
+ */
+void test_with_explain(TestConnections& test)
+{
+    Diff diff = Diff::create(&test, "DiffMyService", "MyService", "server1", "server2");
+
+    int samples = 100;
+    diff.set_samples(samples); // Less samples so that we dont have to wait for so long.
+    diff.set_explain_always(true); // Always EXPLAIN
+    diff.set_explain_period(std::chrono::milliseconds { 2000 }); // Short period, to trigger activities.
+
+    mxb::Json json = diff.start();
+
+    bool started = wait_for_state(diff, json, "comparing", 2);
+
+    n_fast_selects(&test, samples + 1);
+
+    std::atomic<bool> stop { false };
+    vector<std::thread> clients;
+
+    size_t i = 0;
+    for (; i < 5; ++i)
+    {
+        clients.emplace_back(busy_fast_selects, &diff.test(), &stop);
+    }
+
+    sleep(5);
+
+    stop = true;
+
+    for (i = 0; i < clients.size(); ++i)
+    {
+        clients[i].join();
+    }
+
+    diff.stop();
+    diff.destroy();
+}
+
 void test_main(TestConnections& test)
 {
     test_easy_setup(test);
     test_hard_setup(test);
     test_abort_setup(test);
+    test_with_explain(test);
 }
 
 }
