@@ -310,7 +310,8 @@ void sanity_check(TestConnections& test)
                                     true);
     MXT_EXPECT_F(res.rc != 0, "Convert from .csv should fail");
 
-    cleanup.add_files("/tmp/readable.cx", "/tmp/readable.ex", "/tmp/readable.gx");
+    cleanup.add_files("/tmp/readable.cx", "/tmp/readable.ex", "/tmp/readable.gx",
+                      "/tmp/readable.rx", "/tmp/readable.tx");
     test.maxscale->ssh_node_f(true,
                               "cp %s /tmp/readable.cx;cp %s /tmp/readable.ex;cp %s /tmp/readable.gx;"
                               "chmod a+rwx /tmp/readable.*",
