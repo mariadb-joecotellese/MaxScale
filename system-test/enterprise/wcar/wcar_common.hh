@@ -106,10 +106,11 @@ void do_replay(TestConnections& test, std::string filter, std::string options = 
         auto res = test.maxscale->ssh_output("wc -l /tmp/replay-" + filter + ".csv");
         MXT_EXPECT_F(std::stoi(res.output) > 1,
                      "Replay should generate a CSV file with at least one line: %s", res.output.c_str());
-        test.maxscale->ssh_output("rm /tmp/replay-" + filter + ".csv");
     }
     catch (const std::exception& e)
     {
         test.add_failure("Caught exception: %s", e.what());
     }
+
+    test.maxscale->ssh_output("rm /tmp/replay-" + filter + ".csv");
 }
