@@ -20,6 +20,8 @@ struct Gtid
     {
         return server_id != 0;
     }
+
+    static Gtid from_string(std::string_view str);
 };
 
 struct Trx

@@ -41,3 +41,4 @@ install_module(wcar enterprise)
 
 add_subdirectory(player)
 add_subdirectory(report)
+add_subdirectory(test)

@@ -1,0 +1,3 @@
+add_executable(test_wcar_gtid_parsing test_wcar_gtid_parsing.cc ../capsessionstate.cc)
+target_link_libraries(test_wcar_gtid_parsing maxscale-common)
+add_test(test_wcar_gtid_parsing test_wcar_gtid_parsing)

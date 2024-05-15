@@ -76,6 +76,12 @@ constexpr uint16_t STATUS_IN_RO_TRX = 8192;
 // events can be queued to it without regard to other trxns.
 }
 
+// static
+Gtid Gtid::from_string(std::string_view str)
+{
+    return gtid_from_string(str);
+}
+
 /* This code has only two purposes, determine the span [event_id,event_id]
  * of a transaction and always generate a transaction on a valid gtid.
  */
