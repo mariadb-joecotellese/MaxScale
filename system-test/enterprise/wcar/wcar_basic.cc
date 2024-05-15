@@ -342,6 +342,9 @@ void sanity_check(TestConnections& test)
         res = test.maxscale->ssh_output(bad_cmd, false);
         MXT_EXPECT_F(res.rc != 0, "Command did not fail: %s", bad_cmd.c_str());
     }
+
+    // Check that the diagnostic output works
+    test.maxctrl("show filters");
 }
 
 void do_replay_and_checksum(TestConnections& test)
