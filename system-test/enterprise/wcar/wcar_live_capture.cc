@@ -10,31 +10,6 @@ std::atomic<bool> running {true};
 std::atomic<uint64_t> transactions {0};
 std::atomic<uint64_t> connections {0};
 
-void do_replay(TestConnections& test, std::string filter, std::string options = "")
-{
-    try
-    {
-        int rc = test.maxscale->ssh_node_f(
-            true,
-            ASAN_OPTS
-            "maxplayer replay -u %s -p %s -H %s:%d --csv -o /tmp/replay-%s.csv "
-            "%s /var/lib/maxscale/wcar/%s/*.cx",
-            test.repl->user_name().c_str(), test.repl->password().c_str(),
-            test.repl->ip(0), test.repl->port(0),
-            filter.c_str(), options.c_str(), filter.c_str());
-
-        MXT_EXPECT_F(rc == 0, "Replay should work.");
-        auto res = test.maxscale->ssh_output("wc -l /tmp/replay-" + filter + ".csv");
-        MXT_EXPECT_F(std::stoi(res.output) > 1,
-                     "Replay should generate a CSV file with at least one line: %s", res.output.c_str());
-        test.maxscale->ssh_output("rm /tmp/replay-" + filter + ".csv");
-    }
-    catch (const std::exception& e)
-    {
-        test.add_failure("Caught exception: %s", e.what());
-    }
-}
-
 std::thread make_long_connection(TestConnections& test)
 {
     return std::thread([&](){
@@ -161,7 +136,11 @@ void live_capture(TestConnections& test)
 
     test.maxscale->stop();
 
+    // Create a copy of the normal capture for processing it with --chunk-size=1Ki.
+    copy_capture(test, "WCAR", "WCAR-Chunked");
+
     cleanup.add_files("/tmp/replay-WCAR.csv",
+                      "/tmp/replay-WCAR-Chunked.csv",
                       "/tmp/replay-WCAR-Size-Limit.csv",
                       "/tmp/replay-WCAR-Time-Limit.csv");
 
@@ -176,6 +155,10 @@ void live_capture(TestConnections& test)
     threads.emplace_back([&](){
         test.tprintf("Replaying the time limited capture");
         do_replay(test, "WCAR-Time-Limit");
+    });
+    threads.emplace_back([&](){
+        test.tprintf("Replaying the unlimited capture with --chunk-size=1Ki");
+        do_replay(test, "WCAR-Chunked", "--chunk-size=1Ki");
     });
 
     for (auto& thr : threads)
