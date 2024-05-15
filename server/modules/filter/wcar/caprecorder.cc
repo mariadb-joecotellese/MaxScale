@@ -37,15 +37,6 @@ void CapRecorder::finish_for(maxscale::RoutingWorker* pWorker)
 void CapRecorder::make_updates(RecorderContext* pContext,
                                std::vector<typename SharedUpdate::UpdateType>& queue)
 {
-    try
-    {
-        pContext->sStorage->add_query_event(queue);
-
-        pContext->update_bytes_processed();
-    }
-    catch (std::exception& ex)
-    {
-        MXB_SERROR("TODO: unhandled exception " << ex.what());
-        throw;
-    }
+    pContext->sStorage->add_query_event(queue);
+    pContext->update_bytes_processed();
 }
