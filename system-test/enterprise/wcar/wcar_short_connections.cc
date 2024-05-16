@@ -18,8 +18,9 @@ void test_main(TestConnections& test)
         threads.emplace_back([&](){
             while (running)
             {
-                auto c = test.maxscale->rwsplit();
+                auto c = test.maxscale->rwsplit("");
                 c.connect();
+                c.change_db("test");
                 c.query("SET NAMES latin1");
                 c.query("SELECT 1");
                 ++connections;

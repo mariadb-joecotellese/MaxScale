@@ -254,6 +254,11 @@ void sanity_check(TestConnections& test)
                                     true);
     MXT_EXPECT_F(res.rc != 0, "Convert from .csv should fail");
 
+    test.tprintf("Converting an unknown file type should result in an error");
+    res = test.maxscale->ssh_output("maxplayer convert /etc/maxscale.cnf --csv -o /tmp/converted4.csv 2>&1",
+                                    true);
+    MXT_EXPECT_F(res.rc != 0, "Converting unknown files should fail");
+
     cleanup.add_files("/tmp/readable.cx", "/tmp/readable.ex", "/tmp/readable.gx",
                       "/tmp/readable.rx", "/tmp/readable.tx");
     test.maxscale->ssh_node_f(true,
