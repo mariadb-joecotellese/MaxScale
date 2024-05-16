@@ -1,3 +1,7 @@
 add_executable(test_wcar_gtid_parsing test_wcar_gtid_parsing.cc ../capsessionstate.cc)
 target_link_libraries(test_wcar_gtid_parsing maxscale-common)
 add_test(test_wcar_gtid_parsing test_wcar_gtid_parsing)
+
+add_executable(test_wcar_storage test_wcar_storage.cc ../capbooststorage.cc)
+target_link_libraries(test_wcar_storage boost_serialization maxbase maxsimd)
+add_test(test_wcar_storage test_wcar_storage)

@@ -13,3 +13,5 @@ if (HAVE_STD_EXECUTION)
   target_link_libraries(maxplayer tbb)
 endif()
 install_executable(maxplayer enterprise)
+
+add_subdirectory(test)
