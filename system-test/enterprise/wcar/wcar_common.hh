@@ -93,19 +93,44 @@ void do_replay(TestConnections& test, std::string filter, std::string options = 
 {
     try
     {
-        int rc = test.maxscale->ssh_node_f(
-            true,
-            ASAN_OPTS
-            "maxplayer replay -u %s -p %s -H %s:%d --csv -o /tmp/replay-%s.csv "
-            "%s /var/lib/maxscale/wcar/%s/*.cx",
-            test.repl->user_name().c_str(), test.repl->password().c_str(),
-            test.repl->ip(0), test.repl->port(0),
-            filter.c_str(), options.c_str(), filter.c_str());
+        auto res = test.maxscale->ssh_output("find /var/lib/maxscale/wcar/" + filter
+                                             + "/ -type f -name '*.cx'");
 
-        MXT_EXPECT_F(rc == 0, "Replay should work.");
-        auto res = test.maxscale->ssh_output("wc -l /tmp/replay-" + filter + ".csv");
-        MXT_EXPECT_F(std::stoi(res.output) > 1,
-                     "Replay should generate a CSV file with at least one line: %s", res.output.c_str());
+        for (auto file : mxb::strtok(res.output, "\n"))
+        {
+            test.maxscale->ssh_output("rm -f /tmp/replay-" + filter + ".csv");
+            int rc = test.maxscale->ssh_node_f(
+                true,
+                ASAN_OPTS
+                "maxplayer replay -u %s -p %s -H %s:%d --csv -o /tmp/replay-%s.csv "
+                "%s %s",
+                test.repl->user_name().c_str(), test.repl->password().c_str(),
+                test.repl->ip(0), test.repl->port(0),
+                filter.c_str(), options.c_str(), file.c_str());
+
+            MXT_EXPECT_F(rc == 0, "Replay of '%s' should work.", file.c_str());
+            res = test.maxscale->ssh_output("wc -l /tmp/replay-" + filter + ".csv");
+            auto lines = std::stoi(res.output);
+
+            if (lines == 1)
+            {
+                fs::path path = file;
+                path.replace_extension(".tx");
+                res = test.maxscale->ssh_output("cat " + path.string());
+                mxb::Json js;
+                js.load_string(res.output);
+
+                int64_t num_events;
+                MXT_EXPECT(js.at("capture").try_get_int("events", &num_events));
+                MXT_EXPECT(num_events == 0);
+            }
+            else
+            {
+                MXT_EXPECT_F(lines > 1,
+                             "Replay '%s' should generate a CSV file with at least one line: %s",
+                             file.c_str(), res.output.c_str());
+            }
+        }
     }
     catch (const std::exception& e)
     {
