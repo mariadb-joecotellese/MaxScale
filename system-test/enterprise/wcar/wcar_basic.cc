@@ -9,6 +9,11 @@
 void sanity_check(TestConnections& test)
 {
     test.tprintf("%s", __func__);
+
+    test.repl->connect();
+    test.repl->execute_query_all_nodes("SET GLOBAL max_allowed_packet=33554432");
+    test.repl->disconnect();
+
     Cleanup cleanup(test);
     cleanup.add_table("test.wcar_basic");
     cleanup.add_files("/tmp/replay.rx", "/tmp/replay.csv", "/tmp/converted.cx",
@@ -50,6 +55,11 @@ void sanity_check(TestConnections& test)
                      "Query %s failed: %s", query.c_str(), c.error());
         ++queries;
     }
+
+    MXT_EXPECT_F(c.query("SELECT '" + std::string(1024 * 1024 * 20, 'a') + "'"),
+                 "Large multi-packet query failed: %s", c.error());
+    // TODO: Once MXS-5099 is fixed, uncomment this line.
+    // ++queries;
 
     test.maxscale->stop();
 
