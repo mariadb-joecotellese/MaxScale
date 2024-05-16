@@ -343,9 +343,9 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
     {
         if (capture)
         {
-            // Store the error code in the last two bytes of the flags field. This saves space compared to
-            // storing it as a separate member.
-            query_event.flags |= (uint64_t)reply.error().code() >> 48;
+            // Store the error code in the 16 most significant bits of the flags field. This saves space
+            // compared to storing it as a separate member.
+            query_event.flags |= (uint64_t)reply.error().code() << 48;
 
             query_event.end_time = SimTime::sim_time().now();
             query_event.event_id = m_filter.get_next_event_id();
