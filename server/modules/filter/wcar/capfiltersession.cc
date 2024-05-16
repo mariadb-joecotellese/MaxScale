@@ -409,8 +409,12 @@ bool CapFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* p
         }
         break;
 
-        /* TODO These need special handling, add cmd into QueryEvent */
     case MXS_COM_QUIT:
+        // COM_QUIT can be ignored, the closing of the session will create the correct event.
+        generated = false;
+        break;
+
+        /* TODO These need special handling, add cmd into QueryEvent */
     case MXS_COM_RESET_CONNECTION:
     case MXS_COM_SET_OPTION:
     case MXS_COM_STATISTICS:
