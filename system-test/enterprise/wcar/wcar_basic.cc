@@ -356,11 +356,50 @@ void simple_text_ps(TestConnections& test)
     do_replay_and_checksum(test);
 }
 
+void load_data_local_infile(TestConnections& test)
+{
+    test.tprintf("%s", __func__);
+    Cleanup cleanup(test);
+
+    std::ofstream out("./data.csv");
+
+    for (int i = 0; i < 10; i++)
+    {
+        out << i << "," << i + 1 << "," << i + 2 << "\n";
+    }
+
+    out.close();
+
+    auto c = test.maxscale->rwsplit();
+    MXT_EXPECT(c.connect());
+    MXT_EXPECT(c.query("CREATE TABLE test.wcar_ldli(a INT, b INT, c INT)"));
+    cleanup.add_table("test.wcar_ldli");
+    MXT_EXPECT(c.query("LOAD DATA LOCAL INFILE 'data.csv' INTO TABLE test.wcar_ldli "
+                       "FIELDS TERMINATED BY ',' LINES TERMINATED BY '\n'"));
+    c.disconnect();
+
+    test.maxscale->stop();
+
+    auto m = test.repl->get_connection(0);
+    MXT_EXPECT(m.connect());
+    auto before = m.field("SELECT COUNT(*) FROM test.wcar_ldli");
+    MXT_EXPECT(m.query("DROP TABLE test.wcar_ldli"));
+
+    do_replay_and_checksum(test);
+
+    auto after = m.field("SELECT COUNT(*) FROM test.wcar_ldli");
+    // Once MXS-5100 is fixed, change this to after == before
+    MXT_EXPECT_F(after == "0", "Expected 0 rows but got %s", after.c_str());
+
+    remove("./data.csv");
+}
+
 void test_main(TestConnections& test)
 {
     sanity_check(test);
     simple_binary_ps(test);
     simple_text_ps(test);
+    load_data_local_infile(test);
 }
 
 ENTERPRISE_TEST_MAIN(test_main)
