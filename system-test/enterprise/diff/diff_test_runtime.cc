@@ -238,7 +238,9 @@ void test_with_explain(TestConnections& test, const std::string& main_server, co
 
 void test_with_other_being_a_slave(TestConnections& test)
 {
-    cout << "Testing with main being master, and other being a slave of master." << endl;
+    cout << "Testing with main being master, and other being a slave of master.\n"
+         << "------------------------------------------------------------------" << endl;
+
     test_easy_setup(test, "server1", "server2");
     test_hard_setup(test, "server1", "server2");
     test_abort_setup(test, "server1", "server2");
@@ -247,7 +249,8 @@ void test_with_other_being_a_slave(TestConnections& test)
 
 void test_with_main_and_other_being_peers(TestConnections& test)
 {
-    cout << "Testing with main and other being slaves of common master." << endl;
+    cout << "Testing with main and other being slaves of common master.\n"
+         << "----------------------------------------------------------" << endl;
 
     MaxRest maxrest(&test);
 
@@ -282,10 +285,40 @@ void test_with_main_and_other_being_peers(TestConnections& test)
     test_with_explain(test, "server2", "server3");
 }
 
+void test_error_handling(TestConnections& test)
+{
+    cout << "Testing error handling.\n"
+         << "-----------------------" << endl;
+
+    Diff diff = Diff::create(&test, "DiffMyService", "MyService", "server1", "server2");
+
+    mxb::Json status = diff.start();
+
+    diff.wait_for_state(status, "comparing", 2);
+
+    auto& maxscale = *test.maxscale;
+
+    Connection c(maxscale.ip4(), 4006, "skysql", "skysql");
+
+    test.expect(c.connect(), "Could not connect to MaxScale.");
+
+    test.expect(c.query("SELECT 1"), "Query failed.");
+
+    cout << "Stopping other server2, everything shold continue." << endl;
+    test.expect(test.repl->stop_node(1) == 0, "Could not stop MariaDB on server2.");
+
+    // This should continue to work.
+    test.expect(c.query("SELECT 1"), "Query failed.");
+
+    diff.stop();
+    diff.destroy();
+}
+
 void test_main(TestConnections& test)
 {
     test_with_other_being_a_slave(test);
     test_with_main_and_other_being_peers(test);
+    test_error_handling(test);
 }
 
 }
