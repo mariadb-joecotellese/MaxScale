@@ -17,7 +17,6 @@ std::thread make_long_connection(TestConnections& test)
 
         if (test.expect(c.connect(), "Failed to connect: %s", c.error()))
         {
-            c.query("CREATE TABLE IF NOT EXISTS test.t1 (id INT PRIMARY KEY, val INT)");
             c.query("INSERT INTO test.t1 VALUES (1, 0)");
 
             while (running)
@@ -41,7 +40,6 @@ std::thread make_short_connection(TestConnections& test)
 
             if (test.expect(c.connect(), "Failed to connect: %s", c.error()))
             {
-                c.query("CREATE TABLE IF NOT EXISTS test.t1 (id INT PRIMARY KEY, val INT)");
                 c.query("INSERT INTO test.t1 VALUES (2, 0) ON DUPLICATE KEY UPDATE val = 0");
 
                 for (int i = 0; i < 10; i++)
@@ -66,6 +64,18 @@ void live_capture(TestConnections& test)
         test.tprintf("Transactions: %lu Connections: %lu\n%s", transactions.load(), connections.load(),
                      get_capture_status(test).to_string().c_str());
     };
+
+    auto trx_open_always = test.maxscale->rwsplit();
+    auto trx_open_on_start = test.maxscale->rwsplit();
+    auto trx_open_on_end = test.maxscale->rwsplit();
+    MXT_EXPECT(trx_open_always.connect() && trx_open_on_start.connect() && trx_open_on_end.connect());
+
+    MXT_EXPECT(trx_open_always.query("CREATE TABLE test.t1 (id INT PRIMARY KEY, val INT)"));
+    MXT_EXPECT(trx_open_always.query("INSERT INTO test.t1 VALUES (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)"));
+    MXT_EXPECT(trx_open_always.query("BEGIN"));
+    MXT_EXPECT(trx_open_always.query("UPDATE test.t1 SET val = val + 1 WHERE id = 3"));
+    MXT_EXPECT(trx_open_on_start.query("BEGIN"));
+    MXT_EXPECT(trx_open_on_start.query("UPDATE test.t1 SET val = val + 1 WHERE id = 4"));
 
     std::vector<std::thread> threads;
     for (int i = 0; i < 150; i++)
@@ -98,12 +108,23 @@ void live_capture(TestConnections& test)
     test.maxscale->maxctrl("call command wcar start WCAR-Size-Limit");
 
     mxb::Json status;
+    bool first_loop = true;
 
     do
     {
         status = get_capture_status(test);
         report();
         std::this_thread::sleep_for(2s);
+
+        if (first_loop)
+        {
+            MXT_EXPECT(trx_open_on_start.query("COMMIT"));
+
+            MXT_EXPECT(trx_open_on_end.query("BEGIN"));
+            MXT_EXPECT(trx_open_on_end.query("UPDATE test.t1 SET val = val + 1 WHERE id = 5"));
+
+            first_loop = false;
+        }
     }
     while (test.ok()
            && (status.get_real("duration") < 10.0 || status.get_int("size") < 1024 * 1024));
@@ -115,10 +136,18 @@ void live_capture(TestConnections& test)
     auto trx_end = transactions.load();
     auto conn_end = connections.load();
 
+    first_loop = true;
+
     do
     {
         report();
         std::this_thread::sleep_for(2s);
+
+        if (first_loop)
+        {
+            MXT_EXPECT(trx_open_on_end.query("COMMIT"));
+            first_loop = false;
+        }
     }
     while (test.ok()
            && (transactions.load() - trx_end < 100 || connections.load() - conn_end < 10));
