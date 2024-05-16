@@ -19,6 +19,65 @@ using namespace std;
 namespace
 {
 
+std::string username;
+std::string password;
+
+/**
+ * Check that data written to MaxScale ends up in both servers.
+ */
+void test_duplication(TestConnections& test,
+                      const std::string& main_server_ip,
+                      const std::string& other_server_ip)
+{
+    auto& mxt = *test.maxscale;
+
+    Connection maxscale(mxt.ip4(), 4006, username, password);
+    test.expect(maxscale.connect(), "Could not connect to MaxScale.");
+
+    maxscale.query("DROP TABLE IF EXISTS test.Diff");
+    maxscale.query("CREATE TABLE test.Diff (f int)");
+    maxscale.query("INSERT INTO test.Diff VALUES (1)");
+    maxscale.query("INSERT INTO test.Diff VALUES (2)");
+
+    auto maxscale_result = maxscale.rows("SELECT * FROM test.Diff");
+
+    mxt::ReplicationCluster* pCluster = test.repl;
+
+    Connection main_server(main_server_ip, 3306, username, password);
+    test.expect(main_server.connect(), "Could not connect to %s.", main_server_ip.c_str());
+
+    auto main_server_result = main_server.rows("SELECT * FROM test.Diff");
+
+    test.expect(maxscale_result == main_server_result,
+                "Results from MaxScale and from main server are not identical.");
+
+    Connection other_server(other_server_ip, 3306, username, password);
+    test.expect(other_server.connect(), "Could not connect to %s.", other_server_ip.c_str());
+
+    auto other_server_result = other_server.rows("SELECT * FROM test.Diff");
+
+    test.expect(maxscale_result == other_server_result,
+                "Results from MaxScale and from other server are not identical.");
+}
+
+void test_duplication(TestConnections& test,
+                      const std::string& main_server, int main_server_idx,
+                      const std::string& other_server, int other_server_idx)
+{
+    cout << "Testing duplication of data." << endl;
+
+    Diff diff = Diff::create(&test, "DiffMyService", "MyService", main_server, other_server);
+    mxb::Json status = diff.start();
+
+    diff.wait_for_state(status, "comparing", 2);
+
+    mxt::ReplicationCluster* pCluster = test.repl;
+    test_duplication(test, pCluster->ip(main_server_idx), pCluster->ip(other_server_idx));
+
+    diff.stop();
+    diff.destroy();
+}
+
 /**
  * Simplest possible case, no concurrent activity.
  */
@@ -39,7 +98,7 @@ void n_fast_selects(TestConnections* pTest, int n)
 {
     auto& mxt = *pTest->maxscale;
 
-    Connection c(mxt.ip4(), 4006, "skysql", "skysql");
+    Connection c(mxt.ip4(), 4006, username, password);
 
     if (c.connect())
     {
@@ -58,7 +117,7 @@ void busy_fast_selects(TestConnections* pTest, std::atomic<bool>* pStop)
 {
     auto& mxt = *pTest->maxscale;
 
-    Connection c(mxt.ip4(), 4006, "skysql", "skysql");
+    Connection c(mxt.ip4(), 4006, username, password);
 
     if (c.connect())
     {
@@ -79,7 +138,7 @@ void busy_slow_selects(TestConnections* pTest, std::atomic<bool>* pStop)
 {
     auto& mxt = *pTest->maxscale;
 
-    Connection c(mxt.ip4(), 4006, "skysql", "skysql");
+    Connection c(mxt.ip4(), 4006, username, password);
 
     if (c.connect())
     {
@@ -201,6 +260,8 @@ void test_abort_setup(TestConnections& test, const std::string& main_server, con
  */
 void test_with_explain(TestConnections& test, const std::string& main_server, const std::string& other_server)
 {
+    cout << "Testing with EXPLAINs." << endl;
+
     Diff diff = Diff::create(&test, "DiffMyService", "MyService", main_server, other_server);
 
     int samples = 100;
@@ -244,6 +305,7 @@ void test_with_other_being_a_slave(TestConnections& test)
     test_easy_setup(test, "server1", "server2");
     test_hard_setup(test, "server1", "server2");
     test_abort_setup(test, "server1", "server2");
+    test_duplication(test, "server1", 0, "server2", 1);
     test_with_explain(test, "server1", "server2");
 }
 
@@ -298,7 +360,7 @@ void test_error_handling(TestConnections& test)
 
     auto& maxscale = *test.maxscale;
 
-    Connection c(maxscale.ip4(), 4006, "skysql", "skysql");
+    Connection c(maxscale.ip4(), 4006, username, password);
 
     test.expect(c.connect(), "Could not connect to MaxScale.");
 
@@ -316,6 +378,9 @@ void test_error_handling(TestConnections& test)
 
 void test_main(TestConnections& test)
 {
+    username = test.repl->user_name();
+    password = test.repl->password();
+
     test_with_other_being_a_slave(test);
     test_with_main_and_other_being_peers(test);
     test_error_handling(test);
