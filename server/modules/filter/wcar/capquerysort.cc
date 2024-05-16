@@ -376,14 +376,13 @@ void StreamChunk::read_more()
 }
 
 ExternalChunks::ExternalChunks()
-    : m_chunk_dir(m_dir_name)
 {
 }
 
 void ExternalChunks::save(WorkChunk&& chunk)
 {
     std::ostringstream os;
-    os << m_dir_name << '/' << m_file_base_name << std::setfill('0') << std::setw(4) << m_chunk_ctr++;
+    os << m_chunk_dir.dir() << '/' << m_file_base_name << std::setfill('0') << std::setw(4) << m_chunk_ctr++;
     m_file_names.push_back(os.str());
     chunk.save(os.str());
 }

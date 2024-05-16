@@ -111,7 +111,6 @@ public:
     std::vector<StreamChunk> load();
 
 private:
-    static inline const std::string m_dir_name = "/tmp/query-chunks";
     static inline const std::string m_file_base_name = "chunk-";
     int                             m_chunk_ctr = 0;
     mxb::TempDirectory              m_chunk_dir;
