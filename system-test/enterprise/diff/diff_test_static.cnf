@@ -1,0 +1,34 @@
+[maxscale]
+threads=###threads###
+load_persisted_configs=false
+
+###server###
+
+[Monitor]
+type=monitor
+module=mariadbmon
+servers=server1, server2
+user=maxskysql
+password=skysql
+
+[DiffMyService]
+type=service
+router=diff
+main=server1
+service=MyService
+password=skysql
+user=maxskysql
+targets=server1, server3
+
+[MyService]
+type=service
+router=readwritesplit
+user=maxskysql
+password=skysql
+targets=DiffMyService, server2
+
+[MyService-Listener]
+type=listener
+service=MyService
+protocol=mariadbclient
+port=4006
