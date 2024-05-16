@@ -40,15 +40,24 @@ public:
     static Diff create(TestConnections* pTest,
                        const std::string& diff_service,
                        const std::string& service,
-                       const std::string& a_server,
-                       const std::string& another_server)
+                       const std::string& main_server,
+                       const std::string& other_server)
     {
         MaxRest maxrest(pTest);
 
-        call_command(maxrest, MaxRest::POST, "create", diff_service, CallRepeatable::NO,
-                     { service, a_server, another_server });
+        return create(maxrest, diff_service, service, main_server, other_server);
+    }
 
-        return Diff(diff_service, pTest);
+    static Diff create(MaxRest& maxrest,
+                       const std::string& diff_service,
+                       const std::string& service,
+                       const std::string& main_server,
+                       const std::string& other_server)
+    {
+        call_command(maxrest, MaxRest::POST, "create", diff_service, CallRepeatable::NO,
+                     { service, main_server, other_server });
+
+        return Diff(diff_service, &maxrest.test());
     }
 
     void set_explain_always(bool explain_always)
@@ -132,6 +141,11 @@ public:
         std::cout << std::endl;
 
         return reached;
+    }
+
+    MaxRest& maxrest()
+    {
+        return m_maxrest;
     }
 
 private:

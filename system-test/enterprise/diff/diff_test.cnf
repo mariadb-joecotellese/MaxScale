@@ -7,7 +7,7 @@ load_persisted_configs=false
 [Monitor]
 type=monitor
 module=mariadbmon
-servers=server1
+servers=server1, server2
 user=maxskysql
 password=skysql
 
@@ -16,7 +16,7 @@ type=service
 router=readwritesplit
 user=maxskysql
 password=skysql
-servers=server1
+servers=server1, server2
 
 [MyService-Listener]
 type=listener
