@@ -14,4 +14,6 @@ if (HAVE_STD_EXECUTION)
 endif()
 install_executable(maxplayer enterprise)
 
-add_subdirectory(test)
+if (BUILD_TESTS)
+  add_subdirectory(test)
+endif()
