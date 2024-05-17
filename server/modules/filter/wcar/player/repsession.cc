@@ -162,6 +162,7 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     revent.rows_read = 0;
     revent.error = 0;
 
+    int orig_err = get_error(qevent);
     int rc = 0;
 
     if (qevent.flags & CAP_PING)
@@ -181,7 +182,7 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     {
         int error_number = mysql_errno(m_pConn);
 
-        if (get_error(qevent) != error_number)
+        if (orig_err != error_number)
         {
             MXB_SERROR("MariaDB: Error S "
                        << qevent.session_id << " E " << qevent.event_id
@@ -232,6 +233,18 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     if (is_real_event(qevent))
     {
         m_pRecorder->get_shared_data_by_index(ThisUnit::thread_idx)->send_update(std::move(revent));
+    }
+
+    // If the query ended with a ER_LOCK_DEADLOCK error, the server rolled back the transaction automatically.
+    // If the query succeeded in the replay without a deadlock, we'll have to roll it back manually to make
+    // sure that any locks held by the transaction are not left open. This'll make sure that transactions that
+    // were automatically rolled back do not end up blocking transactions that did not get rolled back in the
+    // capture.
+    const int ER_LOCK_DEADLOCK = 1213;
+
+    if (orig_err == ER_LOCK_DEADLOCK && revent.error != ER_LOCK_DEADLOCK)
+    {
+        mysql_query(m_pConn, "ROLLBACK");
     }
 
     return true;
