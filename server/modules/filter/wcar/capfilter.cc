@@ -85,10 +85,18 @@ bool CapFilter::post_configure()
 {
     if (m_config.start_capture)
     {
-        auto sRecorder = make_storage(DEFAULT_FILE_PREFIX);
+        try
+        {
+            auto sRecorder = make_storage(DEFAULT_FILE_PREFIX);
 
-        std::lock_guard guard{m_sessions_mutex};
-        start_recording(std::move(sRecorder));
+            std::lock_guard guard{m_sessions_mutex};
+            start_recording(std::move(sRecorder));
+        }
+        catch (const std::exception& ex)
+        {
+            MXB_ERROR("Failed to open storage: %s", ex.what());
+            return false;
+        }
     }
 
     m_dc_supervisor = dcall(1s, [this]() {

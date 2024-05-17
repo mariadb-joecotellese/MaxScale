@@ -32,7 +32,15 @@ bool start_cmd(const MODULECMD_ARG* argv, json_t** output)
 
     CapFilter* instance = reinterpret_cast<CapFilter*>(filter_def_get_instance(filter));
 
-    return instance->start_capture(file_name_prefix);
+    try
+    {
+        return instance->start_capture(file_name_prefix);
+    }
+    catch (const std::exception& ex)
+    {
+        MXB_ERROR("Failed to start capture: %s", ex.what());
+        return false;
+    }
 }
 
 bool stop_cmd(const MODULECMD_ARG* argv, json_t** output)
@@ -43,7 +51,15 @@ bool stop_cmd(const MODULECMD_ARG* argv, json_t** output)
     MXS_FILTER_DEF* filter = argv[0].argv->value.filter;
     CapFilter* instance = reinterpret_cast<CapFilter*>(filter_def_get_instance(filter));
 
-    return instance->stop_capture();
+    try
+    {
+        return instance->stop_capture();
+    }
+    catch (const std::exception& ex)
+    {
+        MXB_ERROR("Failed to stop capture: %s", ex.what());
+        return false;
+    }
 }
 }
 
