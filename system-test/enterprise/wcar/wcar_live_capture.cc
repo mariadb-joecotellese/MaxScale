@@ -56,6 +56,17 @@ std::thread make_short_connection(TestConnections& test)
     });
 }
 
+std::thread make_very_short_connection(TestConnections& test)
+{
+    return std::thread([&](){
+        while (running)
+        {
+            auto c = test.maxscale->rwsplit();
+            test.expect(c.connect(), "Failed to connect: %s", c.error());
+        }
+    });
+}
+
 void live_capture(TestConnections& test)
 {
     Cleanup cleanup(test);
@@ -78,6 +89,10 @@ void live_capture(TestConnections& test)
     MXT_EXPECT(trx_open_on_start.query("UPDATE test.t1 SET val = val + 1 WHERE id = 4"));
 
     std::vector<std::thread> threads;
+
+    // Add one thread that repeatedly opens and closes the connection
+    threads.push_back(make_very_short_connection(test));
+
     for (int i = 0; i < 150; i++)
     {
         if (i % 2 == 0)
