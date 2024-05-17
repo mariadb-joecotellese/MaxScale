@@ -61,6 +61,12 @@ void sanity_check(TestConnections& test)
     // TODO: Once MXS-5099 is fixed, uncomment this line.
     // ++queries;
 
+    MXT_EXPECT(test.maxscale->connect_rwsplit("") == 0);
+    MXT_EXPECT(mysql_ping(test.maxscale->conn_rwsplit) == 0);
+    queries++;
+    MXT_EXPECT(mysql_reset_connection(test.maxscale->conn_rwsplit) == 0);
+    queries++;
+
     test.maxscale->stop();
 
     //
@@ -148,7 +154,7 @@ void sanity_check(TestConnections& test)
         lines++;
     }
 
-    MXT_EXPECT_F(lines == queries + 1, "Expected %d lines but only found %d", queries + 1, lines);
+    MXT_EXPECT_F(lines == queries + 1, "Expected %d lines but found %d", queries + 1, lines);
 
     auto after = m.field("CHECKSUM TABLE test.wcar_basic EXTENDED", 1);
     MXT_EXPECT_F(before == after, "CHECKSUM TABLE mismatch: %s != %s", before.c_str(), after.c_str());

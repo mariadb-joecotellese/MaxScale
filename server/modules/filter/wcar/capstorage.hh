@@ -42,9 +42,11 @@ inline std::ostream& operator<<(std::ostream& os, const Gtid& gtid)
     return os;
 }
 
-// Flags used by capture. Upper 32 bits of QueryEvent::flags.
+// Flags used by capture. Bits 32 to 47 (fifth and sixth byte) of QueryEvent::flags.
 constexpr uint64_t CAP_SESSION_CLOSE = 1ul << 32;
 constexpr uint64_t CAP_ARTIFICIAL = 1ul << 33;
+constexpr uint64_t CAP_RESET_CONNECTION = 1ul << 34;
+constexpr uint64_t CAP_PING = 1ul << 35;
 
 struct QueryEvent
 {

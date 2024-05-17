@@ -162,7 +162,22 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     revent.rows_read = 0;
     revent.error = 0;
 
-    if (mysql_query(m_pConn, sql.c_str()))
+    int rc = 0;
+
+    if (qevent.flags & CAP_PING)
+    {
+        rc = mysql_ping(m_pConn);
+    }
+    else if (qevent.flags & CAP_RESET_CONNECTION)
+    {
+        rc = mysql_reset_connection(m_pConn);
+    }
+    else
+    {
+        rc = mysql_query(m_pConn, sql.c_str());
+    }
+
+    if (rc)
     {
         int error_number = mysql_errno(m_pConn);
 
