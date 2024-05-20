@@ -165,11 +165,11 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     int orig_err = get_error(qevent);
     int rc = 0;
 
-    if (qevent.flags & CAP_PING)
+    if (get_flags(qevent) & CAP_PING)
     {
         rc = mysql_ping(m_pConn);
     }
-    else if (qevent.flags & CAP_RESET_CONNECTION)
+    else if (get_flags(qevent) & CAP_RESET_CONNECTION)
     {
         rc = mysql_reset_connection(m_pConn);
     }

@@ -43,10 +43,13 @@ inline std::ostream& operator<<(std::ostream& os, const Gtid& gtid)
 }
 
 // Flags used by capture. Bits 32 to 47 (fifth and sixth byte) of QueryEvent::flags.
-constexpr uint64_t CAP_SESSION_CLOSE = 1ul << 32;
-constexpr uint64_t CAP_ARTIFICIAL = 1ul << 33;
-constexpr uint64_t CAP_RESET_CONNECTION = 1ul << 34;
-constexpr uint64_t CAP_PING = 1ul << 35;
+enum CapFlags : uint16_t
+{
+    CAP_SESSION_CLOSE    = 1 << 0,
+    CAP_ARTIFICIAL       = 1 << 1,
+    CAP_RESET_CONNECTION = 1 << 2,
+    CAP_PING             = 1 << 3,
+};
 
 struct QueryEvent
 {
@@ -58,28 +61,57 @@ struct QueryEvent
      */
     std::shared_ptr<std::string> sCanonical;
     maxsimd::CanonicalArgs       canonical_args;
-    int64_t                      can_id;
-    int64_t                      session_id;
-    uint64_t                     flags;
-    wall_time::TimePoint         start_time;
-    wall_time::TimePoint         end_time;
-    int64_t                      event_id;
+    int64_t                      can_id {0};
+    int64_t                      session_id {0};
+    uint64_t                     flags {0};
+    wall_time::TimePoint         start_time {wall_time::Duration{0}};
+    wall_time::TimePoint         end_time  {wall_time::Duration{0}};
+    int64_t                      event_id {0};
     std::unique_ptr<Trx>         sTrx;  // not populated when created from storage
 };
 
-inline bool is_session_close(const QueryEvent& qevent)
+
+inline void set_type_mask(QueryEvent& qevent, uint32_t mask)
 {
-    return qevent.flags & CAP_SESSION_CLOSE;
+    static constexpr uint64_t TYPE_MASK_MASK = 0xff'ff'ff'ff'00'00'00'00;
+    qevent.flags = (qevent.flags & TYPE_MASK_MASK) | mask;
 }
 
-inline bool is_real_event(const QueryEvent& qevent)
+inline uint32_t get_type_mask(const QueryEvent& qevent)
 {
-    return (qevent.flags & (CAP_ARTIFICIAL | CAP_SESSION_CLOSE)) == 0;
+    return qevent.flags;
+}
+
+inline void set_flags(QueryEvent& qevent, CapFlags flags)
+{
+    static constexpr uint64_t FLAGS_MASK = 0xff'ff'00'00'ff'ff'ff'ff;
+    qevent.flags = (qevent.flags & FLAGS_MASK) | ((uint64_t) flags << 32);
+}
+
+inline uint16_t get_flags(const QueryEvent& qevent)
+{
+    return qevent.flags >> 32;
+}
+
+inline void set_error(QueryEvent& qevent, uint16_t error)
+{
+    static constexpr uint64_t ERRORS_MASK = 0x00'00'ff'ff'ff'ff'ff'ff;
+    qevent.flags = (qevent.flags & ERRORS_MASK) | ((uint64_t)error << 48);
 }
 
 inline uint16_t get_error(const QueryEvent& qevent)
 {
     return qevent.flags >> 48;
+}
+
+inline bool is_session_close(const QueryEvent& qevent)
+{
+    return get_flags(qevent) & CAP_SESSION_CLOSE;
+}
+
+inline bool is_real_event(const QueryEvent& qevent)
+{
+    return (get_flags(qevent) & (CAP_ARTIFICIAL | CAP_SESSION_CLOSE)) == 0;
 }
 
 inline std::ostream& operator<<(std::ostream& os, const QueryEvent& qevent)

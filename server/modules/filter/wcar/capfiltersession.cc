@@ -177,11 +177,10 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(wall_time::TimePoi
     mxb_assert(maria_ses.auth_data);
     QueryEvent opening_event;
     opening_event.session_id = m_pSession->id();
-    opening_event.flags = 0;
     // The "- 1ns" is there to avoid having to take the flag into account in later sorting
     opening_event.start_time = start_time - 1ns;
     opening_event.end_time = start_time;
-    opening_event.flags = CAP_ARTIFICIAL;
+    set_flags(opening_event, CAP_ARTIFICIAL);
 
     if (!maria_ses.current_db.empty())
     {
@@ -233,7 +232,6 @@ QueryEvent CapFilterSession::make_rollback_event()
     QueryEvent rollback_event;
     rollback_event.sCanonical = std::make_shared<std::string>("ROLLBACK -- Capture generated");
     rollback_event.session_id = m_pSession->id();
-    rollback_event.flags = 0;
     rollback_event.start_time = SimTime::sim_time().now();
     rollback_event.end_time = rollback_event.start_time;
     rollback_event.event_id = m_filter.get_next_event_id();
@@ -248,10 +246,10 @@ QueryEvent CapFilterSession::make_closing_event()
     // Non empty canonical to avoid checking, with a message for debug.
     closing_event.sCanonical = std::make_shared<std::string>("Close session");
     closing_event.session_id = m_pSession->id();
-    closing_event.flags = CAP_SESSION_CLOSE;
     closing_event.start_time = SimTime::sim_time().now() + 1ns;
     closing_event.end_time = closing_event.start_time;
     closing_event.event_id = m_filter.get_next_event_id();
+    set_flags(closing_event, CAP_SESSION_CLOSE);
 
     return closing_event;
 }
@@ -298,7 +296,7 @@ bool CapFilterSession::routeQuery(GWBUF&& buffer)
 
     if (capture)
     {
-        query_event.flags = parser().get_type_mask(buffer);
+        set_type_mask(query_event, parser().get_type_mask(buffer));
     }
 
     const auto& maria_ses = static_cast<const MYSQL_session&>(protocol_data());
@@ -343,10 +341,7 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
     {
         if (capture)
         {
-            // Store the error code in the 16 most significant bits of the flags field. This saves space
-            // compared to storing it as a separate member.
-            query_event.flags |= (uint64_t)reply.error().code() << 48;
-
+            set_error(query_event, reply.error().code());
             query_event.end_time = SimTime::sim_time().now();
             query_event.event_id = m_filter.get_next_event_id();
             query_event.sTrx = m_session_state.update(query_event.event_id, reply);
@@ -397,12 +392,12 @@ bool CapFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* p
         break;
 
     case MXS_COM_RESET_CONNECTION:
-        pQuery_event->flags |= CAP_RESET_CONNECTION;
+        set_flags(*pQuery_event, CAP_RESET_CONNECTION);
         pQuery_event->sCanonical = std::make_shared<std::string>("/** RESET CONNECTION */");
         break;
 
     case MXS_COM_PING:
-        pQuery_event->flags |= CAP_PING;
+        set_flags(*pQuery_event, CAP_PING);
         pQuery_event->sCanonical = std::make_shared<std::string>("/** PING */");
         break;
 
