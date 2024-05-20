@@ -137,15 +137,16 @@ std::unique_ptr<Trx> CapSessionState::update(int64_t event_id, const mxs::Reply&
 std::unique_ptr<Trx> CapSessionState::make_fake_trx(int64_t event_id)
 {
     mxb_assert(m_in_trx);
-    mxb_assert(m_trx_start_id != -1);
+    auto start_id = (m_trx_start_id >= 0) ? m_trx_start_id : event_id;
 
     // The domain needs to be different from a real domain. Gtids with "fake_domain"
     // will be sorted by event_id, which is the sequence_nr.
     uint32_t fake_domain = 0;
     uint32_t fake_server_id = 0;
     uint64_t sequence_nr = event_id;
-    auto sTrx = std::make_unique<Trx>(m_trx_start_id, Gtid {fake_domain, fake_server_id, sequence_nr});
+    auto sTrx = std::make_unique<Trx>(start_id, Gtid {fake_domain, fake_server_id, sequence_nr});
 
+    m_in_trx = false;
     m_trx_start_id = -1;
     return sTrx;
 }
