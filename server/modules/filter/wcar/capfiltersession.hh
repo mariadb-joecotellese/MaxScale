@@ -65,7 +65,7 @@ private:
 
     const CapFilter&             m_filter;
     std::shared_ptr<CapRecorder> m_sRecorder;
-    std::atomic<CapState>        m_state {CapState::DISABLED};
+    CapState                     m_state {CapState::DISABLED};
     std::mutex                   m_state_mutex;
 
     CapSessionState m_session_state;

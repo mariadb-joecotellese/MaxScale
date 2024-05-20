@@ -38,13 +38,13 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
     std::lock_guard guard{m_state_mutex};
     bool handled = false;
 
-    switch (m_state.load(std::memory_order_relaxed))
+    switch (m_state)
     {
     case CapState::DISABLED:
         switch (signal)
         {
         case CapSignal::START:
-            m_state.store(CapState::PENDING_ENABLE, std::memory_order_release);
+            m_state = CapState::PENDING_ENABLE;
             handled = true;
             break;
 
@@ -75,14 +75,14 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
                 }
                 send_event(std::move(query_event));
 
-                m_state.store(CapState::ENABLED, std::memory_order_release);
+                m_state = CapState::ENABLED;
                 handled = true;
             }
             break;
 
         case CapSignal::STOP:
         case CapSignal::CLOSE_SESSION:
-            m_state.store(CapState::DISABLED, std::memory_order_release);
+            m_state = CapState::DISABLED;
             handled = true;
             break;
 
@@ -102,7 +102,7 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
 
         case CapSignal::CLOSE_SESSION:
             send_event(make_closing_event());
-            m_state.store(CapState::DISABLED, std::memory_order_release);
+            m_state = CapState::DISABLED;
             handled = true;
             break;
 
@@ -112,7 +112,7 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
                 send_event(make_rollback_event(), MAIN_WORKER);
             }
             send_event(make_closing_event(), MAIN_WORKER);
-            m_state.store(CapState::DISABLED, std::memory_order_release);
+            m_state = CapState::DISABLED;
             handled = true;
             break;
 
@@ -126,7 +126,7 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
 #ifdef SS_DEBUG
     if (!handled)
     {
-        MXB_SERROR("Capture: Unhandled signal " << int(signal) << " in state " << int(m_state.load()));
+        MXB_SERROR("Capture: Unhandled signal " << int(signal) << " in state " << int(m_state));
         mxb_assert(!true);
     }
 #endif
@@ -269,7 +269,7 @@ bool CapFilterSession::routeQuery(GWBUF&& buffer)
     SimTime::sim_time().tick();
 
     QueryEvent query_event;
-    bool capture = m_state.load(std::memory_order_acquire) != CapState::DISABLED;
+    bool capture = m_state != CapState::DISABLED;
 
     m_ps_tracker.track_query(buffer);
 
