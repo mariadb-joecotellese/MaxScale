@@ -32,8 +32,6 @@ public:
     bool routeQuery(GWBUF&& buffer) override;
     bool clientReply(GWBUF&& buffer, const mxs::ReplyRoute& down, const mxs::Reply& reply) override;
 
-    void handle_cap_state(CapSignal signal);
-
 private:
     CapFilterSession(MXS_SESSION* pSession, SERVICE* pService, const CapFilter* pFilter);
     CapFilterSession(CapFilterSession&&) = delete;
@@ -45,6 +43,8 @@ private:
         READ_RESULT,
         INIT_DONE,
     };
+
+    void handle_cap_state(CapSignal signal);
 
     /**
      * @brief generate_canonical_for - Fill *pQuery_event with canonical and args

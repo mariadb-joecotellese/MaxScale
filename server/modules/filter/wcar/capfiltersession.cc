@@ -35,7 +35,6 @@ CapFilterSession::CapFilterSession(MXS_SESSION* pSession, SERVICE* pService, con
 
 void CapFilterSession::handle_cap_state(CapSignal signal)
 {
-    std::lock_guard guard{m_state_mutex};
     bool handled = false;
 
     switch (m_state)
@@ -134,6 +133,7 @@ void CapFilterSession::handle_cap_state(CapSignal signal)
 
 void CapFilterSession::start_capture(const std::shared_ptr<CapRecorder>& sRecorder)
 {
+    std::lock_guard guard{m_state_mutex};
     m_inside_initial_trx = m_session_state.in_trx();
     m_sRecorder = sRecorder;
     handle_cap_state(CapSignal::START);
@@ -141,12 +141,14 @@ void CapFilterSession::start_capture(const std::shared_ptr<CapRecorder>& sRecord
 
 void CapFilterSession::stop_capture()
 {
+    std::lock_guard guard{m_state_mutex};
     handle_cap_state(CapSignal::STOP);
     m_sRecorder.reset();
 }
 
 CapFilterSession::~CapFilterSession()
 {
+    std::lock_guard guard{m_state_mutex};
     if (m_sRecorder)
     {
         handle_cap_state(CapSignal::CLOSE_SESSION);
@@ -256,6 +258,7 @@ QueryEvent CapFilterSession::make_closing_event()
 
 bool CapFilterSession::routeQuery(GWBUF&& buffer)
 {
+    std::lock_guard guard{m_state_mutex};
     if (m_init_state == InitState::SEND_QUERY)
     {
         m_init_state = InitState::READ_RESULT;
@@ -311,6 +314,7 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
                                    const maxscale::ReplyRoute& down,
                                    const maxscale::Reply& reply)
 {
+    std::lock_guard guard{m_state_mutex};
     if (m_init_state == InitState::READ_RESULT)
     {
         if (reply.is_complete())
