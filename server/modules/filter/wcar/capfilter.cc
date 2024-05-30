@@ -10,6 +10,7 @@
 #include "simtime.hh"
 #include <maxscale/mainworker.hh>
 #include <maxbase/stopwatch.hh>
+#include <maxbase/pretty_print.hh>
 #include <string>
 #include <memory>
 #include <filesystem>
@@ -126,6 +127,50 @@ CapFilter::~CapFilter()
     MXB_SNOTICE("Workload Capture stats:\n" << maxbase::get_collector_stats());
 }
 
+std::string CapFilter::parse_cmd_line_options(const std::string options)
+{
+    auto key_values = parse_key_value_pairs(options);
+    if (key_values.empty() && !options.empty())
+    {
+        MXB_THROW(WcarError, "invalid options to start command: '" << options << '\'');
+    }
+
+    auto file_prefix = DEFAULT_FILE_PREFIX;
+    std::chrono::milliseconds new_duration{0};
+    uint64_t new_size = 0;
+
+    for (auto& [key, value] : key_values)
+    {
+        if (key == "prefix")
+        {
+            file_prefix = value;
+        }
+        else if (key == "duration")
+        {
+            if (!get_suffixed_duration(value.c_str(), &new_duration))
+            {
+                MXB_THROW(WcarError, "invalid duration option: '" << value << '\'');
+            }
+        }
+        else if (key == "size")
+        {
+            if (!get_suffixed_size(value.c_str(), &new_size))
+            {
+                MXB_THROW(WcarError, "invalid size option: '" << value << '\'');
+            }
+        }
+        else
+        {
+            MXB_THROW(WcarError, "invalid option key: '" << key << '\'');
+        }
+    }
+
+    m_capture_duration = new_duration.count() ? new_duration : m_config.capture_duration;
+    m_capture_size = new_size ? new_size : m_config.capture_size;
+
+    return file_prefix;
+}
+
 // static
 CapFilter* CapFilter::create(const char* zName)
 {
@@ -148,14 +193,11 @@ std::shared_ptr<mxs::FilterSession> CapFilter::newSession(MXS_SESSION* pSession,
     return sSession;
 }
 
-bool CapFilter::start_capture(std::string file_prefix)
+bool CapFilter::start_capture(const std::string& options)
 {
     stop_capture();
 
-    if (file_prefix.empty())
-    {
-        file_prefix = DEFAULT_FILE_PREFIX;
-    }
+    auto file_prefix = parse_cmd_line_options(options);
 
     // The call to make_storage() will end up calling RoutingWorker::call() which must not be done while
     // holding m_session_mutex as the same lock is acquired in newSession() that's executed by the

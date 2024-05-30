@@ -29,7 +29,7 @@ public:
 
     std::shared_ptr<mxs::FilterSession> newSession(MXS_SESSION* pSession, SERVICE* pService) override;
 
-    bool start_capture(std::string file_prefix);
+    bool start_capture(const std::string& file_prefix);
     bool stop_capture();
 
     json_t* diagnostics() const override;
@@ -57,6 +57,8 @@ private:
     ~CapFilter();
 
 private:
+    // Sets capture_duration and size, returns file_prefix
+    std::string                  parse_cmd_line_options(const std::string options);
     std::shared_ptr<CapRecorder> make_storage(const std::string file_prefix);
     void                         start_recording(std::shared_ptr<CapRecorder> sRecorder);
 
