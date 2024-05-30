@@ -7,6 +7,8 @@
 #include "capconfig.hh"
 #include <maxscale/config.hh>
 #include <filesystem>
+#include <boost/fusion/adapted/std_pair.hpp>
+#include <maxscale/boost_spirit_utils.hh>
 
 namespace cfg = mxs::config;
 namespace fs = std::filesystem;
@@ -73,4 +75,41 @@ bool CapConfig::post_configure(const std::map<std::string, maxscale::ConfigParam
 std::string CapConfig::capture_directory() const
 {
     return capture_dir + "/" + name();
+}
+
+namespace
+{
+auto key_value_parser()
+{
+    using namespace boost::spirit::x3;
+    auto key = lexeme[+alnum];
+    auto value = lexeme[+graph];
+    auto key_value = lexeme[key >> '=' >> value];
+    return skip(space) [*key_value];
+}
+}
+
+std::map<std::string, std::string> parse_key_value_pairs(const std::string& str)
+{
+    namespace x3 = boost::spirit::x3;
+
+    if (str.empty())
+    {
+        return {};
+    }
+
+    std::map<std::string, std::string> result;
+
+    auto first = str.begin();
+    auto success = x3::parse(first, str.end(), key_value_parser(), result);
+
+    if (success && first == end(str))
+    {
+        return result;
+    }
+    else
+    {
+        MXB_SERROR("Invalid key-value string: '" << str << '\'');
+        return {};
+    }
 }

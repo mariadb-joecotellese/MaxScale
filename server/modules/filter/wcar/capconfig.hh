@@ -44,3 +44,13 @@ private:
     bool post_configure(const std::map<std::string, mxs::ConfigParameters>& nested_params) override;
     std::function<bool()> m_filter_post_configure;
 };
+
+/**
+ *  Parse strings of the form "key1=value1 key2=value2".
+ *  - No spaces around the equals signs.
+ *  - The keys can be any combination of std::isalnum
+ *  - The values can be any combination of std::isgraph
+ *  In the end it is up to the code that uses a key-value pair to determine
+ *  if the value is valid.
+ */
+std::map<std::string, std::string> parse_key_value_pairs(const std::string& str);
