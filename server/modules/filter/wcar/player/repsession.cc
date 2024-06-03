@@ -12,6 +12,8 @@
 namespace
 {
 
+const std::string SHOW_STATUS_SQL = "SHOW STATUS WHERE Variable_name IN ('Rows_read')";
+
 struct ThreadInfo
 {
     uint64_t               session_id {0};
@@ -149,11 +151,6 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     bool count_rows = m_config.analyze;
     auto sql = maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args);
 
-    if (count_rows)
-    {
-        sql += ";SHOW STATUS WHERE Variable_name IN ('Rows_read')";
-    }
-
     RepEvent revent;
     revent.can_id = qevent.can_id;
     revent.event_id = qevent.event_id;
@@ -175,8 +172,15 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     }
     else
     {
-        rc = mysql_query(m_pConn, sql.c_str());
+        mysql_send_query(m_pConn, sql.c_str(), sql.size());
+
+        if (count_rows)
+        {
+            mysql_send_query(m_pConn, SHOW_STATUS_SQL.c_str(), SHOW_STATUS_SQL.size());
+        }
     }
+
+    rc = mysql_read_query_result(m_pConn);
 
     if (rc)
     {
@@ -201,26 +205,7 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
 
         if (MYSQL_RES* result = mysql_store_result(m_pConn))
         {
-            if (count_rows && !more_results)
-            {
-                mxb_assert(mysql_num_fields(result) == 2);
-
-                // This is the result of the SHOW STATUS command, store the counters from it.
-                while (MYSQL_ROW row = mysql_fetch_row(result))
-                {
-                    // NOTE: If more values are ever added to the IN list, the following code must be modified
-                    // to compare the row values to make sure the right one is processed. Right now the query
-                    // always returns only one row.
-                    int64_t rows_read = atol(row[1]);
-                    revent.rows_read = rows_read - m_rows_read;
-                    m_rows_read = rows_read;
-                }
-            }
-            else
-            {
-                revent.num_rows += mysql_num_rows(result);
-            }
-
+            revent.num_rows += mysql_num_rows(result);
             mysql_free_result(result);
         }
 
@@ -229,6 +214,28 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
     while (more_results);
 
     revent.end_time = SimTime::sim_time().real_now();
+
+    if (count_rows)
+    {
+        rc = mysql_read_query_result(m_pConn);
+        mxb_assert(rc == 0);
+
+        MYSQL_RES* result = mysql_store_result(m_pConn);
+        mxb_assert(mysql_num_fields(result) == 2);
+
+        // This is the result of the SHOW STATUS command, store the counters from it.
+        while (MYSQL_ROW row = mysql_fetch_row(result))
+        {
+            // NOTE: If more values are ever added to the IN list, the following code must be modified
+            // to compare the row values to make sure the right one is processed. Right now the query
+            // always returns only one row.
+            int64_t rows_read = atol(row[1]);
+            revent.rows_read = rows_read - m_rows_read;
+            m_rows_read = rows_read;
+        }
+
+        mysql_free_result(result);
+    }
 
     if (is_real_event(qevent))
     {
