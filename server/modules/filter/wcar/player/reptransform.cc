@@ -109,8 +109,24 @@ void RepTransform::transform_events(const fs::path& path, Action action)
 
         if (!m_trxs.empty())
         {
-            capture.set_string("start_gtid", MAKE_STR(m_trxs.front().gtid));
-            capture.set_string("end_gtid", MAKE_STR(m_trxs.back().gtid));
+            // Ignore gtids with server_id==0 as they are artificially generated
+            for (auto ite = m_trxs.begin(); ite != m_trxs.end(); ++ite)
+            {
+                if (ite->gtid.server_id != 0)
+                {
+                    capture.set_string("start_gtid", MAKE_STR(ite->gtid));
+                    break;
+                }
+            }
+
+            for (auto ite = m_trxs.rbegin(); ite != m_trxs.rend(); ++ite)
+            {
+                if (ite->gtid.server_id != 0)
+                {
+                    capture.set_string("end_gtid", MAKE_STR(ite->gtid));
+                    break;
+                }
+            }
         }
 
         mxb::Json transform(mxb::Json::Type::OBJECT);
