@@ -146,7 +146,7 @@ void stop_deadlock_monitor()
 
 bool RepSession::execute_stmt(const QueryEvent& qevent)
 {
-    bool count_rows = m_config.row_counts;
+    bool count_rows = m_config.analyze;
     auto sql = maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args);
 
     if (count_rows)

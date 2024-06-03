@@ -31,22 +31,22 @@ std::vector<Command> s_commands{
 
 const struct option long_opts[] =
 {
-    {"help",          no_argument,       0, 'h'},
-    {"user",          required_argument, 0, 'u'},
-    {"password",      required_argument, 0, 'p'},
-    {"host",          required_argument, 0, 'H'},
-    {"speed",         required_argument, 0, 's'},
-    {"csv",           optional_argument, 0, 'c'},
-    {"output",        required_argument, 0, 'o'},
-    {"verbose",       no_argument,       0, 'v'},
-    {"no-row-counts", no_argument,       0, 'R'},
-    {"commit-order",  required_argument, 0, 'C'},
-    {"chunk-size",    required_argument, 0, 'B'},
-    {0,               0,                 0, 0  }
+    {"help",         no_argument,       0, 'h'},
+    {"user",         required_argument, 0, 'u'},
+    {"password",     required_argument, 0, 'p'},
+    {"host",         required_argument, 0, 'H'},
+    {"speed",        required_argument, 0, 's'},
+    {"csv",          optional_argument, 0, 'c'},
+    {"output",       required_argument, 0, 'o'},
+    {"verbose",      no_argument,       0, 'v'},
+    {"analyze",      no_argument,       0, 'A'},
+    {"commit-order", required_argument, 0, 'C'},
+    {"chunk-size",   required_argument, 0, 'B'},
+    {0,              0,                 0, 0  }
 };
 
 // This is not separately checked, keep in sync with long_opts.
-const char* short_opts = "hu:p:H:s:c::o:vRC:B:";
+const char* short_opts = "hu:p:H:s:c::o:vAC:B:";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -113,6 +113,8 @@ void RepConfig::show_help()
               << "\n"
               << "Speed setting: The value is a multiplier. 2.5 is 2.5x speed and 0.5 is half speed.\n"
               << "               A value of zero means no limit, or replay as fast as possible.\n"
+              << "\n"
+              << "Analyze: Enabling this option will track the Rows_read statistic for each query.\n"
               << "Commands:\n"
               << list_commands();
     if (!file_name.empty())
@@ -127,7 +129,7 @@ void RepConfig::show_help()
               << OPT('p', password)
               << OPT('H', host)
               << OPT('v', verbosity)
-              << OPT('R', row_counts)
+              << OPT('A', analyze)
               << OPT('B', chunk_size)
               << OPT('C', "Commit ordering (options: none, optimistic, serialized)")
               << std::endl;
@@ -217,8 +219,8 @@ RepConfig::RepConfig(int argc, char** argv)
             output_file = optarg;
             break;
 
-        case 'R':
-            row_counts = false;
+        case 'A':
+            analyze = true;
             break;
 
         case 'B':

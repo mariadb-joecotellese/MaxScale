@@ -164,7 +164,7 @@ void sanity_check(TestConnections& test)
         "-o /tmp/output-full.csv --csv=full",       // Full CSV output
         "-o /dev/null --csv",                       // Discards output
         opt_outfile + " --speed 0",                 // Replay as fast as possible
-        opt_outfile + " -R",                        // No Rows_read counts
+        opt_outfile + " -A",                        // Test --analyze
         opt_outfile + " -v",                        // Verbose output
         opt_outfile + " -vv",                       // Very verbose output
         opt_outfile + " --commit-order=none",       // No commit ordering
