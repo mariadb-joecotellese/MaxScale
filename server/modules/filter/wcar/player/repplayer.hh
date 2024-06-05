@@ -39,6 +39,9 @@ private:
     // This is called for events that can be scheduled according to the timeline.
     ExecutionInfo get_execution_info(RepSession& session, const QueryEvent& qevent);
 
+    // Check if there are any events in execution queues. Expensive and should be rarely called.
+    bool has_events_in_execution();
+
     // Schedule an event.
     void schedule_event(RepSession& session, QueryEvent&& qevent);
 

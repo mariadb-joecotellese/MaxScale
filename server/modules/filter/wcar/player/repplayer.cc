@@ -116,6 +116,20 @@ RepPlayer::ExecutionInfo RepPlayer::get_execution_info(RepSession& session, cons
     return exec;
 }
 
+bool RepPlayer::has_events_in_execution()
+{
+    for (auto& p : m_sessions)
+    {
+        auto& session = *p.second;
+        if (session.has_executable_events())
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void RepPlayer::trxn_finished(int64_t event_id)
 {
     std::lock_guard lock(m_trxn_mutex);

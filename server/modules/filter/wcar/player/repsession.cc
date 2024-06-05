@@ -326,14 +326,16 @@ void RepSession::run()
     info.thread_id = mysql_thread_id(m_pConn);
     info.last_event_ts = mxb::Clock::now();
 
+    std::unique_lock lock(m_mutex);
+
     while (m_running.load(std::memory_order_relaxed))
     {
-        std::unique_lock lock(m_mutex);
         m_condition.wait(lock, [this]{
             return !m_queue.empty();
         });
 
         auto qevent = std::move(m_queue.front());
+        lock.unlock();
 
         if (info.session_id == 0)
         {
@@ -341,11 +343,11 @@ void RepSession::run()
         }
 
         info.last_event_id = qevent.event_id;
-        m_queue.pop_front();
-        lock.unlock();
 
         if (is_session_close(qevent))
         {
+            // last event, no lock needed.
+            m_queue.pop_front();
             m_player.session_finished(*this);
             break;
         }
@@ -363,6 +365,9 @@ void RepSession::run()
                 m_player.trxn_finished(rep);
             }
         }
+
+        lock.lock();
+        m_queue.pop_front();
     }
 
     mysql_close(m_pConn);

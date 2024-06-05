@@ -49,6 +49,7 @@ public:
 
     void              add_pending(QueryEvent&& qevent);
     bool              has_pending_events() const;
+    bool              has_executable_events() const;
     const QueryEvent& front_pending() const;
     void              queue_front_pending(int64_t commit_event_id = -1);
 
@@ -63,7 +64,7 @@ private:
     RepRecorder*            m_pRecorder;
     std::future<void>       m_future;
     std::atomic<bool>       m_running = true;
-    std::mutex              m_mutex;
+    mutable std::mutex      m_mutex;
     std::condition_variable m_condition;
     std::deque<QueryEvent>  m_queue;
     int64_t                 m_rows_read = 0;
@@ -102,6 +103,12 @@ inline void RepSession::add_pending(QueryEvent&& qevent)
 inline bool RepSession::has_pending_events() const
 {
     return !m_pending_events.empty();
+}
+
+inline bool RepSession::has_executable_events() const
+{
+    std::lock_guard guard(m_mutex);
+    return !(m_pending_events.empty() && m_queue.empty());
 }
 
 inline const QueryEvent& RepSession::front_pending() const
