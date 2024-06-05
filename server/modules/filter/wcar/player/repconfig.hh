@@ -58,6 +58,7 @@ struct RepConfig
     CsvType       csv = CsvType::NONE;
     CommitOrder   commit_order = CommitOrder::OPTIMISTIC;
     bool          analyze = false;
+    bool          skip_ahead = false;
 
     std::string capture_dir = mxs::datadir() + std::string("/wcar");
     std::string file_name;      // full path, not necessarily in capture_dir

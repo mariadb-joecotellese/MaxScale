@@ -40,13 +40,14 @@ const struct option long_opts[] =
     {"output",       required_argument, 0, 'o'},
     {"verbose",      no_argument,       0, 'v'},
     {"analyze",      no_argument,       0, 'A'},
+    {"skip-ahead",   no_argument,       0, 'S'},
     {"commit-order", required_argument, 0, 'C'},
     {"chunk-size",   required_argument, 0, 'B'},
     {0,              0,                 0, 0  }
 };
 
 // This is not separately checked, keep in sync with long_opts.
-const char* short_opts = "hu:p:H:s:c::o:vAC:B:";
+const char* short_opts = "hu:p:H:s:c::o:vASC:B:";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -114,7 +115,14 @@ void RepConfig::show_help()
               << "Speed setting: The value is a multiplier. 2.5 is 2.5x speed and 0.5 is half speed.\n"
               << "               A value of zero means no limit, or replay as fast as possible.\n"
               << "\n"
-              << "Analyze: Enabling this option will track the Rows_read statistic for each query.\n"
+              << "skip-ahead:    Relates to playback speed. When turned on, and the replay scheduler\n"
+              << "               would have to wait but there are no pending queries, simulation time\n"
+              << "               is moved up to the next event, thus skipping over periods where there\n"
+              << "               was no capture activity.\n"
+              << "               Off by default.\n"
+              << "\n"
+              << "Analyze:       Enabling this option will track the Rows_read statistic for each query.\n"
+              << "\n"
               << "Commands:\n"
               << list_commands();
     if (!file_name.empty())
@@ -130,8 +138,9 @@ void RepConfig::show_help()
               << OPT('H', host)
               << OPT('v', verbosity)
               << OPT('A', analyze)
-              << OPT('B', chunk_size)
+              << OPT('S', skip_ahead)
               << OPT('C', "Commit ordering (options: none, optimistic, serialized)")
+              << OPT('B', chunk_size)
               << std::endl;
 }
 
@@ -221,6 +230,10 @@ RepConfig::RepConfig(int argc, char** argv)
 
         case 'A':
             analyze = true;
+            break;
+
+        case 'S':
+            skip_ahead = true;
             break;
 
         case 'B':
