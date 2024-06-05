@@ -47,6 +47,18 @@ public:
     // Tick forwards. The more often this is called, the more
     // precise the time is.
     SimTime& tick();
+
+    // Move clock forwards. Not thread safe. For other uses than the current
+    // one it should be made thread-safe, but currently not needed (RepPlayer).
+    // After adjusting time it calls tick(), so that now() is up to date.
+    // It is important to understand that the time is in relation to the latest
+    // tick() call, which could be seen as a precondition. Otherwise time could
+    // unintentionally move the wrong amount. A negative time is asserted in
+    // debug.
+    void move_time_forward(DurationRep dur);
+
+    // Calls move_time_forward(DurationRep dur), with the proper duration
+    void move_time_forward(wall_time::TimePoint new_now);
 private:
     SimTime(wall_time::TimePoint begin_time, float speed = 1.0);
     DurationRep speed_adjusted_delta();
@@ -96,6 +108,19 @@ inline wall_time::TimePoint SimTime::real_now()
     DurationRep steady_delta = steady_now - m_steady_start;
     wall_time::Duration wall_dur{m_wall_start + steady_delta};
     return wall_time::TimePoint{wall_dur};
+}
+
+inline void SimTime::move_time_forward(DurationRep dur)
+{
+    mxb_assert(dur >= 0);
+    m_steady_start -= dur;
+    tick();
+}
+
+inline void SimTime::move_time_forward(wall_time::TimePoint new_now)
+{
+    mxb_assert(new_now >= now());
+    move_time_forward((new_now - now()).count());
 }
 
 inline wall_time::Duration SimTime::delta()
