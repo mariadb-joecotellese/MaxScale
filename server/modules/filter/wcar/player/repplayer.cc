@@ -160,10 +160,25 @@ void RepPlayer::timeline_add(RepSession& session, QueryEvent&& qevent)
         {
             at_least_once = false;
 
+            if (m_config.skip_ahead && !has_events_in_execution())
+            {
+                SimTime::sim_time().move_time_forward(qevent.start_time);
+                break;
+            }
+
             lock.lock();
-            m_trxn_condition.wait_until(lock, wait_until, [this]{
-                return !m_finished_trxns.empty();
-            });
+            if (m_config.skip_ahead)
+            {
+                m_trxn_condition.wait_for(lock, 2ms, [this]{
+                    return !m_finished_trxns.empty();
+                });
+            }
+            else
+            {
+                m_trxn_condition.wait_until(lock, wait_until, [this]{
+                    return !m_finished_trxns.empty();
+                });
+            }
 
             schedule_pending_events(lock);
         }
