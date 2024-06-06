@@ -190,6 +190,7 @@ void RepPlayer::timeline_add(RepSession& session, QueryEvent&& qevent)
     }
 
     schedule_event(session, std::move(qevent));
+    remove_finished_sessions();
 }
 
 void RepPlayer::schedule_event(RepSession& session, QueryEvent&& qevent)
