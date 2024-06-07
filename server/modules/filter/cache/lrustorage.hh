@@ -190,8 +190,8 @@ private:
         LRU_INVALIDATION /*< Invalidate (aka free) LRU node, but leave cache value. */
     };
 
-    Node* vacate_lru();
-    Node* vacate_lru(size_t space);
+    void vacate_lru();
+    void vacate_lru(size_t space);
     bool  free_node_data(Node* pNode, Context context);
 
     enum class InvalidatorAction
@@ -203,11 +203,10 @@ private:
     void free_node(Node* pNode, InvalidatorAction action) const;
     void free_node(NodesByKey::iterator& i, InvalidatorAction action) const;
 
-    cache_result_t get_existing_node(NodesByKey::iterator& i, const GWBUF& value, Node** ppNode);
+    cache_result_t get_existing_node(NodesByKey::iterator& i, const GWBUF& value);
     cache_result_t get_new_node(const CacheKey& key,
                                 const GWBUF& value,
-                                NodesByKey::iterator* pI,
-                                Node** ppNode);
+                                NodesByKey::iterator* pI);
 
     bool invalidate(Node* pNode, Context context);
 
