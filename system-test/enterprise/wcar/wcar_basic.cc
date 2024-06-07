@@ -291,7 +291,7 @@ void sanity_check(TestConnections& test)
         good_cmd + " --csv=perhaps",
         good_cmd + " --host=/",
         good_cmd + " --foo=bar",
-        good_cmd + " --csv -o /tmp/foobar",
+        good_cmd + " --csv -o /tmp/foo/bar/baz",
     })
     {
         res = test.maxscale->ssh_output(bad_cmd, false);
