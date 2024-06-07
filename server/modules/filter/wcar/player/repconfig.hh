@@ -34,6 +34,13 @@ struct RepConfig
         FULL,
     };
 
+    enum class QueryFilter
+    {
+        NONE,
+        READ_ONLY,
+        WRITE_ONLY
+    };
+
     enum class CommitOrder
     {
         // No ordering of transactions
@@ -66,6 +73,8 @@ struct RepConfig
     std::string command = "replay";
     float       sim_speed = 1.0;
     uint64_t    chunk_size = 0; // A value of 0 uses system memory for sort buffer sizing
+    QueryFilter query_filter = QueryFilter::NONE;
+
 
     std::vector<std::string> extra_args;
 
@@ -73,3 +82,7 @@ struct RepConfig
 
     std::unique_ptr<RepStorage> build_rep_storage() const;
 };
+
+std::ostream& operator<<(std::ostream& os, RepConfig::QueryFilter query_filter);
+std::ostream& operator<<(std::ostream& os, RepConfig::CsvType csv_type);
+std::ostream& operator<<(std::ostream& os, RepConfig::CommitOrder commit_order);

@@ -29,6 +29,66 @@ std::vector<Command> s_commands{
 };
 }
 
+std::ostream& operator<<(std::ostream& os, RepConfig::CsvType csv_type)
+{
+    switch (csv_type)
+    {
+    case RepConfig::CsvType::NONE:
+        os << "none";
+        break;
+
+    case RepConfig::CsvType::MINIMAL:
+        os << "minimal";
+        break;
+
+    case RepConfig::CsvType::FULL:
+        os << "full";
+        break;
+    }
+
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, RepConfig::QueryFilter query_filter)
+{
+    switch (query_filter)
+    {
+    case RepConfig::QueryFilter::NONE:
+        os << "none";
+        break;
+
+    case RepConfig::QueryFilter::WRITE_ONLY:
+        os << "write-only";
+        break;
+
+    case RepConfig::QueryFilter::READ_ONLY:
+        os << "read-only";
+        break;
+    }
+
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, RepConfig::CommitOrder commit_order)
+{
+    switch (commit_order)
+    {
+    case RepConfig::CommitOrder::NONE:
+        os << "none";
+        break;
+
+    case RepConfig::CommitOrder::OPTIMISTIC:
+        os << "optimistic";
+        break;
+
+    case RepConfig::CommitOrder::SERIALIZED:
+        os << "serialized";
+        break;
+    }
+
+    return os;
+}
+
 const struct option long_opts[] =
 {
     {"help",         no_argument,       0, 'h'},
@@ -43,11 +103,12 @@ const struct option long_opts[] =
     {"skip-ahead",   no_argument,       0, 'S'},
     {"commit-order", required_argument, 0, 'C'},
     {"chunk-size",   required_argument, 0, 'B'},
+    {"query_filter", required_argument, 0, 'f'},
     {0,              0,                 0, 0  }
 };
 
 // This is not separately checked, keep in sync with long_opts.
-const char* short_opts = "hu:p:H:s:c::o:vASC:B:";
+const char* short_opts = "hu:p:H:s:c::o:vASC:B:f:";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -110,27 +171,47 @@ std::string list_commands()
 
 void RepConfig::show_help()
 {
-    std::cout << "Usage: player [OPTION]... [COMMAND] FILE\n"
-              << "\n"
-              << "Speed setting: The value is a multiplier. 2.5 is 2.5x speed and 0.5 is half speed.\n"
-              << "               A value of zero means no limit, or replay as fast as possible.\n"
-              << "\n"
-              << "skip-ahead:    Relates to playback speed. When turned on, and the replay scheduler\n"
-              << "               would have to wait but there are no pending queries, simulation time\n"
-              << "               is moved up to the next event, thus skipping over periods where there\n"
-              << "               was no capture activity.\n"
-              << "               Off by default.\n"
-              << "\n"
-              << "Analyze:       Enabling this option will track the Rows_read statistic for each query.\n"
-              << "\n"
-              << "Commands:\n"
-              << list_commands();
+    std::cout << "Usage: player [OPTION]... [COMMAND] FILE\n\n";
+    std::cout << "Commands: (default: replay)\n" << list_commands() << '\n';
+    std::cout << "\n"
+                 "--speed:       The value is a multiplier. 2.5 is 2.5x speed and 0.5 is half speed.\n"
+                 "               A value of zero means no limit, or replay as fast as possible.\n"
+                 "\n"
+                 "--skip-ahead:  Relates to playback speed. When turned on, and the replay scheduler\n"
+                 "               would have to wait but there are no pending queries, simulation time\n"
+                 "               is moved up to the next event, thus skipping over periods where there\n"
+                 "               was no capture activity.\n"
+                 "               Off by default.\n"
+                 "\n"
+                 "--commit-order Options: none, optimistic, serialized. Default: optimistic\n"
+                 "               none       - no ordering of transactions\n"
+                 "               optimistic - If a transaction was started (in capture) before other\n"
+                 "                            running transactions were commited, the transaction\n"
+                 "                            can be scheduled to run.\n"
+                 "               serialized - A transaction can only start when the previous transaction\n"
+                 "                            has commited. This effectivdly serializes the workload\n"
+                 "                            as far as transactions are concerned."
+                 "\n"
+                 "--filter:      Options: none, write-only, read-only. Default: none.\n"
+                 "               Replay can apply only writes or only reads. This option is useful\n"
+                 "               once the databases to be tested have been prepared (see full documentation)\n"
+                 "               and optionally either a write-only run, or a full replay has been run.\n"
+                 "               Now multiple read-only runs against the server(s) are simple as no further\n"
+                 "               data syncronization is needed.\n"
+                 "               Note that this mode has its limitations as the query results may\n"
+                 "               be very different than they were during capture.\n"
+                 "\n"
+                 "--csv          Options: none, optimistic, serialized. Default: none\n"
+                 "\n"
+                 "--analyze:     Enabling this option will track the Rows_read statistic for each query.\n"
+                 "\n";
+
     if (!file_name.empty())
     {
         std::cout << "\nInput file: " << file_name << "\n";
     }
     std::cout << OPT('h', "this help text (with current option values)")
-              << OPT('c', "Save replay as CSV (options: none, minimal, full)")
+              << OPT('c', csv)
               << OPT('s', sim_speed)
               << OPT('o', "Output file (" + output_file + ")")
               << OPT('u', user)
@@ -141,6 +222,7 @@ void RepConfig::show_help()
               << OPT('S', skip_ahead)
               << OPT('C', "Commit ordering (options: none, optimistic, serialized)")
               << OPT('B', chunk_size)
+              << OPT('f', query_filter)
               << std::endl;
 }
 
@@ -239,8 +321,26 @@ RepConfig::RepConfig(int argc, char** argv)
         case 'B':
             if (!get_suffixed_size(optarg, &chunk_size))
             {
-
                 std::cerr << "Invalid --chunk-size value: " << optarg << std::endl;
+                help = true;
+                error = true;
+            }
+            break;
+
+
+        case 'f':
+            query_filter = QueryFilter::NONE;
+            if (optarg == "write-only"s)
+            {
+                query_filter = QueryFilter::WRITE_ONLY;
+            }
+            else if (optarg == "read-only"s)
+            {
+                query_filter = QueryFilter::READ_ONLY;
+            }
+            else if (optarg != "none"s)
+            {
+                std::cerr << "Invalid --query_filter value: " << optarg << std::endl;
                 help = true;
                 error = true;
             }

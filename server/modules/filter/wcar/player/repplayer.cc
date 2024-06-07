@@ -64,7 +64,7 @@ void RepPlayer::replay()
     stop_deadlock_monitor();
     MXB_SNOTICE("Transform finalize: " << mxb::to_string(m_stopwatch.restart()));
 
-    for (auto str : mxb::strtok(mxb::get_collector_stats(), "\n"))
+    for (const auto& str : mxb::strtok(mxb::get_collector_stats(), "\n"))
     {
         MXB_SNOTICE(str);
     }
