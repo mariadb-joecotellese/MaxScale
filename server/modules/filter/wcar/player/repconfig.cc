@@ -96,19 +96,19 @@ const struct option long_opts[] =
     {"password",     required_argument, 0, 'p'},
     {"host",         required_argument, 0, 'H'},
     {"speed",        required_argument, 0, 's'},
-    {"csv",          optional_argument, 0, 'c'},
+    {"csv",          required_argument, 0, 'c'},
     {"output",       required_argument, 0, 'o'},
     {"verbose",      no_argument,       0, 'v'},
     {"analyze",      no_argument,       0, 'A'},
-    {"skip-ahead",   no_argument,       0, 'S'},
+    {"idle-wait",    required_argument, 0, 'i'},
     {"commit-order", required_argument, 0, 'C'},
     {"chunk-size",   required_argument, 0, 'B'},
-    {"query_filter", required_argument, 0, 'f'},
+    {"query-filter", required_argument, 0, 'f'},
     {0,              0,                 0, 0  }
 };
 
 // This is not separately checked, keep in sync with long_opts.
-const char* short_opts = "hu:p:H:s:c::o:vASC:B:f:";
+const char* short_opts = "hu:p:H:s:c:o:vAi:C:B:f:";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -143,7 +143,16 @@ auto OPT(int optval, H help)
     mxb_assert(long_opts[idx].val != 0);
     msg << "\n-" << char(long_opts[idx].val) << " --"
         << std::setw(indent + 1) << std::left << long_opts[idx].name
-        << std::boolalpha << help;
+        << std::boolalpha;
+
+    if constexpr (std::is_convertible_v<H, mxb::Duration> )
+    {
+        msg << mxb::to_string(help);
+    }
+    else
+    {
+        msg << help;
+    }
 
     return [msg = msg.str()](std::ostream& os) -> std::ostream& {
         return os << msg.c_str();
@@ -173,37 +182,43 @@ void RepConfig::show_help()
 {
     std::cout << "Usage: player [OPTION]... [COMMAND] FILE\n\n";
     std::cout << "Commands: (default: replay)\n" << list_commands() << '\n';
-    std::cout << "\n"
+    std::cout << "\nOptions:\n"
                  "--speed:       The value is a multiplier. 2.5 is 2.5x speed and 0.5 is half speed.\n"
                  "               A value of zero means no limit, or replay as fast as possible.\n"
                  "\n"
-                 "--skip-ahead:  Relates to playback speed. When turned on, and the replay scheduler\n"
-                 "               would have to wait but there are no pending queries, simulation time\n"
-                 "               is moved up to the next event, thus skipping over periods where there\n"
-                 "               was no capture activity.\n"
-                 "               Off by default.\n"
+                 "--idle-wait:    Relates to playback speed, and can be used together with --speed.\n"
+                 "                During capture there can be long delays where there is no traffic;\n"
+                 "                One hour of no capture traffic would mean replay waits for one hour.\n"
+                 "                idle-wait allows to move simulation time forwards when such gaps\n"
+                 "                occure. A 'gap' starts when all prior queries have fully executed.\n"
+                 "                --idle-wait takes a duration value. A negative value turns the feature off,\n"
+                 "                            i.e. the one hour wait would happen.\n"
+                 "                --idle-wait 0s means time moves forwards as soon as a gap is detected.\n"
+                 "                --idle-wait 10s means time moves forwards 10 seconds (wall time)\n"
+                 "                            after a gap was detected.\n"
+                 "                --idle-wait has a default value of 1 second.\n"
                  "\n"
-                 "--commit-order Options: none, optimistic, serialized. Default: optimistic\n"
-                 "               none       - no ordering of transactions\n"
-                 "               optimistic - If a transaction was started (in capture) before other\n"
-                 "                            running transactions were commited, the transaction\n"
-                 "                            can be scheduled to run.\n"
-                 "               serialized - A transaction can only start when the previous transaction\n"
-                 "                            has commited. This effectivdly serializes the workload\n"
-                 "                            as far as transactions are concerned."
+                 "--commit-order: Options: none, optimistic, serialized. Default: optimistic\n"
+                 "                none       - no ordering of transactions\n"
+                 "                optimistic - If a transaction was started (in capture) before other\n"
+                 "                             running transactions were commited, the transaction\n"
+                 "                             can be scheduled to run.\n"
+                 "                serialized - A transaction can only start when the previous transaction\n"
+                 "                             has commited. This effectivdly serializes the workload\n"
+                 "                             as far as transactions are concerned.\n"
                  "\n"
-                 "--filter:      Options: none, write-only, read-only. Default: none.\n"
-                 "               Replay can apply only writes or only reads. This option is useful\n"
-                 "               once the databases to be tested have been prepared (see full documentation)\n"
-                 "               and optionally either a write-only run, or a full replay has been run.\n"
-                 "               Now multiple read-only runs against the server(s) are simple as no further\n"
-                 "               data syncronization is needed.\n"
-                 "               Note that this mode has its limitations as the query results may\n"
-                 "               be very different than they were during capture.\n"
+                 "--query-filter: Options: none, write-only, read-only. Default: none.\n"
+                 "                Replay can apply only writes or only reads. This option is useful\n"
+                 "                once the databases to be tested have been prepared (see full documentation)\n"
+                 "                and optionally either a write-only run, or a full replay has been run.\n"
+                 "                Now multiple read-only runs against the server(s) are simple as no further\n"
+                 "                data syncronization is needed.\n"
+                 "                Note that this mode has its limitations as the query results may\n"
+                 "                be very different than what they were during capture.\n"
                  "\n"
-                 "--csv          Options: none, optimistic, serialized. Default: none\n"
+                 "--csv           Options: none, minimal, full. Default: none\n"
                  "\n"
-                 "--analyze:     Enabling this option will track the Rows_read statistic for each query.\n"
+                 "--analyze:      Enabling this option will track the Rows_read statistic for each query.\n"
                  "\n";
 
     if (!file_name.empty())
@@ -219,8 +234,8 @@ void RepConfig::show_help()
               << OPT('H', host)
               << OPT('v', verbosity)
               << OPT('A', analyze)
-              << OPT('S', skip_ahead)
-              << OPT('C', "Commit ordering (options: none, optimistic, serialized)")
+              << OPT('i', idle_wait)
+              << OPT('C', commit_order)
               << OPT('B', chunk_size)
               << OPT('f', query_filter)
               << std::endl;
@@ -259,7 +274,9 @@ RepConfig::RepConfig(int argc, char** argv)
             break;
 
         case 'c':
-            if (!optarg || optarg == "minimal"s)
+            csv = CsvType::NONE;
+
+            if (optarg == "minimal"s)
             {
                 csv = CsvType::MINIMAL;
             }
@@ -267,7 +284,7 @@ RepConfig::RepConfig(int argc, char** argv)
             {
                 csv = CsvType::FULL;
             }
-            else
+            else if (optarg != "none"s)
             {
                 std::cerr << "Invalid --csv value: " << optarg << std::endl;
                 help = true;
@@ -314,8 +331,23 @@ RepConfig::RepConfig(int argc, char** argv)
             analyze = true;
             break;
 
-        case 'S':
-            skip_ahead = true;
+        case 'i':
+
+            if (optarg[0] == '-')
+            {
+                idle_wait = -1s;
+            }
+            else
+            {
+                std::chrono::milliseconds ms;
+                if (!get_suffixed_duration(optarg, &ms))
+                {
+                    std::cerr << "Invalid --idle-wait value: " << optarg << std::endl;
+                    help = true;
+                    error = true;
+                }
+                idle_wait = ms;
+            }
             break;
 
         case 'B':

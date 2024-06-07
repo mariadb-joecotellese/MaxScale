@@ -150,6 +150,7 @@ void RepPlayer::timeline_add(RepSession& session, QueryEvent&& qevent)
 
     mxb::Duration dur = qevent.start_time - SimTime::sim_time().now();
     std::unique_lock lock(m_trxn_mutex, std::defer_lock);
+    auto wall_begin = wall_time::Clock::now();
 
     if (m_config.sim_speed > 0 && dur > 0s)
     {
@@ -160,14 +161,15 @@ void RepPlayer::timeline_add(RepSession& session, QueryEvent&& qevent)
         {
             at_least_once = false;
 
-            if (m_config.skip_ahead && !has_events_in_execution())
+            if (m_config.idle_wait >= 0s && !has_events_in_execution()
+                && (wall_time::Clock::now() - wall_begin) >= m_config.idle_wait)
             {
                 SimTime::sim_time().move_time_forward(qevent.start_time);
                 break;
             }
 
             lock.lock();
-            if (m_config.skip_ahead)
+            if (m_config.idle_wait >= 0s)
             {
                 m_trxn_condition.wait_for(lock, 2ms, [this]{
                     return !m_finished_trxns.empty();
