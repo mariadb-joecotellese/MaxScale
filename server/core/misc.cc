@@ -63,7 +63,13 @@ int maxscale_shutdown()
 
     if (n == 0)
     {
-        mxs::MainWorker::get()->execute_signal_safe(&mxs::MainWorker::start_shutdown);
+        // There's a short window during the shutdown that the MainWorker has been destroyed (get() returns
+        // nullptr) but the signal handlers are still set. This seems to mostly happen in gcov builds where
+        // unloading the modules causes gcov to dump data to disk.
+        if (auto main_worker = mxs::MainWorker::get())
+        {
+            main_worker->execute_signal_safe(&mxs::MainWorker::start_shutdown);
+        }
     }
 
     return n + 1;
