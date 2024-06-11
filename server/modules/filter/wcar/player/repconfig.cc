@@ -15,8 +15,20 @@
 #include <iomanip>
 #include <map>
 
+
 namespace
 {
+// TODO make this print out more information.
+const std::string short_version_str = "0.1";
+std::string display_version_info_and_exit()
+{
+    // TODO display distro and build time. Make a procedure so the version
+    // number is incremented each time a new version is released.
+    std::cout << "maxplayer: version " << short_version_str << '\n';
+    std::cout << "Copyright (c) 2024 MariaDB plc\n";
+    exit(EXIT_SUCCESS);
+}
+
 using Command = std::pair<std::string, std::string>;
 
 std::vector<Command> s_commands{
@@ -25,7 +37,7 @@ std::vector<Command> s_commands{
     {cmd::CONVERT, "Converts the input file (either .cx or .rx) to a replay file (.rx or .csv)."},
     {cmd::CANONICALS, "List the canonical forms of the captured SQL as CSV."},
     {cmd::DUMP_DATA, "Dump capture data as SQL."},
-    {cmd::SHOW, "Show the SQL of one or more events"}
+    {cmd::SHOW, "Show the SQL of one or more events."}
 };
 }
 
@@ -104,11 +116,12 @@ const struct option long_opts[] =
     {"commit-order", required_argument, 0, 'C'},
     {"chunk-size",   required_argument, 0, 'B'},
     {"query-filter", required_argument, 0, 'f'},
+    {"version",      no_argument,       0, 'V'},
     {0,              0,                 0, 0  }
 };
 
 // This is not separately checked, keep in sync with long_opts.
-const char* short_opts = "hu:p:H:s:c:o:vAi:C:B:f:";
+const char* short_opts = "hu:p:H:s:c:o:vAi:C:B:f:V";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -180,35 +193,47 @@ std::string list_commands()
 
 void RepConfig::show_help()
 {
-    std::cout << "Usage: player [OPTION]... [COMMAND] FILE\n\n";
+    std::cout << "Usage: maxplayer [OPTION]... [COMMAND] FILE\n\n";
     std::cout << "Commands: (default: replay)\n" << list_commands() << '\n';
-    std::cout << "\nOptions:\n"
-                 "--speed:       The value is a multiplier. 2.5 is 2.5x speed and 0.5 is half speed.\n"
-                 "               A value of zero means no limit, or replay as fast as possible.\n"
+    std::cout << "Options:\n"
+                 "--user          User name for login to the replay server.\n"
+                 "-u              This version does not support using the actual user names\n"
+                 "                that were used during capture.\n"
                  "\n"
-                 "--idle-wait:    Relates to playback speed, and can be used together with --speed.\n"
-                 "                During capture there can be long delays where there is no traffic;\n"
+                 "--password      Only clear text passwords are supported as of yet.\n"
+                 "-p\n"
+                 "\n"
+                 "--host          The address of the replay server in <IP>:<port> format.\n"
+                 "-h              E.g. 127.0.0.1:4006\n"
+                 "\n"
+                 "--csv           TODO\n"
+                 "-c\n"
+                 "\n"
+                 "--output        The name of the csv output file: e.g. baseline.csv\n"
+                 "-o\n"
+                 "\n"
+                 "--speed         The value is a multiplier. 2.5 is 2.5x speed and 0.5 is half speed.\n"
+                 "-s              A value of zero means no limit, or replay as fast as possible.\n"
+                 "                A multiplier of 2.5 might not have any effect as the actual time spent\n"
+                 "                depends on many factors, such as the captured volume and replay server.\n"
+                 "\n"
+                 "--idle-wait     Relates to playback speed, and can be used together with --speed.\n"
+                 "-i              During capture there can be long delays where there is no traffic.\n"
                  "                One hour of no capture traffic would mean replay waits for one hour.\n"
                  "                idle-wait allows to move simulation time forwards when such gaps\n"
                  "                occure. A 'gap' starts when all prior queries have fully executed.\n"
                  "                --idle-wait takes a duration value. A negative value turns the feature off,\n"
                  "                            i.e. the one hour wait would happen.\n"
-                 "                --idle-wait 0s means time moves forwards as soon as a gap is detected.\n"
-                 "                --idle-wait 10s means time moves forwards 10 seconds (wall time)\n"
-                 "                            after a gap was detected.\n"
+                 "                --idle-wait 0s means time moves to the event start-time immediately\n"
+                 "                            when a gap is detected, i.e., all gaps are skipped over.\n"
+                 "                --idle-wait 10s means time moves to the event start-time 10 seconds\n"
+                 "                            (wall time) after the gap was detected. Shorter\n"
+                 "                            gaps than 10 seconds will thus be fully waited for.\n"
                  "                --idle-wait has a default value of 1 second.\n"
+                 "                Examples: 1h, 60m, 3600s, 3600000ms, which all define the same duration.\n"
                  "\n"
-                 "--commit-order: Options: none, optimistic, serialized. Default: optimistic\n"
-                 "                none       - no ordering of transactions\n"
-                 "                optimistic - If a transaction was started (in capture) before other\n"
-                 "                             running transactions were commited, the transaction\n"
-                 "                             can be scheduled to run.\n"
-                 "                serialized - A transaction can only start when the previous transaction\n"
-                 "                             has commited. This effectivdly serializes the workload\n"
-                 "                             as far as transactions are concerned.\n"
-                 "\n"
-                 "--query-filter: Options: none, write-only, read-only. Default: none.\n"
-                 "                Replay can apply only writes or only reads. This option is useful\n"
+                 "--query-filter  Options: none, write-only, read-only. Default: none.\n"
+                 "-f              Replay can optionally apply only writes or only reads. This option is useful\n"
                  "                once the databases to be tested have been prepared (see full documentation)\n"
                  "                and optionally either a write-only run, or a full replay has been run.\n"
                  "                Now multiple read-only runs against the server(s) are simple as no further\n"
@@ -216,28 +241,43 @@ void RepConfig::show_help()
                  "                Note that this mode has its limitations as the query results may\n"
                  "                be very different than what they were during capture.\n"
                  "\n"
-                 "--csv           Options: none, minimal, full. Default: none\n"
+                 "--commit-order  Options: none, optimistic, serialized. Default: optimistic\n"
+                 "-C              none       - No ordering of transactions\n"
+                 "                optimistic - If a transaction was started (in capture) before other\n"
+                 "                             running transactions were commited, the transaction\n"
+                 "                             can be scheduled to run.\n"
+                 "                serialized - A transaction can only start when the previous transaction\n"
+                 "                             has commited. This effectivdly serializes the workload\n"
+                 "                             as far as transactions are concerned.\n"
                  "\n"
-                 "--analyze:      Enabling this option will track the Rows_read statistic for each query.\n"
-                 "\n";
+                 "--analyze       Enabling this option will track the server Rows_read statistic for each query.\n"
+                 "-A              This will slow down the overall replay time. The query time measurements\n"
+                 "                are still valid, but currently this option should only be used when\n"
+                 "                it is of real value to know how many rows the server read for each query.\n"
+                 "\n"
+                 "--verbose       Verbose output. The option can be repeated for more verbosity: -vvv\n"
+                 "-v\n"
+                 "\n"
+                 "--version       Display the version number and copyrights.\n"
+                 "-V\n";
 
     if (!file_name.empty())
     {
         std::cout << "\nInput file: " << file_name << "\n";
     }
     std::cout << OPT('h', "this help text (with current option values)")
-              << OPT('c', csv)
-              << OPT('s', sim_speed)
-              << OPT('o', "Output file (" + output_file + ")")
               << OPT('u', user)
               << OPT('p', password)
               << OPT('H', host)
-              << OPT('v', verbosity)
-              << OPT('A', analyze)
+              << OPT('c', csv)
+              << OPT('o', output_file)
+              << OPT('s', sim_speed)
               << OPT('i', idle_wait)
-              << OPT('C', commit_order)
-              << OPT('B', chunk_size)
               << OPT('f', query_filter)
+              << OPT('C', commit_order)
+              << OPT('A', analyze)
+              << OPT('v', verbosity)
+              << OPT('V', short_version_str)
               << std::endl;
 }
 
@@ -351,6 +391,7 @@ RepConfig::RepConfig(int argc, char** argv)
             break;
 
         case 'B':
+            // This option is for testing the merge sort and is not visible in --help
             if (!get_suffixed_size(optarg, &chunk_size))
             {
                 std::cerr << "Invalid --chunk-size value: " << optarg << std::endl;
@@ -376,6 +417,10 @@ RepConfig::RepConfig(int argc, char** argv)
                 help = true;
                 error = true;
             }
+            break;
+
+        case 'V':
+            display_version_info_and_exit();
             break;
 
         default:
