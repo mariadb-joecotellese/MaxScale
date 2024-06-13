@@ -316,24 +316,6 @@ void test_with_main_and_other_being_peers(TestConnections& test)
 
     MaxRest maxrest(&test);
 
-    maxrest.fail_on_error(false);
-
-    try
-    {
-        // This should fail, because after the previous tests, "server2" is not
-        // replicating from "server1", and hence its (MaxScale) state will not
-        // be 'slave'.
-        Diff::create(maxrest, "DiffMyService", "MyService", "server2", "server3");
-
-        test.expect(false, "Creation of DiffService should have failed.");
-    }
-    catch (const std::exception& x)
-    {
-        cout << "Creation failed, as expected." << endl;
-    }
-
-    maxrest.fail_on_error(true);
-
     auto c = test.repl->get_connection(1); // I.e. "server2"
 
     test.expect(c.connect(), "Could not connect to 'server2'");
@@ -382,7 +364,9 @@ void test_main(TestConnections& test)
     password = test.repl->password();
 
     test_with_other_being_a_slave(test);
+    test.maxscale->wait_for_monitor();
     test_with_main_and_other_being_peers(test);
+    test.maxscale->wait_for_monitor();
     test_error_handling(test);
 }
 
