@@ -72,7 +72,8 @@ private:
     bool            m_inside_initial_trx = false;   // A trx was active when capture started
     InitState       m_init_state = InitState::SEND_QUERY;
 
-    mariadb::PsTracker m_ps_tracker;
+    mariadb::PsTracker           m_ps_tracker;
+    std::map<uint32_t, uint32_t> m_ps_id_to_type_mask;
 
     // The queue of executed queries. The first value is whether the query was captured and the second one is
     // the QueryEvent for the query.

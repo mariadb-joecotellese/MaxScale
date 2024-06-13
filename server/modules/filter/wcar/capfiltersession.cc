@@ -18,6 +18,12 @@ const auto set_last_gtid = mariadb::create_query(
     "SET @@session.session_track_system_variables = CASE @@session.session_track_system_variables "
     "WHEN '*' THEN '*' WHEN '' THEN 'last_gtid' ELSE "
     "CONCAT(@@session.session_track_system_variables, ',last_gtid') END;");
+
+inline uint32_t extract_binary_ps_id(const GWBUF& buffer)
+{
+    const uint8_t* ptr = buffer.data() + MYSQL_PS_ID_OFFSET;
+    return mariadb::get_byte4(ptr);
+}
 }
 
 // static
@@ -238,6 +244,7 @@ QueryEvent CapFilterSession::make_rollback_event()
     rollback_event.end_time = rollback_event.start_time;
     rollback_event.event_id = m_filter.get_next_event_id();
     rollback_event.sTrx = m_session_state.make_fake_trx(rollback_event.event_id);
+    set_type_mask(rollback_event, maxscale::sql::TYPE_ROLLBACK);
 
     return rollback_event;
 }
@@ -258,6 +265,8 @@ QueryEvent CapFilterSession::make_closing_event()
 
 bool CapFilterSession::routeQuery(GWBUF&& buffer)
 {
+    auto cmd = mariadb::get_command(buffer);
+
     std::lock_guard guard{m_state_mutex};
     if (m_init_state == InitState::SEND_QUERY)
     {
@@ -278,28 +287,51 @@ bool CapFilterSession::routeQuery(GWBUF&& buffer)
 
     if (m_ps_tracker.is_multipart() || m_ps_tracker.should_ignore())
     {
-        // TODO: This does not work if multiple queries are pending. A small COM_QUERY followed by a very
-        // TODO: big COM_QUERY will cause both to not be recorded.
         m_queries.emplace_back(false, std::move(query_event));
         return mxs::FilterSession::routeQuery(std::move(buffer));
     }
 
-    if (auto [canonical, args] = m_ps_tracker.get_args(buffer); !canonical.empty())
+    auto capture_type_mask = parser().get_type_mask(buffer);
+
+    if (cmd == MXS_COM_STMT_PREPARE)
     {
-        query_event.sCanonical = std::make_shared<std::string>(std::move(canonical));
-        query_event.canonical_args = std::move(args);
+        auto ps_id = buffer.id();
+        m_ps_id_to_type_mask.insert(std::make_pair(ps_id, capture_type_mask));
     }
-    else
+    else if (cmd == MXS_COM_STMT_CLOSE)
     {
-        if (!generate_canonical_for(buffer, &query_event))
-        {
-            capture = false;
-        }
+        auto ps_id = extract_binary_ps_id(buffer);
+        mxb_assert(m_ps_id_to_type_mask.find(ps_id) != m_ps_id_to_type_mask.end());
+        capture_type_mask = m_ps_id_to_type_mask[ps_id];
+        m_ps_id_to_type_mask.erase(ps_id);
     }
 
     if (capture)
     {
-        set_type_mask(query_event, parser().get_type_mask(buffer));
+        if (auto [canonical, args] = m_ps_tracker.get_args(buffer); !canonical.empty())
+        {
+            query_event.sCanonical = std::make_shared<std::string>(std::move(canonical));
+            query_event.canonical_args = std::move(args);
+            if (cmd == MXS_COM_STMT_EXECUTE)
+            {
+                auto ps_id = extract_binary_ps_id(buffer);
+                mxb_assert(m_ps_id_to_type_mask.find(ps_id) != m_ps_id_to_type_mask.end());
+                capture_type_mask = m_ps_id_to_type_mask[ps_id];
+            }
+        }
+        else
+        {
+            if (generate_canonical_for(buffer, &query_event))
+            {
+                capture_type_mask = get_type_mask(query_event);
+            }
+            else
+            {
+                capture = false;
+            }
+        }
+
+        set_type_mask(query_event, capture_type_mask);      // ok even if capture was set to false above
     }
 
     const auto& maria_ses = static_cast<const MYSQL_session&>(protocol_data());
@@ -373,6 +405,7 @@ bool CapFilterSession::clientReply(GWBUF&& buffer,
 
 bool CapFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* pQuery_event)
 {
+    using namespace maxscale::sql;
     auto cmd = mariadb::get_command(buffer);
     bool generated = true;
 
@@ -387,6 +420,7 @@ bool CapFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* p
             auto* pEnd = data + buffer.length();
             pQuery_event->sCanonical =
                 std::make_shared<std::string>("use "s + std::string(pStart, pEnd));
+            set_type_mask(*pQuery_event, TYPE_READ | TYPE_WRITE);
         }
         break;
 
