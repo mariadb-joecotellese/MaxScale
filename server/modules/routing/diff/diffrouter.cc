@@ -858,7 +858,12 @@ bool DiffRouter::start_replication(const SERVER& server, ReplicationMode mode)
         {
             rv = mdb.cmd("RESET SLAVE");
 
-            if (!rv)
+            if (rv)
+            {
+                MXB_NOTICE("Replication on %s:%d was reset.",
+                           server.address(), server.port());
+            }
+            else
             {
                 MXB_ERROR("Could not reset replication on %s:%d, error: %s",
                           server.address(), server.port(), mdb.error());
@@ -870,7 +875,12 @@ bool DiffRouter::start_replication(const SERVER& server, ReplicationMode mode)
             rv = mdb.cmd("START SLAVE");
             // TODO: It should be checked that it indeed started.
 
-            if (!rv)
+            if (rv)
+            {
+                MXB_NOTICE("Replication on %s:%d was started.",
+                           server.address(), server.port());
+            }
+            else
             {
                 MXB_ERROR("Could not start replication on %s:%d, error: %s",
                           server.address(), server.port(), mdb.error());
