@@ -40,6 +40,21 @@ void RepPlayer::replay()
             m_stopwatch.restart();
         }
 
+        if (m_config.query_filter != RepConfig::QueryFilter::NONE)
+        {
+            bool read_only = m_config.query_filter == RepConfig::QueryFilter::READ_ONLY;
+            bool write_only = !read_only;
+
+            if (read_only && !include_in_read_only_replay(qevent))
+            {
+                continue;
+            }
+            else if (write_only && !include_in_write_only_replay(qevent))
+            {
+                continue;
+            }
+        }
+
         auto session_ite = m_sessions.find(qevent.session_id);
 
         if (session_ite == end(m_sessions))

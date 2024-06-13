@@ -152,6 +152,11 @@ void RepTransform::transform_events(const fs::path& path, Action action)
         mxb_assert(m_max_parallel_sessions > 0);
     }
 
+    if (m_config.query_filter == RepConfig::QueryFilter::READ_ONLY)
+    {
+        m_trxs.clear();
+    }
+
     duration<double> nominal_runtime {tx_js.at("capture/duration").get_real()};
     duration<double> sim_runtime = nominal_runtime;
 
