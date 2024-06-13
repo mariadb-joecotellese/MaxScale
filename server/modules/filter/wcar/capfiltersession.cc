@@ -182,7 +182,7 @@ std::vector<QueryEvent> CapFilterSession::make_opening_events(wall_time::TimePoi
     // The "- 1ns" is there to avoid having to take the flag into account in later sorting
     opening_event.start_time = start_time - 1ns;
     opening_event.end_time = start_time;
-    set_flags(opening_event, CAP_ARTIFICIAL);
+    set_capture_flags(opening_event, CAP_ARTIFICIAL);
 
     if (!maria_ses.current_db.empty())
     {
@@ -251,7 +251,7 @@ QueryEvent CapFilterSession::make_closing_event()
     closing_event.start_time = SimTime::sim_time().now() + 1ns;
     closing_event.end_time = closing_event.start_time;
     closing_event.event_id = m_filter.get_next_event_id();
-    set_flags(closing_event, CAP_SESSION_CLOSE);
+    set_capture_flags(closing_event, CAP_SESSION_CLOSE);
 
     return closing_event;
 }
@@ -396,12 +396,12 @@ bool CapFilterSession::generate_canonical_for(const GWBUF& buffer, QueryEvent* p
         break;
 
     case MXS_COM_RESET_CONNECTION:
-        set_flags(*pQuery_event, CAP_RESET_CONNECTION);
+        set_capture_flags(*pQuery_event, CAP_RESET_CONNECTION);
         pQuery_event->sCanonical = std::make_shared<std::string>("/** RESET CONNECTION */");
         break;
 
     case MXS_COM_PING:
-        set_flags(*pQuery_event, CAP_PING);
+        set_capture_flags(*pQuery_event, CAP_PING);
         pQuery_event->sCanonical = std::make_shared<std::string>("/** PING */");
         break;
 

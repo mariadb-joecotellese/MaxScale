@@ -5,8 +5,10 @@
  */
 #pragma once
 
-#include <maxbase/ccdefs.hh>
+#include "capdefs.hh"
+
 #include <maxbase/stopwatch.hh>
+#include <maxbase/assert.hh>
 #include <maxsimd/canonical.hh>
 #include <memory>
 #include <iostream>
@@ -43,12 +45,12 @@ inline std::ostream& operator<<(std::ostream& os, const Gtid& gtid)
 }
 
 // Flags used by capture. Bits 32 to 47 (fifth and sixth byte) of QueryEvent::flags.
-enum CapFlags : uint16_t
+enum CapFlags : uint64_t
 {
-    CAP_SESSION_CLOSE    = 1 << 0,
-    CAP_ARTIFICIAL       = 1 << 1,
-    CAP_RESET_CONNECTION = 1 << 2,
-    CAP_PING             = 1 << 3,
+    CAP_SESSION_CLOSE    = 1ul << 32,
+    CAP_ARTIFICIAL       = 1ul << 33,
+    CAP_RESET_CONNECTION = 1ul << 34,
+    CAP_PING             = 1ul << 35,
 };
 
 struct QueryEvent
@@ -82,15 +84,17 @@ inline uint32_t get_type_mask(const QueryEvent& qevent)
     return qevent.flags;
 }
 
-inline void set_flags(QueryEvent& qevent, CapFlags flags)
+inline void set_capture_flags(QueryEvent& qevent, uint64_t flags)
 {
     static constexpr uint64_t FLAGS_MASK = 0xff'ff'00'00'ff'ff'ff'ff;
-    qevent.flags = (qevent.flags & FLAGS_MASK) | ((uint64_t) flags << 32);
+    mxb_assert((flags & FLAGS_MASK) == 0);
+    qevent.flags = (qevent.flags & FLAGS_MASK) | flags;
 }
 
-inline uint16_t get_flags(const QueryEvent& qevent)
+inline uint64_t get_capture_flags(const QueryEvent& qevent)
 {
-    return qevent.flags >> 32;
+    static constexpr uint64_t FLAGS_MASK = 0x00'00'ff'ff'00'00'00'00;
+    return qevent.flags & FLAGS_MASK;
 }
 
 inline void set_error(QueryEvent& qevent, uint16_t error)
@@ -106,12 +110,12 @@ inline uint16_t get_error(const QueryEvent& qevent)
 
 inline bool is_session_close(const QueryEvent& qevent)
 {
-    return get_flags(qevent) & CAP_SESSION_CLOSE;
+    return get_capture_flags(qevent) & CAP_SESSION_CLOSE;
 }
 
 inline bool is_real_event(const QueryEvent& qevent)
 {
-    return (get_flags(qevent) & (CAP_ARTIFICIAL | CAP_SESSION_CLOSE)) == 0;
+    return (get_capture_flags(qevent) & (CAP_ARTIFICIAL | CAP_SESSION_CLOSE)) == 0;
 }
 
 inline std::ostream& operator<<(std::ostream& os, const QueryEvent& qevent)
