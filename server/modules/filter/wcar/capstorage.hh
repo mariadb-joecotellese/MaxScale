@@ -10,6 +10,7 @@
 #include <maxbase/stopwatch.hh>
 #include <maxbase/assert.hh>
 #include <maxsimd/canonical.hh>
+#include <maxscale/parser.hh>
 #include <memory>
 #include <iostream>
 
@@ -116,6 +117,58 @@ inline bool is_session_close(const QueryEvent& qevent)
 inline bool is_real_event(const QueryEvent& qevent)
 {
     return (get_capture_flags(qevent) & (CAP_ARTIFICIAL | CAP_SESSION_CLOSE)) == 0;
+}
+
+inline bool include_in_read_only_replay(const QueryEvent& qevent)
+{
+    using namespace maxscale::sql;
+
+    // autocommits are also TYPE_SESSION_WRITE
+    // START TRANSACTION READ ONLY is TYPE_READ | TYPE_BEGIN_TRX.
+    // Later, these can be included but that will require its own testing.
+    if (qevent.flags
+        & (TYPE_DISABLE_AUTOCOMMIT
+           | TYPE_ENABLE_AUTOCOMMIT
+           | TYPE_COMMIT
+           | TYPE_ROLLBACK
+           | TYPE_BEGIN_TRX))
+    {
+        return false;   // exclude
+    }
+
+    auto send_these = (qevent.flags & TYPE_READ)
+        || (qevent.flags & TYPE_SESSION_WRITE)
+        || (qevent.flags & TYPE_USERVAR_WRITE)
+        || (qevent.flags & TYPE_CREATE_TMP_TABLE)
+        || (qevent.flags & CAP_SESSION_CLOSE)
+        || (qevent.flags & CAP_ARTIFICIAL)
+        || (qevent.flags & CAP_PING)
+        || (qevent.flags & CAP_RESET_CONNECTION);
+
+    return send_these;
+}
+
+inline bool include_in_write_only_replay(const QueryEvent& qevent)
+{
+    using namespace maxscale::sql;
+
+    auto send_these = qevent.flags & TYPE_WRITE
+        || (qevent.flags & TYPE_BEGIN_TRX)
+        || (qevent.flags & TYPE_COMMIT)
+        || (qevent.flags & TYPE_ROLLBACK)
+        || (qevent.flags & TYPE_MASTER_READ)
+        || (qevent.flags & TYPE_SYSVAR_READ)
+        || (qevent.flags & TYPE_USERVAR_READ)
+        || (qevent.flags & TYPE_SESSION_WRITE)
+        || (qevent.flags & TYPE_USERVAR_WRITE)
+        || (qevent.flags & TYPE_GSYSVAR_WRITE)
+        || (qevent.flags & TYPE_NEXT_TRX)
+        || (qevent.flags & CAP_SESSION_CLOSE)
+        || (qevent.flags & CAP_ARTIFICIAL)
+        || (qevent.flags & CAP_PING)
+        || (qevent.flags & CAP_RESET_CONNECTION);
+
+    return send_these;
 }
 
 inline std::ostream& operator<<(std::ostream& os, const QueryEvent& qevent)
