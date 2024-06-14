@@ -167,9 +167,9 @@ void sanity_check(TestConnections& test)
         opt_outfile + " -A",                                // Test --analyze
         opt_outfile + " -v",                                // Verbose output
         opt_outfile + " -vv",                               // Very verbose output
-        opt_outfile + " --commit-order=none",               // No commit ordering
-        opt_outfile + " --commit-order=optimistic",         // No optimistic ordering
-        opt_outfile + " --commit-order=serialized",         // No serialized ordering
+        opt_outfile + " --commit-order none",               // No commit ordering
+        opt_outfile + " --commit-order normal",             // No normal ordering
+        opt_outfile + " --commit-order serialized",         // No serialized ordering
     };
 
     auto replay_cmd = MAKE_STR(ASAN_OPTS

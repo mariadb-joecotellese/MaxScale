@@ -108,7 +108,7 @@ RepPlayer::ExecutionInfo RepPlayer::get_execution_info(RepSession& session, cons
                 exec.can_execute = true;
                 break;
 
-            case RepConfig::CommitOrder::OPTIMISTIC:
+            case RepConfig::CommitOrder::NORMAL:
                 exec.can_execute = qevent.start_time <= m_front_trxn->end_time;
                 break;
 

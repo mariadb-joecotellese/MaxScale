@@ -46,13 +46,14 @@ struct RepConfig
         // No ordering of transactions
         NONE,
 
-        // Optimistic ordering of transactions. Assumes that if a transaction was started before the latest
-        // transaction was committed, it can be executed.
-        OPTIMISTIC,
+        // Orders transactions as per the transaction order during capture.
+        // A transaction can be scheduled to run if all transactions that
+        // ended before it during capture, have ended in replay.
+        NORMAL,
 
-        // Serialized ordering of transactions. A transaction can only start if it's the next transaction in
-        // line. This effectively serializes the execution of the workload for all transactions that cause
-        // modifications.
+        // Serialized ordering of transactions. A transaction can only start
+        // if it's the next transaction in line. This effectively serializes
+        // the execution of the workload for all transactions that cause modifications.
         SERIALIZED,
     };
 
@@ -63,7 +64,7 @@ struct RepConfig
     maxbase::Host host{"127.1.1.0", 3306};
     int           verbosity = 0;
     OutputType    output_type = OutputType::CSV;
-    CommitOrder   commit_order = CommitOrder::OPTIMISTIC;
+    CommitOrder   commit_order = CommitOrder::NORMAL;
     bool          analyze = false;
     mxb::Duration idle_wait{1s};
 

@@ -89,8 +89,8 @@ std::ostream& operator<<(std::ostream& os, RepConfig::CommitOrder commit_order)
         os << "none";
         break;
 
-    case RepConfig::CommitOrder::OPTIMISTIC:
-        os << "optimistic";
+    case RepConfig::CommitOrder::NORMAL:
+        os << "normal";
         break;
 
     case RepConfig::CommitOrder::SERIALIZED:
@@ -337,9 +337,9 @@ RepConfig::RepConfig(int argc, char** argv)
             {
                 commit_order = CommitOrder::NONE;
             }
-            else if (optarg == "optimistic"s)
+            else if (optarg == "normal"s)
             {
-                commit_order = CommitOrder::OPTIMISTIC;
+                commit_order = CommitOrder::NORMAL;
             }
             else if (optarg == "serialized"s)
             {
