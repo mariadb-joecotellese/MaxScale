@@ -41,20 +41,20 @@ std::vector<Command> s_commands{
 };
 }
 
-std::ostream& operator<<(std::ostream& os, RepConfig::CsvType csv_type)
+std::ostream& operator<<(std::ostream& os, RepConfig::OutputType output_type)
 {
-    switch (csv_type)
+    switch (output_type)
     {
-    case RepConfig::CsvType::NONE:
-        os << "none";
+    case RepConfig::OutputType::CSV:
+        os << "csv";
         break;
 
-    case RepConfig::CsvType::MINIMAL:
-        os << "minimal";
+    case RepConfig::OutputType::CSV_LARGE:
+        os << "csv-large";
         break;
 
-    case RepConfig::CsvType::FULL:
-        os << "full";
+    case RepConfig::OutputType::BINARY:
+        os << "binary";
         break;
     }
 
@@ -108,7 +108,7 @@ const struct option long_opts[] =
     {"password",     required_argument, 0, 'p'},
     {"host",         required_argument, 0, 'H'},
     {"speed",        required_argument, 0, 's'},
-    {"csv",          required_argument, 0, 'c'},
+    {"output-type",  required_argument, 0, 'O'},
     {"output",       required_argument, 0, 'o'},
     {"verbose",      no_argument,       0, 'v'},
     {"analyze",      no_argument,       0, 'A'},
@@ -121,7 +121,7 @@ const struct option long_opts[] =
 };
 
 // This is not separately checked, keep in sync with long_opts.
-const char* short_opts = "hu:p:H:s:c:o:vAi:C:B:f:V";
+const char* short_opts = "hu:p:H:s:O:o:vAi:C:B:f:V";
 
 // Creates a stream output overload for M, which is an ostream&
 // manipulator usually a lambda returning std::ostream&. Participates
@@ -269,7 +269,7 @@ void RepConfig::show_help()
               << OPT('u', user)
               << OPT('p', password)
               << OPT('H', host)
-              << OPT('c', csv)
+              << OPT('O', output_type)
               << OPT('o', output_file)
               << OPT('s', sim_speed)
               << OPT('i', idle_wait)
@@ -313,20 +313,20 @@ RepConfig::RepConfig(int argc, char** argv)
             }
             break;
 
-        case 'c':
-            csv = CsvType::NONE;
+        case 'O':
+            output_type = OutputType::CSV;
 
-            if (optarg == "minimal"s)
+            if (optarg == "csv-large"s)
             {
-                csv = CsvType::MINIMAL;
+                output_type = OutputType::CSV_LARGE;
             }
-            else if (optarg == "full"s)
+            else if (optarg == "binary"s)
             {
-                csv = CsvType::FULL;
+                output_type = OutputType::BINARY;
             }
-            else if (optarg != "none"s)
+            else if (optarg != "csv"s)
             {
-                std::cerr << "Invalid --csv value: " << optarg << std::endl;
+                std::cerr << "Invalid --output-type value: " << optarg << std::endl;
                 help = true;
                 error = true;
             }
@@ -508,9 +508,13 @@ std::unique_ptr<RepStorage> RepConfig::build_rep_storage() const
     fs::path path = output_file;
     bool file_exists = false;
 
-    if (csv == RepConfig::CsvType::NONE)
+    if (output_type == RepConfig::OutputType::BINARY)
     {
         path.replace_extension("rx");
+    }
+    else if (path.extension() == ".cx")
+    {
+        path.replace_extension("csv");
     }
 
     try
@@ -528,18 +532,18 @@ std::unique_ptr<RepStorage> RepConfig::build_rep_storage() const
         MXB_THROW(WcarError, "The replay file already exists, will not overwrite replay: " << path);
     }
 
-    if (csv == RepConfig::CsvType::MINIMAL)
+    if (output_type == RepConfig::OutputType::CSV)
     {
         return std::make_unique<RepCsvStorage>(path);
     }
-    else if (csv == RepConfig::CsvType::FULL)
+    else if (output_type == RepConfig::OutputType::CSV_LARGE)
     {
         CapBoostStorage boost(file_name, ReadWrite::READ_ONLY);
         return std::make_unique<RepCsvStorage>(path, boost.canonicals());
     }
     else
     {
-        mxb_assert(csv == RepConfig::CsvType::NONE);
+        mxb_assert(output_type == RepConfig::OutputType::BINARY);
         return std::make_unique<RepBoostStorage>(path, RepBoostStorage::WRITE_ONLY);
     }
 }

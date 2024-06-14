@@ -27,11 +27,11 @@ static const char* SHOW = "show";
 
 struct RepConfig
 {
-    enum class CsvType
+    enum class OutputType
     {
-        NONE,
-        MINIMAL,
-        FULL,
+        CSV,
+        CSV_LARGE,
+        BINARY
     };
 
     enum class QueryFilter
@@ -62,7 +62,7 @@ struct RepConfig
     std::string   password{"skysql"};
     maxbase::Host host{"127.1.1.0", 3306};
     int           verbosity = 0;
-    CsvType       csv = CsvType::NONE;
+    OutputType    output_type = OutputType::CSV;
     CommitOrder   commit_order = CommitOrder::OPTIMISTIC;
     bool          analyze = false;
     mxb::Duration idle_wait{1s};
@@ -84,5 +84,5 @@ struct RepConfig
 };
 
 std::ostream& operator<<(std::ostream& os, RepConfig::QueryFilter query_filter);
-std::ostream& operator<<(std::ostream& os, RepConfig::CsvType csv_type);
+std::ostream& operator<<(std::ostream& os, RepConfig::OutputType output_type);
 std::ostream& operator<<(std::ostream& os, RepConfig::CommitOrder commit_order);

@@ -115,7 +115,7 @@ void sanity_check(TestConnections& test)
 
     test.tprintf("Attempting replay without the correct file permissions");
     int rc = test.maxscale->ssh_node_f(false, ASAN_OPTS
-                                       "maxplayer replay -u %s -p %s -H %s:%d --csv -o /tmp/replay.csv %s",
+                                       "maxplayer replay -u %s -p %s -H %s:%d -o /tmp/replay.csv %s",
                                        test.repl->user_name().c_str(),
                                        test.repl->password().c_str(),
                                        test.repl->ip(0),
@@ -137,7 +137,7 @@ void sanity_check(TestConnections& test)
 
     test.tprintf("Attempting a replay with the correct file permissions");
     rc = test.maxscale->ssh_node_f(true, ASAN_OPTS
-                                   "maxplayer replay -u %s -p %s -H %s:%d --csv -o /tmp/replay.csv %s",
+                                   "maxplayer replay -u %s -p %s -H %s:%d -o /tmp/replay.csv %s",
                                    test.repl->user_name().c_str(),
                                    test.repl->password().c_str(),
                                    test.repl->ip(0),
@@ -158,18 +158,18 @@ void sanity_check(TestConnections& test)
 
     auto after = m.field("CHECKSUM TABLE test.wcar_basic EXTENDED", 1);
     MXT_EXPECT_F(before == after, "CHECKSUM TABLE mismatch: %s != %s", before.c_str(), after.c_str());
-    std::string opt_outfile = "-o /tmp/output.csv --csv";
+    std::string opt_outfile = "-o /tmp/output.csv";
     std::vector<std::string> options = {
-        "-o /tmp/replay.rx",                        // Generates .rx files
-        "-o /tmp/output-full.csv --csv=full",       // Full CSV output
-        "-o /dev/null --csv",                       // Discards output
-        opt_outfile + " --speed 0",                 // Replay as fast as possible
-        opt_outfile + " -A",                        // Test --analyze
-        opt_outfile + " -v",                        // Verbose output
-        opt_outfile + " -vv",                       // Very verbose output
-        opt_outfile + " --commit-order=none",       // No commit ordering
-        opt_outfile + " --commit-order=optimistic", // No optimistic ordering
-        opt_outfile + " --commit-order=serialized", // No serialized ordering
+        "-o /tmp/replay.rx --output-type binary",           // Generates .rx files
+        "-o /tmp/output-full.csv --output-type csv-large",  // Full CSV output
+        "-o /dev/null",                                     // Discards output
+        opt_outfile + " --speed 0",                         // Replay as fast as possible
+        opt_outfile + " -A",                                // Test --analyze
+        opt_outfile + " -v",                                // Verbose output
+        opt_outfile + " -vv",                               // Very verbose output
+        opt_outfile + " --commit-order=none",               // No commit ordering
+        opt_outfile + " --commit-order=optimistic",         // No optimistic ordering
+        opt_outfile + " --commit-order=serialized",         // No serialized ordering
     };
 
     auto replay_cmd = MAKE_STR(ASAN_OPTS
@@ -242,26 +242,26 @@ void sanity_check(TestConnections& test)
     MXT_EXPECT_F(rc == 0, ".rx file doesn't exist");
 
     test.tprintf("Convert .cx into .csv");
-    res = test.maxscale->ssh_output("maxplayer convert " + replay_file + " --csv -o /tmp/converted.csv 2>&1",
+    res = test.maxscale->ssh_output("maxplayer convert " + replay_file + " -o /tmp/converted.csv 2>&1",
                                     true);
     MXT_EXPECT_F(res.rc == 0, "Convert from .cx to .csv should work: %s", res.output.c_str());
     rc = test.maxscale->ssh_node("test -f /tmp/converted.csv", true);
     MXT_EXPECT_F(rc == 0, ".csv file doesn't exist");
 
     test.tprintf("Convert .rx into .csv");
-    res = test.maxscale->ssh_output("maxplayer convert /tmp/replay.rx --csv -o /tmp/converted2.csv 2>&1",
+    res = test.maxscale->ssh_output("maxplayer convert /tmp/replay.rx -o /tmp/converted2.csv 2>&1",
                                     true);
     MXT_EXPECT_F(res.rc == 0, "Convert from .rx to .csv should work: %s", res.output.c_str());
     rc = test.maxscale->ssh_node("test -f /tmp/converted2.csv", true);
     MXT_EXPECT_F(rc == 0, ".csv file doesn't exist");
 
     test.tprintf("Converting a .csv should result in an error");
-    res = test.maxscale->ssh_output("maxplayer convert /tmp/converted2.csv --csv -o /tmp/converted3.csv 2>&1",
+    res = test.maxscale->ssh_output("maxplayer convert /tmp/converted2.csv -o /tmp/converted3.csv 2>&1",
                                     true);
     MXT_EXPECT_F(res.rc != 0, "Convert from .csv should fail");
 
     test.tprintf("Converting an unknown file type should result in an error");
-    res = test.maxscale->ssh_output("maxplayer convert /etc/maxscale.cnf --csv -o /tmp/converted4.csv 2>&1",
+    res = test.maxscale->ssh_output("maxplayer convert /etc/maxscale.cnf -o /tmp/converted4.csv 2>&1",
                                     true);
     MXT_EXPECT_F(res.rc != 0, "Converting unknown files should fail");
 
@@ -271,7 +271,7 @@ void sanity_check(TestConnections& test)
                               "cp %s /tmp/readable.cx;cp %s /tmp/readable.ex;cp %s /tmp/readable.gx;"
                               "chmod a+rwx /tmp/readable.*",
                               replay_file.c_str(), event_file.c_str(), gtid_file.c_str());
-    std::string good_cmd = replay_cmd + "--csv -o /dev/null /tmp/readable.cx";
+    std::string good_cmd = replay_cmd + "-o /dev/null /tmp/readable.cx";
     MXT_EXPECT(m.query("DROP TABLE test.wcar_basic"));
     res = test.maxscale->ssh_output(good_cmd, false);
     MXT_EXPECT_F(res.rc == 0, "Replay failed: %s", res.output.c_str());
@@ -288,10 +288,10 @@ void sanity_check(TestConnections& test)
         "maxplayer canonicals file that does not exist",
         "maxplayer replay",
         good_cmd + " --commit-order=anything",
-        good_cmd + " --csv=perhaps",
+        good_cmd + " --output-type perhaps",
         good_cmd + " --host=/",
         good_cmd + " --foo=bar",
-        good_cmd + " --csv -o /tmp/foo/bar/baz",
+        good_cmd + " -o /tmp/foo/bar/baz",
     })
     {
         res = test.maxscale->ssh_output(bad_cmd, false);
@@ -307,7 +307,7 @@ void do_replay_and_checksum(TestConnections& test)
     test.maxscale->stop();
 
     int rc = test.maxscale->ssh_node_f(true, ASAN_OPTS
-                                       "maxplayer replay -u %s -p %s -H %s:%d --csv -o /tmp/replay.csv "
+                                       "maxplayer replay -u %s -p %s -H %s:%d -o /tmp/replay.csv "
                                        "/var/lib/maxscale/wcar/WCAR/*.cx",
                                        test.repl->user_name().c_str(), test.repl->password().c_str(),
                                        test.repl->ip(0), test.repl->port(0));

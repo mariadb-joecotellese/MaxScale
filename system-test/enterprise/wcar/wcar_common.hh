@@ -102,7 +102,7 @@ void do_replay(TestConnections& test, std::string filter, std::string options = 
             int rc = test.maxscale->ssh_node_f(
                 true,
                 ASAN_OPTS
-                "maxplayer replay -u %s -p %s -H %s:%d --csv -o /tmp/replay-%s.csv "
+                "maxplayer replay -u %s -p %s -H %s:%d -o /tmp/replay-%s.csv "
                 "%s %s",
                 test.repl->user_name().c_str(), test.repl->password().c_str(),
                 test.repl->ip(0), test.repl->port(0),
