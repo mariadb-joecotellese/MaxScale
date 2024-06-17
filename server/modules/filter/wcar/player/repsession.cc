@@ -149,6 +149,7 @@ void stop_deadlock_monitor()
 bool RepSession::execute_stmt(const QueryEvent& qevent)
 {
     bool count_rows = m_config.analyze;
+    bool rows_counted = false;
     auto sql = maxsimd::canonical_args_to_sql(*qevent.sCanonical, qevent.canonical_args);
 
     RepEvent revent;
@@ -176,11 +177,18 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
 
         if (count_rows)
         {
-            mysql_send_query(m_pConn, SHOW_STATUS_SQL.c_str(), SHOW_STATUS_SQL.size());
+            if (mysql_send_query(m_pConn, SHOW_STATUS_SQL.c_str(), SHOW_STATUS_SQL.size()))
+            {
+                MXB_SERROR("Failed to send SHOW STATUS: " << mysql_error(m_pConn));
+            }
+            else
+            {
+                rows_counted = true;
+            }
         }
-    }
 
-    rc = mysql_read_query_result(m_pConn);
+        rc = mysql_read_query_result(m_pConn);
+    }
 
     if (rc)
     {
@@ -215,7 +223,7 @@ bool RepSession::execute_stmt(const QueryEvent& qevent)
 
     revent.end_time = SimTime::sim_time().real_now();
 
-    if (count_rows)
+    if (count_rows && rows_counted)
     {
         rc = mysql_read_query_result(m_pConn);
         mxb_assert(rc == 0);
