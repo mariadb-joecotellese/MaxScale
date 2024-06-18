@@ -1,6 +1,14 @@
 # Changelog
 
-## MariaDB MaxScale Enterprise 24.02.1
+## MariaDB MaxScale Enterprise 24.02.2.0
+
+Compatible with MaxScale 24.02.2
+
+For more details, please refer to:
+
+* [MariaDB MaxScale Enterprise 24.02.2.0 Release Notes](Release-Notes/MaxScale_Enterprise-24.02.2.0-Release-Notes.md)
+
+## MariaDB MaxScale Enterprise 24.02.1.0
 
 Compatible with MaxScale 24.02.1
 
