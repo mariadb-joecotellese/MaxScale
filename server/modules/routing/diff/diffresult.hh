@@ -120,16 +120,29 @@ private:
     DiffRegistry::Entries m_explainers;
 };
 
+/**
+ * @class DiffMainResult
+ *
+ * A result originating from the 'main' server.
+ */
+class DiffMainResult : public DiffResult
+{
+public:
+    virtual void inform_dependents() = 0;
+
+protected:
+    using DiffResult::DiffResult;
+};
 
 /**
- * @template DiffMainResult
+ * @template DiffMainResultT
  *
  * A result originating from the 'main' server.
  * To be instantiated with the class from the 'other' hierarchy that
  * matches the 'main' class that is derived from this template.
  */
 template<class OtherResult_>
-class DiffMainResult : public DiffResult
+class DiffMainResultT : public DiffMainResult
 {
 public:
     using Backend = DiffMainBackend;
@@ -150,9 +163,20 @@ public:
         m_dependents.erase(it);
     }
 
+    void inform_dependents() override
+    {
+        // A dependent may end up removing itself.
+        auto dependents = m_dependents;
+
+        for (auto sDependent : dependents)
+        {
+            sDependent->main_was_closed();
+        }
+    }
+
 protected:
-    DiffMainResult(DiffMainBackend* pBackend)
-        : DiffResult(pBackend)
+    DiffMainResultT(DiffMainBackend* pBackend)
+        : DiffMainResult(pBackend)
     {
     }
 
@@ -168,12 +192,12 @@ protected:
  */
 class DiffOrdinaryOtherResult;
 
-class DiffOrdinaryMainResult final : public DiffMainResult<DiffOrdinaryOtherResult>
+class DiffOrdinaryMainResult final : public DiffMainResultT<DiffOrdinaryOtherResult>
                                    , public std::enable_shared_from_this<DiffOrdinaryMainResult>
 
 {
 public:
-    using Base = DiffMainResult<DiffOrdinaryOtherResult>;
+    using Base = DiffMainResultT<DiffOrdinaryOtherResult>;
 
     DiffOrdinaryMainResult(DiffMainBackend* pBackend, const GWBUF& packet);
 
@@ -270,9 +294,6 @@ public:
         m_sMain_result->remove_dependent(pThis->shared_from_this());
         m_registered_at_main = false;
     }
-
-private:
-    friend MainResult;
 
     void main_was_closed()
     {
@@ -416,10 +437,10 @@ private:
  */
 class DiffExplainOtherResult;
 
-class DiffExplainMainResult final : public DiffExplainResult<DiffMainResult<DiffExplainOtherResult>>
+class DiffExplainMainResult final : public DiffExplainResult<DiffMainResultT<DiffExplainOtherResult>>
 {
 public:
-    using Base = DiffExplainResult<DiffMainResult<DiffExplainOtherResult>>;
+    using Base = DiffExplainResult<DiffMainResultT<DiffExplainOtherResult>>;
 
     DiffExplainMainResult(DiffMainBackend* pBackend, std::shared_ptr<DiffOrdinaryMainResult> sMain_result);
 

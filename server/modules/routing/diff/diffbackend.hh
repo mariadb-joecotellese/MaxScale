@@ -255,6 +255,7 @@ void DiffConcreteBackend<Stats, Result, ExplainResult>::close(close_type type)
     DiffBackend::close(type);
 
     m_results.clear();
+    m_pending_explains.clear();
 }
 
 template<class Stats, class Result, class ExplainResult>
@@ -320,12 +321,15 @@ bool DiffConcreteBackend<Stats, Result, ExplainResult>::execute(const SExplainRe
 /**
  * @class DiffMainBackend
  */
-class DiffMainBackend final : public DiffConcreteBackend<DiffMainStats, DiffResult, DiffExplainMainResult>
+class DiffMainBackend final : public DiffConcreteBackend<DiffMainStats, DiffMainResult, DiffExplainMainResult>
 {
 public:
-    using Base = DiffConcreteBackend<DiffMainStats, DiffResult, DiffExplainMainResult>;
+    using Base = DiffConcreteBackend<DiffMainStats, DiffMainResult, DiffExplainMainResult>;
 
     DiffMainBackend(mxs::Endpoint* pEndpoint, const SDiffQps& sQps);
+    ~DiffMainBackend();
+
+    void close(close_type type = CLOSE_NORMAL) override;
 
     std::shared_ptr<DiffOrdinaryMainResult> prepare(const GWBUF& packet);
 
@@ -337,6 +341,8 @@ public:
     void ready(const DiffExplainMainResult& result);
 
 private:
+    void inform_dependents();
+
     uint8_t m_command { 0 };
 };
 
@@ -367,6 +373,8 @@ public:
                      std::shared_ptr<DiffExporter> sExporter);
     ~DiffOtherBackend();
 
+    void close(close_type type = CLOSE_NORMAL) override;
+
     void inc_requests_skipped()
     {
         m_stats.inc_requests_skipped();
@@ -384,7 +392,11 @@ public:
 
     void prepare(const std::shared_ptr<DiffOrdinaryMainResult>& sMain_result);
 
+    void unprepare();
+
 private:
+    void deregister_results(bool warn);
+
     // DiffOrdinaryOtherResult::Handler
     void ready(DiffOrdinaryOtherResult& other_result) override;
 

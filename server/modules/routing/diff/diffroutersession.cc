@@ -149,9 +149,21 @@ bool DiffRouterSession::routeQuery(GWBUF&& packet)
                             sOther->prepare(sMain_result);
                         }
 
-                        sOther->write(packet.shallow_clone(), type);
-                        MXB_INFO("Wrote to other backend '%s': %.*s",
-                                 sOther->name(),(int)sql.length(), sql.data());
+                        if (sOther->write(packet.shallow_clone(), type))
+                        {
+                            MXB_INFO("Wrote to other backend '%s': %.*s",
+                                     sOther->name(),(int)sql.length(), sql.data());
+                        }
+                        else
+                        {
+                            MXB_INFO("Failed to write to other backend '%s': %.*s",
+                                     sOther->name(),(int)sql.length(), sql.data());
+
+                            if (type != mxs::Backend::NO_RESPONSE)
+                            {
+                                sOther->unprepare();
+                            }
+                        }
                     }
                 }
             }
@@ -193,6 +205,11 @@ bool DiffRouterSession::handleError(mxs::ErrorType type,
                                     const mxs::Reply& reply)
 {
     auto* pBackend = static_cast<DiffBackend*>(pProblem->get_userdata());
+
+    MXB_INFO("Got error from %s backend %s: %s",
+             pBackend == m_sMain.get() ? "main" : "other",
+             pBackend->name(),
+             message.c_str());
 
     pBackend->close();
 

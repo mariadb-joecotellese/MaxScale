@@ -71,6 +71,18 @@ DiffMainBackend::DiffMainBackend(mxs::Endpoint* pEndpoint, const SDiffQps& sQps)
 {
 }
 
+DiffMainBackend::~DiffMainBackend()
+{
+    inform_dependents();
+}
+
+void DiffMainBackend::close(close_type type)
+{
+    inform_dependents();
+
+    DiffConcreteBackend::close(type);
+}
+
 std::shared_ptr<DiffOrdinaryMainResult> DiffMainBackend::prepare(const GWBUF& packet)
 {
     auto sMain_result = std::make_shared<DiffOrdinaryMainResult>(this, packet);
@@ -93,6 +105,18 @@ void DiffMainBackend::ready(const DiffExplainMainResult& explain_result)
     execute_pending_explains();
 }
 
+void DiffMainBackend::inform_dependents()
+{
+    for (auto sResult : m_results)
+    {
+        sResult->inform_dependents();
+    }
+
+    for (auto sPending_explain : m_pending_explains)
+    {
+        sPending_explain->inform_dependents();
+    }
+}
 
 /**
  * DiffOtherBackend
@@ -109,6 +133,41 @@ DiffOtherBackend::DiffOtherBackend(mxs::Endpoint* pEndpoint,
 
 DiffOtherBackend::~DiffOtherBackend()
 {
+    deregister_results(true);
+}
+
+void DiffOtherBackend::close(close_type type)
+{
+    deregister_results(false);
+
+    DiffConcreteBackend::close(type);
+}
+
+void DiffOtherBackend::prepare(const std::shared_ptr<DiffOrdinaryMainResult>& sMain_result)
+{
+    // std::make_shared can't be used, because the private COtherResult::Handler base is inaccessible.
+    auto* pOther_result = new DiffOrdinaryOtherResult(this, this, sMain_result);
+    auto sOther_result = std::shared_ptr<DiffOrdinaryOtherResult>(pOther_result);
+
+    sOther_result->register_at_main();
+
+    m_results.emplace_back(std::move(sOther_result));
+}
+
+void DiffOtherBackend::unprepare()
+{
+    mxb_assert(!m_results.empty());
+
+    auto sOther_result = m_results.back();
+    m_results.pop_back();
+
+    mxb_assert(sOther_result->registered_at_main());
+
+    sOther_result->deregister_from_main();
+}
+
+void DiffOtherBackend::deregister_results(bool warn)
+{
     int nStill_registered = 0;
 
     for (auto& sResult : m_results)
@@ -120,7 +179,7 @@ DiffOtherBackend::~DiffOtherBackend()
         }
     }
 
-    if (nStill_registered != 0)
+    if (warn && nStill_registered != 0)
     {
         MXB_WARNING("At session close, there was %d result(s) of %s that "
                     "still waited for the 'main' result.", nStill_registered, name());
@@ -139,23 +198,11 @@ DiffOtherBackend::~DiffOtherBackend()
         }
     }
 
-    if (nStill_registered != 0)
+    if (warn && nStill_registered != 0)
     {
         MXB_WARNING("At session close, there was %d EXPLAIN result(s) of %s that "
                     "still waited for the 'main' EXPLAIN result.", nStill_registered, name());
     }
-
-}
-
-void DiffOtherBackend::prepare(const std::shared_ptr<DiffOrdinaryMainResult>& sMain_result)
-{
-    // std::make_shared can't be used, because the private COtherResult::Handler base is inaccessible.
-    auto* pOther_result = new DiffOrdinaryOtherResult(this, this, sMain_result);
-    auto sOther_result = std::shared_ptr<DiffOrdinaryOtherResult>(pOther_result);
-
-    sOther_result->register_at_main();
-
-    m_results.emplace_back(std::move(sOther_result));
 }
 
 void DiffOtherBackend::ready(DiffOrdinaryOtherResult& other_result)

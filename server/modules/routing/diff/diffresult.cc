@@ -133,13 +133,7 @@ std::chrono::nanoseconds DiffOrdinaryMainResult::close(const mxs::Reply& reply)
 {
     auto rv = DiffResult::close(reply);
 
-    // A dependent may end up removing itself.
-    auto dependents = m_dependents;
-
-    for (std::shared_ptr<DiffOrdinaryOtherResult> sDependent : dependents)
-    {
-        sDependent->main_was_closed();
-    }
+    inform_dependents();
 
     return rv;
 }
@@ -192,13 +186,7 @@ std::chrono::nanoseconds DiffExplainMainResult::close(const mxs::Reply& reply)
 {
     auto rv = DiffExplainResult::close(reply);
 
-    // A dependent may end up removing itself.
-    auto dependents = m_dependents;
-
-    for (std::shared_ptr<DiffExplainOtherResult> sDependent : dependents)
-    {
-        sDependent->main_was_closed();
-    }
+    inform_dependents();
 
     static_cast<DiffMainBackend&>(backend()).ready(*this);
 
