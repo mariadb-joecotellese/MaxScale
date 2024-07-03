@@ -161,7 +161,7 @@ enum class OperationType
 
 enum class OpStart {MANUAL, AUTO};
 enum class SwitchoverType {NORMAL, AUTO, FORCE};
-enum class FailoverType {SAFE, ALLOW_TRX_LOSS};
+enum class FailoverType {SAFE, ALLOW_TRX_LOSS, WRITES_HANGED};
 
 class GeneralOpData
 {
